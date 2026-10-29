@@ -23,15 +23,15 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "17.0.0"
+VERSION = "18.0.0"
 BASE = f"https://www.unicode.org/Public/{VERSION}"
 # File name to (path under BASE, SHA-256).
 FILES = {
-    "IdnaMappingTable.txt": ("idna", "87f05505dc026fdb2bff16132bdc68a8014675836882a9a2b1844540ad3be382"),
-    "UnicodeData.txt": ("ucd", "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c"),
-    "DerivedNormalizationProps.txt": ("ucd", "71fd6a206a2c0cdd41feb6b7f656aa31091db45e9cedc926985d718397f9e488"),
-    "DerivedBidiClass.txt": ("ucd/extracted", "4867b4b7f0731ed1bfcd34cc6251211ff1542541fce0734b6fbda139ee80b3a4"),
-    "DerivedJoiningType.txt": ("ucd/extracted", "f39ebe974825d6736aee15582250307aa532b2cfab3caf3f86bd23fddc9c5c4d"),
+    "IdnaMappingTable.txt": ("idna", "a03b1eb38032268c696406a83f0972d6a815acd2c8d4151d42ec0fda70ffced1"),
+    "UnicodeData.txt": ("ucd", "0736451de439ae7baf1425136617da495e09ee5afbe6e394374db7009ea08950"),
+    "DerivedNormalizationProps.txt": ("ucd", "98ac7f67d985fe781e317f6182e885e94cabb0c314769e6dd73e48b226931ccd"),
+    "DerivedBidiClass.txt": ("ucd/extracted", "d9e23222522551348ea1ccfbb4f62efbf98982afb95840f8959c08ed992c5607"),
+    "DerivedJoiningType.txt": ("ucd/extracted", "e2408ff2c92b175b0f7bf62c989bbb54c7b077528fe31f8d69b96fa09e7d61ed"),
 }
 
 

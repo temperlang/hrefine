@@ -35,25 +35,29 @@ site that makes the point.
    Unicode data, both libraries could use that instead. Python's
    `unicodedata` is older (16.0 as of Python 3.14), so all the data comes
    from Unicode's own files, which `scripts/unicode_data.py` downloads
-   into `data/unicode-17.0.0/` (not in git) and checks against pinned
+   into `data/unicode-18.0.0/` (not in git) and checks against pinned
    hashes: `IdnaMappingTable.txt`, `UnicodeData.txt`,
    `DerivedNormalizationProps.txt`, `DerivedBidiClass.txt`, and
    `DerivedJoiningType.txt`.
-   *Done* (2026-10-29), but for Unicode 18.0: all three test files pass
-   on all seven backends. `scripts/idna_tables.py` writes the tables
-   (`src/idna-tables.temper.md`, 32 KB, the numbers written as text and
-   decoded on load); `src/idna.temper.md` has domain to ASCII, domain to
-   Unicode, and NFC, and `src/punycode.temper.md` Punycode. The vendored
-   IDNA tests turned out to be for Unicode 18.0 (web-platform-tests
-   moved them on 2026-10-04), so 7 cases that use code points new in
-   18.0 are counted apart until the tables move up: raise
+   *Done* (2026-10-29): all three test files pass on all seven
+   backends, with Unicode 18.0, which the vendored IDNA tests are for
+   (web-platform-tests moved them on 2026-10-04).
+   `scripts/idna_tables.py` writes the tables
+   (`src/idna-tables.temper.md`, 33 KB, the numbers written as text and
+   decoded on the first host that needs them); `src/idna.temper.md` has
+   domain to ASCII, domain to Unicode, and NFC, and
+   `src/punycode.temper.md` Punycode. For a new Unicode version, raise
    `unicode_data.py`'s VERSION, `--repin` (unicode.org isn't reachable
-   from the dev container), and regenerate.
+   from the dev container), regenerate, and update NOTICE.
 3. **Setters and search parameters:** changing a URL's parts as the
    standard's setters do (`setters_tests.json`), and
    `application/x-www-form-urlencoded` parsing and serializing
    (`URLSearchParams`).
-4. **Tours in every language,** checked in CI, as in Ordable.
+4. **Tours in every language,** checked in CI, as in Ordable. Each also
+   shows, in comments, the recommended pattern with that language's
+   usual web clients and servers (such as `fetch`, `requests`,
+   `HttpClient`, and `reqwest`): check with Hrefine, then hand on `href`,
+   never the original string (README, "Using it safely").
 5. **Formatting and lossless edits** (designed now, built after the
    above): a formatter in any case, and maybe both a normalizing and a
    preserving form; a source view that keeps the original input with each
@@ -67,14 +71,22 @@ site that makes the point.
    fragment). Security decisions stay on the standard's canonical form,
    never on the source view. The standard strips leading and trailing
    control characters and removes tabs and newlines before parsing, so
-   spans must map back through that.
+   spans must map back through that. Also a **strict RFC 3986 form:**
+   `href` with the few characters WHATWG leaves unencoded but strict
+   parsers reject or read differently (`|`, `^`, `{`, `}`, and the like)
+   percent-encoded, for clients such as Java's `URI`, so prenormalized
+   URLs are read alike there too.
 6. **The site:** a disagreement explorer. Type a URL and see the parts
    this library reads, beside each language's built-in parser (Python's
    `urllib`, Java's `URI`, C#'s `Uri`, Go's `net/url`, and the
    browser's own `URL`), from results a script records ahead of time,
    with differences lit up; plus a gallery of the famous tricks
    (`http://127.1`, `http://0x7f.1`, backslashes, look-alike hosts) and
-   the security holes they've caused.
+   the security holes they've caused. And the fix, shown: tricky inputs
+   fed to each language's parser disagree, while Hrefine's `href` (or its
+   strict form) fed to the same parsers agrees. Visit counts by
+   cookieless GoatCounter, site code `hrefine`, as on Chromarite's and
+   Ordable's sites.
 7. **Refine the API,** before 1.0. The name, Hrefine, was picked
    2026-10-29, after checking package registries and a web search for
    companies and trademarks; check USPTO and EUIPO before 1.0.
@@ -111,8 +123,22 @@ use; the source view is a separate, opt-in type.
   odd number forms, IPv6, and opaque hosts); percent-encoding and its
   encode sets; IDNA (mapping, checks, and NFC), Punycode, and IDNA's
   generated tables; and, later, search parameters.
-- **Speed:** check that parsing is fast enough in every language (a
-  benchmark like Ordable's), but correctness first.
+- **Speed and size:** as small and fast as we can make them, in every
+  language, without giving up exactness: a benchmark like Ordable's,
+  fast paths for the common ASCII case, few allocations, and compact
+  tables; measured per backend (2026-10-29).
+- **Size:** the IDNA tables about double the library (JS 64 to 125 KB).
+  They're decoded on the first host beyond ASCII (or with an `xn--`
+  label), so other uses don't pay for it: in Python, importing dropped
+  from about 90 to 50 ms, and the first such host takes about 40 ms
+  (2026-10-29).
+- **Native JS, maybe later:** once Temper's connected functions can fall
+  back to Temper bodies, an opt-in JS build could use the runtime's own
+  `URL` (in browsers, Node, Deno, and Bun) for parsing and IDNA, dropping
+  the tables. Pure Temper stays the default, since engines differ on WPT's
+  edge cases, which would break "the same in every language"; the native
+  build would run WPT in CI and say exactly where it differs. It keeps
+  the pure extras (typed parts, spans, reasons, and display).
 - **Test files are data:** `scripts/wpt_tests.py` writes the Temper test
   from the vendored JSON; regenerate it after updating the vendored files
   (and NOTICE's commit).

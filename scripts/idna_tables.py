@@ -24,13 +24,14 @@ disallowed code points, so they need the right combining class (always 0)
 and no decomposition (they have none), for NFC.
 
 Each table is a list of numbers, written as text a few characters per
-number, which the Temper code decodes when the library loads. The text
-is printable ASCII but `"`, `$`, `\\`, and space (DIGITS): each number is
-in base 45, most significant digit first, with the digits `DIGITS[45:90]`
-for all but the last, which comes from `DIGITS[0:45]`. Sorted columns are
-stored as differences, and signed numbers zigzagged (0, -1, 1, -2, 2 as 0,
-1, 2, 3, 4). The script checks every code point's lookup, through the
-same searches the Temper code does, against the Unicode files.
+number, which the Temper code decodes the first time it needs them. The
+text is printable ASCII but `"`, `$`, `\\`, and space (DIGITS): each
+number is in base 45, most significant digit first, with the digits
+`DIGITS[45:90]` for all but the last, which comes from `DIGITS[0:45]`.
+Sorted columns are stored as differences, and signed numbers zigzagged
+(0, -1, 1, -2, 2 as 0, 1, 2, 3, 4). The script checks every code point's
+lookup, through the same searches the Temper code does, against the
+Unicode files.
 """
 
 import sys
@@ -373,14 +374,14 @@ def property_runs(data: Data, seconds: set[int]) -> list[tuple[int, int]]:
 
 # Writing
 
-def text_lines(text: str, width: int = 72) -> str:
+def text_lines(text: str, width: int = 70) -> str:
     """Text as the lines of a Temper multi-quoted string, without breaks."""
-    return "\n".join(f"      ~{text[i:i + width]}" for i in range(0, len(text), width))
+    return "\n".join(f"        ~{text[i:i + width]}" for i in range(0, len(text), width))
 
 
 def write(version: str, ranges, pool, decomposed, runs, values, tables: dict[str, str]) -> None:
     def table(name: str) -> str:
-        return f'      """\n{text_lines(tables[name])}\n'
+        return f'        """\n{text_lines(tables[name])}\n'
 
     OUT.write_text(f"""# IDNA Tables
 
@@ -394,10 +395,13 @@ validity rules check. Lookups need to be right only for code points that
 can get that far, which lets the tables leave out much.
 
 Each table is a list of numbers written as text, a few characters per
-number, decoded when the library loads. The text is printable ASCII but
-`"`, `$`, `\\`, and space, which leaves 91 digits. Each number is in
-base 45, most significant digit first: digits 45 to 89 go on, and 0 to
-44 end the number. A digit's value is its place among those characters.
+number. They're decoded the first time a host needs them (one beyond
+ASCII, or with an `xn--` label), by `idnaTables` in
+[IDNA](idna.temper.md#lookups), so loading the library, and ASCII
+hosts, never pay for it. The text is printable ASCII but `"`, `$`,
+`\\`, and space, which leaves 91 digits. Each number is in base 45,
+most significant digit first: digits 45 to 89 go on, and 0 to 44 end
+the number. A digit's value is its place among those characters.
 
     let decodeNumbers(text: String): List<Int> {{
       let out = new ListBuilder<Int>();
@@ -438,6 +442,10 @@ Signed numbers are zigzagged, so 0, -1, 1, -2, and 2 are written as 0,
       if ((n & 1) == 0) {{ n >> 1 }} else {{ -(n >> 1) - 1 }}
     }}
 
+`decodeIdnaTables` decodes them all, as the sections below say.
+
+    let decodeIdnaTables(): IdnaTables {{
+
 ## The IDNA Mapping
 
 The status of every code point, and what mapped ones map to, from UTS
@@ -458,24 +466,14 @@ code point, and a kind (the low three bits) and a zigzagged detail
 
 <!-- -->
 
-    let idnaRanges: List<Int> = decodeRows(2,
-{table("idna")}    );
+      let idnaRanges = decodeRows(2,
+{table("idna")}      );
 
 The {len(pool)} code points that mappings of kind 5 point into, each stored
 as its zigzagged difference from the one before.
 
-    let idnaPool: List<Int> = decodePool(
-{table("pool")}    );
-
-    let decodePool(text: String): List<Int> {{
-      let numbers = decodeNumbers(text).toListBuilder();
-      var last = 0;
-      for (var k = 0; k < numbers.length; k += 1) {{
-        last += unzigzag(numbers[k]);
-        numbers[k] = last;
-      }}
-      numbers.toList()
-    }}
+      let idnaPool = decodePool(
+{table("pool")}      );
 
 ## Normalization
 
@@ -485,35 +483,8 @@ point. The first part is stored as the code point minus it, zigzagged.
 Every one is two code points, and each pair composes back, so NFC
 composes with this table too. Hangul syllables decompose by formula.
 
-    let decompositions: List<Int> = decodeDecompositions(
-{table("decompositions")}    );
-
-    let decodeDecompositions(text: String): List<Int> {{
-      let rows = decodeRows(3, text).toListBuilder();
-      for (var k = 0; k < rows.length; k += 3) {{
-        rows[k + 1] = rows[k] - unzigzag(rows[k + 1]);
-      }}
-      rows.toList()
-    }}
-
-The same rows' indices (divided by three), sorted by first part and then
-second part, for composing.
-
-    let compositionOrder: List<Int> = sortCompositions();
-
-    let sortCompositions(): List<Int> {{
-      let order = new ListBuilder<Int>();
-      for (var k = 0; k < decompositions.length; k += 3) {{
-        order.add(k / 3);
-      }}
-      order.sort(fn (a: Int, b: Int): Int {{
-        let byFirst = decompositions[a * 3 + 1] - decompositions[b * 3 + 1];
-        if (byFirst != 0) {{ byFirst }} else {{
-          decompositions[a * 3 + 2] - decompositions[b * 3 + 2]
-        }}
-      }});
-      order.toList()
-    }}
+      let decompositions = decodeDecompositions(
+{table("decompositions")}      );
 
 ## Properties
 
@@ -528,14 +499,39 @@ They're right for valid code points, and the bits for normalization
 
 There are {len(values)} different numbers, sorted:
 
-    let propertyValues: List<Int> = decodeNumbers(
-{table("values")}    );
+      let propertyValues = decodeNumbers(
+{table("values")}      );
 
 And {len(runs)} runs of a start and an index in `propertyValues`, each to
 the next one's start:
 
-    let propertyRuns: List<Int> = decodeRows(2,
-{table("properties")}    );
+      let propertyRuns = decodeRows(2,
+{table("properties")}      );
+
+With the indices that lookups use, made from these.
+
+      keepIdnaTables(idnaRanges, idnaPool, decompositions, propertyValues, propertyRuns)
+    }}
+
+## Decoding
+
+    let decodePool(text: String): List<Int> {{
+      let numbers = decodeNumbers(text).toListBuilder();
+      var last = 0;
+      for (var k = 0; k < numbers.length; k += 1) {{
+        last += unzigzag(numbers[k]);
+        numbers[k] = last;
+      }}
+      numbers.toList()
+    }}
+
+    let decodeDecompositions(text: String): List<Int> {{
+      let rows = decodeRows(3, text).toListBuilder();
+      for (var k = 0; k < rows.length; k += 3) {{
+        rows[k + 1] = rows[k] - unzigzag(rows[k + 1]);
+      }}
+      rows.toList()
+    }}
 """, encoding="utf-8")
 
 

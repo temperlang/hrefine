@@ -13,20 +13,14 @@ and those still open (UseSTD3ASCIIRules, and domains that fail only the
 Bidi rule); see the script for more. 2 cases of `IdnaTestV2.json` are left
 out, since they hold unpaired surrogates, which Temper strings can't.
 
-The IDNA tables are for Unicode 17.0.0. 7 cases of `IdnaTestV2.json`
-must pass but hold code points that version hasn't assigned, so they're
-for a newer one: the test counts them apart, and checks how many fail.
-
 Each case is four strings: the domain; `y` if it must parse, or `n`;
-the host it must give; and `y` if it needs a newer Unicode, `r` if it
-has no errors at all, so domain to Unicode and back must give the host
-again, or `n`.
+the host it must give; and `r` if it has no errors at all, so domain to
+Unicode and back must give the host again, or `n`.
 
     test("IDNA: web-platform-tests' toascii.json") {
       let data = toAsciiData();
       var cases = 0;
       var wrong = 0;
-      var waiting = 0;
       let examples = new ListBuilder<String>();
       for (var i = 0; i < data.length; i += 4) {
         cases += 1;
@@ -50,14 +44,6 @@ again, or `n`.
             problem = "domain to Unicode gives ${unicode}, which goes back to ${back}";
           }
         }
-        if (data[i + 3] == "y") {
-          if (problem != "") {
-            waiting += 1;
-            problem = "";
-          } else {
-            problem = "passes, though it needs a newer Unicode";
-          }
-        }
         if (problem != "") {
           wrong += 1;
           if (examples.length < 10) {
@@ -65,8 +51,8 @@ again, or `n`.
           }
         }
       }
-      assert(wrong == 0 && waiting == 0) {
-        "${wrong.toString()} of ${cases.toString()} cases differ (and ${waiting.toString()} of 0 need a newer Unicode), such as: ${examples.toList().join("; ") { e => e }}"
+      assert(wrong == 0) {
+        "${wrong.toString()} of ${cases.toString()} cases differ, such as: ${examples.toList().join("; ") { e => e }}"
       }
     }
 
@@ -74,7 +60,6 @@ again, or `n`.
       let data = idnaTestV2Data();
       var cases = 0;
       var wrong = 0;
-      var waiting = 0;
       let examples = new ListBuilder<String>();
       for (var i = 0; i < data.length; i += 4) {
         cases += 1;
@@ -98,14 +83,6 @@ again, or `n`.
             problem = "domain to Unicode gives ${unicode}, which goes back to ${back}";
           }
         }
-        if (data[i + 3] == "y") {
-          if (problem != "") {
-            waiting += 1;
-            problem = "";
-          } else {
-            problem = "passes, though it needs a newer Unicode";
-          }
-        }
         if (problem != "") {
           wrong += 1;
           if (examples.length < 10) {
@@ -113,8 +90,8 @@ again, or `n`.
           }
         }
       }
-      assert(wrong == 0 && waiting == 7) {
-        "${wrong.toString()} of ${cases.toString()} cases differ (and ${waiting.toString()} of 7 need a newer Unicode), such as: ${examples.toList().join("; ") { e => e }}"
+      assert(wrong == 0) {
+        "${wrong.toString()} of ${cases.toString()} cases differ, such as: ${examples.toList().join("; ") { e => e }}"
       }
     }
 
@@ -1735,10 +1712,10 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["j", "y", "j", "r"]);
       cases.addAll(["\u{10AD}\u{3F8CD}\u{A868}\u{5AE}\u{3002}\u{10BE}\u{200C}\u{200C}", "n", "", "n"]);
       cases.addAll(["\u{2D0D}\u{3F8CD}\u{A868}\u{5AE}\u{3002}\u{2D1E}\u{200C}\u{200C}", "n", "", "n"]);
-      cases.addAll(["xn--5cb172r175fug38a.xn--mlj", "y", "xn--5cb172r175fug38a.xn--mlj", "n"]);
-      cases.addAll(["\u{2D0D}\u{3F8CD}\u{A868}\u{5AE}.\u{2D1E}", "y", "xn--5cb172r175fug38a.xn--mlj", "y"]);
-      cases.addAll(["\u{10AD}\u{3F8CD}\u{A868}\u{5AE}.\u{10BE}", "y", "xn--5cb172r175fug38a.xn--mlj", "y"]);
-      cases.addAll(["\u{10AD}\u{3F8CD}\u{A868}\u{5AE}.\u{2D1E}", "y", "xn--5cb172r175fug38a.xn--mlj", "y"]);
+      cases.addAll(["xn--5cb172r175fug38a.xn--mlj", "y", "xn--5cb172r175fug38a.xn--mlj", "r"]);
+      cases.addAll(["\u{2D0D}\u{3F8CD}\u{A868}\u{5AE}.\u{2D1E}", "y", "xn--5cb172r175fug38a.xn--mlj", "r"]);
+      cases.addAll(["\u{10AD}\u{3F8CD}\u{A868}\u{5AE}.\u{10BE}", "y", "xn--5cb172r175fug38a.xn--mlj", "r"]);
+      cases.addAll(["\u{10AD}\u{3F8CD}\u{A868}\u{5AE}.\u{2D1E}", "y", "xn--5cb172r175fug38a.xn--mlj", "r"]);
       cases.addAll(["xn--5cb172r175fug38a.xn--0uga051h", "y", "xn--5cb172r175fug38a.xn--0uga051h", "n"]);
       cases.addAll(["xn--5cb347co96jug15a.xn--2nd", "y", "xn--5cb347co96jug15a.xn--2nd", "n"]);
       cases.addAll(["xn--5cb347co96jug15a.xn--2nd059ea", "y", "xn--5cb347co96jug15a.xn--2nd059ea", "n"]);
@@ -2765,11 +2742,11 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["xn--4-w93ej7463a9io5a.xn--3xa51142bk3f0d", "y", "xn--4-w93ej7463a9io5a.xn--3xa51142bk3f0d", "n"]);
       cases.addAll(["\u{5747F}\u{A806}\u{2084}\u{A9786}\u{FF61}\u{32A67}\u{E04B9}\u{3A3}", "n", "", "n"]);
       cases.addAll(["\u{5747F}\u{A806}\u{2084}\u{A9786}\u{FF61}\u{32A67}\u{E04B9}\u{3C3}", "n", "", "n"]);
-      cases.addAll(["\u{3E8AC}\u{3002}\u{729}\u{3002}\u{CBD9}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "y"]);
-      cases.addAll(["\u{3E8AC}\u{3002}\u{729}\u{3002}\u{110D}\u{1173}\u{11AC}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "y"]);
-      cases.addAll(["xn--t92s.xn--znb.xn--5-y88f", "y", "xn--t92s.xn--znb.xn--5-y88f", "n"]);
-      cases.addAll(["\u{3E8AC}.\u{729}.\u{CBD9}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "y"]);
-      cases.addAll(["\u{3E8AC}.\u{729}.\u{110D}\u{1173}\u{11AC}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "y"]);
+      cases.addAll(["\u{3E8AC}\u{3002}\u{729}\u{3002}\u{CBD9}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "r"]);
+      cases.addAll(["\u{3E8AC}\u{3002}\u{729}\u{3002}\u{110D}\u{1173}\u{11AC}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "r"]);
+      cases.addAll(["xn--t92s.xn--znb.xn--5-y88f", "y", "xn--t92s.xn--znb.xn--5-y88f", "r"]);
+      cases.addAll(["\u{3E8AC}.\u{729}.\u{CBD9}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "r"]);
+      cases.addAll(["\u{3E8AC}.\u{729}.\u{110D}\u{1173}\u{11AC}5", "y", "xn--t92s.xn--znb.xn--5-y88f", "r"]);
       cases.addAll(["\u{17CA}.\u{200D}\u{1D7EE}\u{1103F}", "n", "", "n"]);
       cases.addAll(["\u{17CA}.\u{200D}2\u{1103F}", "n", "", "n"]);
       cases.addAll(["xn--m4e.xn--2-ku7i", "y", "xn--m4e.xn--2-ku7i", "n"]);

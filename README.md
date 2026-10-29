@@ -41,6 +41,25 @@ parseUrl("https://exa mple.com") orelse null; // null
 domainToUnicode("xn--bcher-kva.example"); // "bücher.example"
 ```
 
+## Using it safely
+
+Hrefine doesn't change how other code reads URLs: `fetch`, `requests`,
+`HttpClient`, and the rest keep their own parsers. So decide with
+Hrefine, then hand on its `href`, never the original string:
+
+```temper
+let url = parseUrl(input) orelse panic();
+if (isAllowed(url.hostname)) { // your check
+  fetchUrl(url.href); // your HTTP client, given href, not input
+}
+```
+
+`href` is the standard's canonical form: backslashes become slashes,
+tabs and newlines are gone, hosts are lowercased and in ASCII (`127.1`
+becomes `127.0.0.1`, international names become Punycode), and dot
+segments are resolved. Most of what makes parsers disagree is gone, so
+other parsers, browsers' and servers' alike, read it as Hrefine did.
+
 ## Tests
 
 The tests are [web-platform-tests](https://github.com/web-platform-tests/wpt)'
@@ -56,9 +75,8 @@ own URL cases, the ones browsers are checked against, vendored in
   `scripts/wpt_idna_tests.py` turns them into [a Temper
   test](src/wpt-idna-tests.temper.md), which parses each as a URL's
   host, as web-platform-tests does. All pass on every backend, but for 2
-  that Temper strings can't hold (unpaired surrogates), and 7 that need
-  Unicode 18.0, which the tests are for, where the IDNA tables are still
-  17.0; the test counts those apart.
+  that Temper strings can't hold (unpaired surrogates), which are left
+  out. The tests and the IDNA tables are both for Unicode 18.0.
 - `setters_tests.json` and `percent-encoding.json`, for later steps.
 
 ## Languages
