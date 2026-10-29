@@ -1,0 +1,50 @@
+https://example.com/
+https://www.example.com/index.html
+https://example.com/path/to/page?query=string&x=1#frag
+http://user:pass@example.com:8080/p/a/t/h?query=string#hash
+https://api.github.com/repos/temperlang/temper/issues?state=open&per_page=100
+https://en.wikipedia.org/wiki/URL_normalization
+https://www.google.com/search?q=whatwg+url+standard&hl=en
+https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js
+http://localhost:3000/api/v1/users/42
+https://shop.example.co.uk/category/shoes?size=10&color=black&sort=price_asc
+https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse
+https://EXAMPLE.COM:443/A/B/../C/./D
+https://example.com/a%20b/c%2Fd?e=%E2%9C%93
+mailto:someone@example.com
+data:text/plain;base64,SGVsbG8sIFdvcmxkIQ==
+file:///home/user/docs/report.pdf
+ws://chat.example.org/socket
+https://example.com/search?q=caf%C3%A9&lang=fr
+https://example.org/very/long/path/with/many/segments/to/walk/through/index.html
+ftp://ftp.example.net/pub/file.tar.gz
+https://sub.domain.example.com/~user/page
+https://example.com/path with spaces/and"quotes"?q=a b#frag ment
+https://example.com/ünïcödé/päth?q=ñ#fräg
+HTTPS://Example.COM\path\to\file.txt?Q=1
+../d	https://example.com/a/b/c?x=1#y
+./e?f=g	https://example.com/a/b/c?x=1#y
+/h/i	https://example.com/a/b/c?x=1#y
+?j=k	https://example.com/a/b/c?x=1#y
+#l	https://example.com/a/b/c?x=1#y
+//other.example.org/m	https://example.com/a/b/c?x=1#y
+n/o/p	https://example.com/a/b/c?x=1#y
+https:q	https://example.com/a/b/c?x=1#y
+http://127.0.0.1:8080/
+http://192.168.0.1/admin
+http://0x7f.1/
+http://[::1]:3000/
+http://[2001:db8::8a2e:370:7334]/path
+http://[::ffff:192.0.2.1]/
+https://bücher.example/
+https://例子.测试/路径
+https://пример.рф/
+https://xn--bcher-kva.example/
+https://münchen.de/stadt
+https://ελληνικά.example/
+https://مثال.إختبار/
+https://उदाहरण.परीक्षा/
+https://ＥＸＡＭＰＬＥ.com/
+https://exa mple.com/
+http://[::1/
+https://example.com:99999/

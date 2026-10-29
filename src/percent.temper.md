@@ -36,43 +36,39 @@ The standard defines each set by adding to the one before, and so does
     let userinfoSet = 5;
 
 Whether code point `c` is in encode set `set`. Most code points in most
-URLs are letters and digits, which no set holds, so those return early.
+URLs are letters and digits, which no set holds, so those are checked
+first. (Here and in other functions called often, a single `if` chain
+stands in for early returns, which Temper's Python backend makes slow:
+each becomes a raised exception, as of 2026-10-29.)
 
     let inEncodeSet(c: Int, set: Int): Boolean {
       if (c < 0x20 || c > 0x7E) {
-        return true;
-      }
-      if (
+        true
+      } else if (
         (c >= char'a' && c <= char'z') || (c >= char'A' && c <= char'Z') ||
         (c >= char'0' && c <= char'9')
       ) {
-        return false;
+        false
+      } else if (set == c0ControlSet) {
+        false
+      } else if (set == fragmentSet) {
+        c == char' ' || c == char'"' || c == char'<' || c == char'>' || c == char'`'
+      } else if (c == char' ' || c == char'"' || c == char'#' || c == char'<' || c == char'>') {
+        true
+      } else if (set == querySet) {
+        false
+      } else if (set == specialQuerySet) {
+        c == char'\''
+      } else if (c == char'?' || c == char'^' || c == char'`' || c == char'{' || c == char'}') {
+        true
+      } else if (set == pathSet) {
+        false
+      } else {
+        // The userinfo set: `[`, `\`, and `]` are U+005B to U+005D; `^` is
+        // already in.
+        c == char'/' || c == char':' || c == char';' || c == char'=' || c == char'@' ||
+          (c >= 0x5B && c <= 0x5D) || c == char'|'
       }
-      if (set == c0ControlSet) {
-        return false;
-      }
-      if (set == fragmentSet) {
-        return c == char' ' || c == char'"' || c == char'<' || c == char'>' || c == char'`';
-      }
-      if (c == char' ' || c == char'"' || c == char'#' || c == char'<' || c == char'>') {
-        return true;
-      }
-      if (set == querySet) {
-        return false;
-      }
-      if (set == specialQuerySet) {
-        return c == char'\'';
-      }
-      if (c == char'?' || c == char'^' || c == char'`' || c == char'{' || c == char'}') {
-        return true;
-      }
-      if (set == pathSet) {
-        return false;
-      }
-      // The userinfo set: `[`, `\`, and `]` are U+005B to U+005D; `^` is
-      // already in.
-      c == char'/' || c == char':' || c == char';' || c == char'=' || c == char'@' ||
-        (c >= 0x5B && c <= 0x5D) || c == char'|'
     }
 
 ## Encoding
@@ -101,14 +97,40 @@ bytes if it's in the set, or else as it is.
       }
     }
 
-The same for every code point in `s`.
+The same for every code point in `s` from `start` to `end`, onto `out`.
+Runs that need no escapes, as most do, are appended whole.
+
+    let percentEncodeRange(
+      out: StringBuilder, s: String, start: StringIndex, end: StringIndex, set: Int,
+    ): Void {
+      var run = start;
+      var i = start;
+      while (i < end) {
+        let c = s[i];
+        if (inEncodeSet(c, set)) {
+          if (run < i) {
+            out.append(s.slice(run, i));
+          }
+          percentEncodeOnto(out, c, set);
+          i = s.next(i);
+          run = i;
+        } else {
+          i = s.next(i);
+        }
+      }
+      if (run < end) {
+        out.append(s.slice(run, end));
+      }
+    }
+
+    let percentEncodeSlice(s: String, start: StringIndex, end: StringIndex, set: Int): String {
+      let out = new StringBuilder();
+      percentEncodeRange(out, s, start, end, set);
+      out.toString()
+    }
 
     let percentEncodeString(s: String, set: Int): String {
-      let out = new StringBuilder();
-      for (var i = String.begin; s.hasIndex(i); i = s.next(i)) {
-        percentEncodeOnto(out, s[i], set);
-      }
-      out.toString()
+      percentEncodeSlice(s, String.begin, s.end, set)
     }
 
 One byte as `%` and two uppercase hex digits.

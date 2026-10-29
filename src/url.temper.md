@@ -241,11 +241,9 @@ letter.
     let shortenPath(url: UrlRecord): Void {
       let path = url.path;
       if (
-        url.scheme == "file" && path.length == 1 && isWindowsDriveLetter(path[0], true)
+        path.length > 0 &&
+          !(url.scheme == "file" && path.length == 1 && isWindowsDriveLetter(path[0], true))
       ) {
-        return;
-      }
-      if (path.length > 0) {
         path.removeLast();
       }
     }
@@ -273,6 +271,10 @@ and newline, wherever it is. (State overrides, which the standard's
 setters use, wait for step 3.)
 
     let cleanInput(input: String): String {
+      if (isClean(input)) { input } else { cleanAll(input) }
+    }
+
+    let cleanAll(input: String): String {
       var start = String.begin;
       while (input.hasIndex(start) && input[start] <= 0x20) {
         start = input.next(start);
@@ -289,6 +291,22 @@ setters use, wait for step 3.)
         }
       }
       out.toString()
+    }
+
+Most input has nothing to remove, which is quick to see. Splitting
+checks for tabs and newlines in each language's own code, much faster
+than a loop here in some, while `indexOf` isn't safe for this in C#,
+where Temper's translation compares by culture, which can skip some
+control characters (as of 2026-10-29).
+
+    let isClean(input: String): Boolean {
+      if (!input.hasIndex(String.begin)) {
+        true
+      } else {
+        input[String.begin] > 0x20 && input[input.prev(input.end)] > 0x20 &&
+          input.split("\t").length == 1 && input.split("\n").length == 1 &&
+          input.split("\r").length == 1
+      }
     }
 
 Then it runs a state machine over the input's code points, one at a
@@ -345,14 +363,15 @@ point.
       var authorityStarted = false;
       var portValue = 0;
 
-The opaque path, query, and fragment are built here, then stored at the
-end.
+The opaque path, query, and fragment are kept here, then stored at the
+end. (Strings, not builders, since the query and fragment are each read
+at once, and builders cost much in some languages.)
 
-      let queryBuffer = new StringBuilder();
+      var queryText = "";
       var inQuery = false;
-      let fragmentBuffer = new StringBuilder();
+      var fragmentText = "";
       var inFragment = false;
-      let opaqueBuffer = new StringBuilder();
+      var opaqueText = "";
 
 The pointer, and whether the state just run asked to see the same code
 point again. The standard says "decrease pointer by 1" and then always
@@ -378,13 +397,19 @@ increases it, which here is `again`.
 
 A scheme is a letter followed by letters, digits, `+`, `-`, and `.`,
 lowercased, up to a `:`. Without the `:`, there's no scheme after all,
-so it starts over in the no scheme state.
+so it starts over in the no scheme state. (Here and in other states, a
+run of code points that the state treats alike is taken at once, and
+the pointer left on the last, which runs much faster than one at a
+time, since most URLs are made of such runs.)
 
         } else if (state == schemeState) {
-          if (
-            isAsciiAlpha(c) || isDigit(c) || c == char'+' || c == char'-' || c == char'.'
-          ) {
-            appendCode(buffer, if (isAsciiAlpha(c)) { c | 0x20 } else { c });
+          if (isSchemeCode(c)) {
+            var end = input.next(pointer);
+            while (input.hasIndex(end) && isSchemeCode(input[end])) {
+              end = input.next(end);
+            }
+            buffer.append(asciiLowercase(input.slice(pointer, end)));
+            pointer = input.prev(end);
           } else if (c == char':') {
             url.scheme = buffer.toString();
             special = isSpecialScheme(url.scheme);
@@ -421,7 +446,7 @@ one, and not an opaque path, unless the input is only a fragment.
             url.scheme = base.scheme;
             special = isSpecialScheme(url.scheme);
             url.hasOpaquePath = true;
-            opaqueBuffer.append(base.opaquePath);
+            opaqueText = base.opaquePath;
             url.query = base.query;
             inFragment = true;
             state = fragmentState;
@@ -564,16 +589,15 @@ as `%40`. Then the parser goes back to read the host and port.
               url.username = "${url.username}${credentials.toString()}";
             }
             authorityStart = input.next(pointer);
-          } else if (
-            c == eof || c == char'/' || c == char'?' || c == char'#' ||
-            (special && c == backslash)
-          ) {
+          } else if (c == eof || isAuthorityEnd(c, special)) {
             if (atSignSeen && authorityStart == pointer) {
               bubble();
             }
             pointer = authorityStart;
             state = hostState;
             again = true;
+          } else {
+            pointer = input.prev(runEnd(input, pointer, special, char'@'));
           }
 
 ### Host State and Hostname State
@@ -591,10 +615,7 @@ state differs only with a state override.)
             buffer.clear();
             bufferCount = 0;
             state = portState;
-          } else if (
-            c == eof || c == char'/' || c == char'?' || c == char'#' ||
-            (special && c == backslash)
-          ) {
+          } else if (c == eof || isAuthorityEnd(c, special)) {
             if (special && bufferCount == 0) {
               bubble();
             }
@@ -604,13 +625,26 @@ state differs only with a state override.)
             state = pathStartState;
             again = true;
           } else {
-            if (c == char'[') {
-              insideBrackets = true;
-            } else if (c == char']') {
-              insideBrackets = false;
+            var end = pointer;
+            var more = true;
+            while (more) {
+              let d = input[end];
+              if (d == char'[') {
+                insideBrackets = true;
+              } else if (d == char']') {
+                insideBrackets = false;
+              }
+              bufferCount += 1;
+              end = input.next(end);
+              if (input.hasIndex(end)) {
+                let e = input[end];
+                more = (e != char':' || insideBrackets) && !isAuthorityEnd(e, special);
+              } else {
+                more = false;
+              }
             }
-            appendCode(buffer, c);
-            bufferCount += 1;
+            buffer.append(input.slice(pointer, end));
+            pointer = input.prev(end);
           }
 
 ### Port State
@@ -625,10 +659,7 @@ scheme's default.
               bubble();
             }
             bufferCount += 1;
-          } else if (
-            c == eof || c == char'/' || c == char'?' || c == char'#' ||
-            (special && c == backslash)
-          ) {
+          } else if (c == eof || isAuthorityEnd(c, special)) {
             if (bufferCount != 0) {
               url.port = if (portValue == defaultPort(url.scheme)) { -1 } else { portValue };
               portValue = 0;
@@ -785,8 +816,19 @@ so a following `else` attaches to it.)
               state = fragmentState;
             }
           } else {
-            percentEncodeOnto(buffer, c, pathSet);
-            bufferCount += 1;
+            var clean = !inEncodeSet(c, pathSet);
+            var end = input.next(pointer);
+            var more = true;
+            while (more && input.hasIndex(end)) {
+              let d = input[end];
+              more = !isAuthorityEnd(d, special);
+              if (more) {
+                clean = clean && !inEncodeSet(d, pathSet);
+                end = input.next(end);
+              }
+            }
+            buffer.append(encodedSlice(input, pointer, end, pathSet, clean));
+            pointer = input.prev(end);
           }
 
 ### Opaque Path State
@@ -804,13 +846,15 @@ later can't leave a trailing space.
             state = fragmentState;
           } else if (c == char' ') {
             let next = peek(input, pointer);
-            if (next == char'?' || next == char'#') {
-              opaqueBuffer.append("%20");
+            opaqueText = if (next == char'?' || next == char'#') {
+              "${opaqueText}%20"
             } else {
-              opaqueBuffer.append(" ");
-            }
+              "${opaqueText} "
+            };
           } else if (c != eof) {
-            percentEncodeOnto(opaqueBuffer, c, c0ControlSet);
+            let end = opaqueRunEnd(input, pointer);
+            opaqueText = "${opaqueText}${percentEncodeSlice(input, pointer, end, c0ControlSet)}";
+            pointer = input.prev(end);
           }
 
 ### Query State
@@ -824,14 +868,34 @@ the standard's `URL` API uses.)
             inFragment = true;
             state = fragmentState;
           } else if (c != eof) {
-            percentEncodeOnto(queryBuffer, c, if (special) { specialQuerySet } else { querySet });
+            let set = if (special) { specialQuerySet } else { querySet };
+            var clean = !inEncodeSet(c, set);
+            var end = input.next(pointer);
+            var more = true;
+            while (more && input.hasIndex(end)) {
+              let d = input[end];
+              more = d != char'#';
+              if (more) {
+                clean = clean && !inEncodeSet(d, set);
+                end = input.next(end);
+              }
+            }
+            queryText = encodedSlice(input, pointer, end, set, clean);
+            pointer = input.prev(end);
           }
 
 ### Fragment State
 
+The fragment is the rest of the input.
+
         } else {
           if (c != eof) {
-            percentEncodeOnto(fragmentBuffer, c, fragmentSet);
+            var clean = true;
+            for (var i = pointer; clean && input.hasIndex(i); i = input.next(i)) {
+              clean = !inEncodeSet(input[i], fragmentSet);
+            }
+            fragmentText = encodedSlice(input, pointer, input.end, fragmentSet, clean);
+            pointer = input.prev(input.end);
           }
         }
 
@@ -846,13 +910,13 @@ state asked to see this one again, and the parser stops after the end.
         }
       }
       if (url.hasOpaquePath) {
-        url.opaquePath = opaqueBuffer.toString();
+        url.opaquePath = opaqueText;
       }
       if (inQuery) {
-        url.query = queryBuffer.toString();
+        url.query = queryText;
       }
       if (inFragment) {
-        url.fragment = fragmentBuffer.toString();
+        url.fragment = fragmentText;
       }
       url
     }
@@ -861,11 +925,62 @@ The code point after `i`, or EOF, for the standard's "remaining starts
 with" checks.
 
     let peek(input: String, i: StringIndex): Int {
-      if (!input.hasIndex(i)) {
-        return eof;
-      }
       let next = input.next(i);
-      if (input.hasIndex(next)) { input[next] } else { eof }
+      if (input.hasIndex(i) && input.hasIndex(next)) { input[next] } else { eof }
+    }
+
+Code points a scheme can hold, and those that end an authority, a host,
+a port, or a path segment.
+
+    let isSchemeCode(c: Int): Boolean {
+      isAsciiAlpha(c) || isDigit(c) || c == char'+' || c == char'-' || c == char'.'
+    }
+
+    let isAuthorityEnd(c: Int, special: Boolean): Boolean {
+      c == char'/' || c == char'?' || c == char'#' || (special && c == backslash)
+    }
+
+Where a run from `i` ends: at the end of the input, an authority's end,
+or `stop` (EOF for none).
+
+    let runEnd(input: String, i: StringIndex, special: Boolean, stop: Int): StringIndex {
+      var end = input.next(i);
+      var more = input.hasIndex(end);
+      while (more) {
+        let c = input[end];
+        more = c != stop && !isAuthorityEnd(c, special);
+        if (more) {
+          end = input.next(end);
+          more = input.hasIndex(end);
+        }
+      }
+      end
+    }
+
+Where an opaque path's run from `i` ends: at the end, `?`, `#`, or a
+space, which needs a look ahead.
+
+    let opaqueRunEnd(input: String, i: StringIndex): StringIndex {
+      var end = input.next(i);
+      var more = input.hasIndex(end);
+      while (more) {
+        let c = input[end];
+        more = c != char'?' && c != char'#' && c != char' ';
+        if (more) {
+          end = input.next(end);
+          more = input.hasIndex(end);
+        }
+      }
+      end
+    }
+
+A run of `input` from `start` to `end`, percent-encoded with `set`, or
+just the run if it's `clean`, needing no escapes, as most are.
+
+    let encodedSlice(
+      input: String, start: StringIndex, end: StringIndex, set: Int, clean: Boolean,
+    ): String {
+      if (clean) { input.slice(start, end) } else { percentEncodeSlice(input, start, end, set) }
     }
 
 ## Serializing
@@ -875,15 +990,12 @@ an opaque path as it is, or else `/` before each segment.
 
     let serializePath(url: UrlRecord): String {
       if (url.hasOpaquePath) {
-        return url.opaquePath;
+        url.opaquePath
+      } else if (url.path.isEmpty) {
+        ""
+      } else {
+        "/${url.path.join("/") { segment => segment }}"
       }
-      let out = new StringBuilder();
-      let path = url.path;
-      for (var k = 0; k < path.length; k += 1) {
-        out.append("/");
-        out.append(path[k]);
-      }
-      out.toString()
     }
 
 The [URL serializer](https://url.spec.whatwg.org/#concept-url-serializer).
@@ -895,37 +1007,24 @@ host, a path starting with an empty segment gets `/.` in front, as in
       scheme: String, username: String, password: String, host: String?, port: Int,
       path: String, query: String?, fragment: String?,
     ): String {
-      let out = new StringBuilder();
-      out.append(scheme);
-      out.append(":");
-      if (host != null) {
-        out.append("//");
-        if (username != "" || password != "") {
-          out.append(username);
-          if (password != "") {
-            out.append(":");
-            out.append(password);
-          }
-          out.append("@");
-        }
-        out.append(host);
-        if (port >= 0) {
-          out.append(":");
-          out.append(port.toString());
-        }
+      let authority = if (host != null) {
+        let credentials = if (password != "") {
+          "${username}:${password}@"
+        } else if (username != "") {
+          "${username}@"
+        } else {
+          ""
+        };
+        let portText = if (port >= 0) { ":${port.toString()}" } else { "" };
+        "//${credentials}${host}${portText}"
       } else if (path.hasAtLeast(String.begin, path.end, 2) && startsWithTwoSlashes(path)) {
-        out.append("/.");
-      }
-      out.append(path);
-      if (query != null) {
-        out.append("?");
-        out.append(query);
-      }
-      if (fragment != null) {
-        out.append("#");
-        out.append(fragment);
-      }
-      out.toString()
+        "/."
+      } else {
+        ""
+      };
+      let search = if (query != null) { "?${query}" } else { "" };
+      let hash = if (fragment != null) { "#${fragment}" } else { "" };
+      "${scheme}:${authority}${path}${search}${hash}"
     }
 
 A path serialized as `//…` has an empty first segment and more after

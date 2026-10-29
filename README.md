@@ -92,6 +92,36 @@ each:
 - Python
 - Rust
 
+## Speed and size
+
+`bench/` times Hrefine on the same inputs in every language: 50 URLs
+(`bench/urls.txt`: mostly ASCII, some against a base, IPv4 and IPv6
+hosts, percent-encoding, nine international hosts, and three that must
+fail) and 12 domains to convert to ASCII (`bench/domains.txt`). Each
+program in `bench/<language>/` first checks its results against
+`bench/expected.txt` (which match Node's `URL`), then reports the
+library's load time, the first domain beyond ASCII, and steady-state
+nanoseconds per URL and per domain; the script also measures the
+generated library without tests, raw and gzipped. One command builds
+and runs it all, five runs per language:
+
+    uv run bench/run.py [LANGUAGE ...]
+
+Medians on a busy laptop (2026-10-29), so rough:
+
+| Language | Load | First IDNA | Parse | IDNA | Size (gzipped) |
+|---|---|---|---|---|---|
+| C++ | 0.15 ms | 0.006 ms | 6.6 µs | 2.7 µs | 225 KB (43 KB) |
+| C# | 4.4 ms | 11 ms (JIT) | 4.7 µs | 4.6 µs | 238 KB (41 KB) |
+| Java | 4.1 ms | 0.45 ms | 7–15 µs | 1.6 µs | 201 KB (40 KB) |
+| JavaScript | 4.4 ms | 0.9 ms | 5.9 µs | 5.9 µs | 157 KB (40 KB) |
+| Lua | 3.9 ms | 0.11 ms | 113 µs | 132 µs | 160 KB (40 KB) |
+| Python | 1.6 ms | 0.13 ms | 106 µs | 154 µs | 163 KB (39 KB) |
+| Rust | 0.08 ms | 0.009 ms | 7.2 µs | 4.9 µs | 248 KB (45 KB) |
+
+Load is after Temper's own runtime, which takes another 30–40 ms to
+import in Python. The [plan](docs/plan.md) has what changed these.
+
 ## Development
 
 Written with Claude Code and Opus 5.5.

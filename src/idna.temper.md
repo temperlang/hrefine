@@ -24,18 +24,13 @@ is only lowercased, even with `xn--` labels that wouldn't decode, as
 browsers do.
 
     export let domainToAscii(domain: String): String throws Bubble {
-      if (isAsciiString(domain)) {
-        let out = new StringBuilder();
-        for (var i = String.begin; domain.hasIndex(i); i = domain.next(i)) {
-          let c = domain[i];
-          appendCode(out, if (c >= char'A' && c <= char'Z') { c + 32 } else { c });
-        }
-        let result = out.toString();
-        if (result.isEmpty) {
-          bubble();
-        }
-        return result;
+      if (domain.isEmpty) {
+        bubble();
       }
+      if (isAsciiString(domain)) { asciiLowercase(domain) } else { internationalToAscii(domain) }
+    }
+
+    let internationalToAscii(domain: String): String throws Bubble {
       let labels = new ListBuilder<List<Int>>();
       if (!processDomain(domain, true, labels)) {
         bubble();
@@ -74,13 +69,13 @@ processing would do, without needing the tables.
 
     export let domainToUnicode(domain: String): String {
       if (isAsciiString(domain) && !hasXnLabel(domain)) {
-        let out = new StringBuilder();
-        for (var i = String.begin; domain.hasIndex(i); i = domain.next(i)) {
-          let c = domain[i];
-          appendCode(out, if (c >= char'A' && c <= char'Z') { c + 32 } else { c });
-        }
-        return out.toString();
+        asciiLowercase(domain)
+      } else {
+        internationalToUnicode(domain)
       }
+    }
+
+    let internationalToUnicode(domain: String): String {
       let labels = new ListBuilder<List<Int>>();
       processDomain(domain, false, labels);
       let out = new StringBuilder();
@@ -101,46 +96,40 @@ processing would do, without needing the tables.
 UTS #46's [processing](https://www.unicode.org/reports/tr46/#Processing)
 of `domain`, onto `labels`, each a list of code points. It returns
 whether there were no errors. For ToASCII (`forAscii`), it stops at the
-first error, since any fails the whole domain. It's the only way in to
-the [tables](#lookups), so it gets them, decoding them the first time.
+first error, since any fails the whole domain.
 
     let processDomain(
       domain: String, forAscii: Boolean, labels: ListBuilder<List<Int>>,
     ): Boolean {
-      let tables = idnaTables();
       var ok = true;
 
 First, map each code point: ASCII letters to lowercase, and the rest by
-the IDNA mapping table. Disallowed code points are errors.
+the IDNA mapping table. Disallowed code points are errors. Each code
+point's [properties](#lookups) are needed later, and mapping looks them
+up anyway, so they're kept beside it.
 
       let mapped = new ListBuilder<Int>();
-      for (var i = String.begin; domain.hasIndex(i); i = domain.next(i)) {
+      let mappedProps = new ListBuilder<Int>();
+      for (var i = String.begin; (ok || !forAscii) && domain.hasIndex(i); i = domain.next(i)) {
         let c = domain[i];
         if (c < 0x80) {
-          mapped.add(if (c >= char'A' && c <= char'Z') { c + 32 } else { c });
-        } else if (mapCodePoint(tables, c, mapped) == disallowedKind) {
-          if (forAscii) {
-            return false;
-          }
+          let lower = if (c >= char'A' && c <= char'Z') { c + 32 } else { c };
+          mapped.add(lower);
+          mappedProps.add(asciiProperties[lower]);
+        } else if (mapCodePoint(c, mapped, mappedProps) == disallowedKind) {
           ok = false;
         }
       }
-
-Then normalize to NFC, and split into labels at dots. Each code point's
-[properties](#lookups) are needed later, and they tell whether
-normalizing would change anything, which is rare, so they're looked up
-here, and again only if it would.
-
-      let mappedProps = new ListBuilder<Int>();
-      var normal = true;
-      for (var k = 0; k < mapped.length; k += 1) {
-        let c = mapped[k];
-        let p = properties(tables, c);
-        mappedProps.add(p);
-        normal = normal && (c < 0x300 || (p & nfcBits) == 0);
+      if (!ok && forAscii) {
+        return false;
       }
-      let normalized = if (normal) { mapped.toList() } else { toNfc(tables, mapped) };
-      let allProps = if (normal) { mappedProps.toList() } else { propertiesOf(tables, normalized) };
+
+Then normalize to NFC, which is rarely needed, as the properties tell,
+and split into labels at dots.
+
+      let normal = isNfcQuick(mappedProps);
+      let normalized = if (normal) { mapped.toList() } else { toNfc(mapped) };
+      let allProps = if (normal) { mappedProps.toList() } else { propertiesOf(normalized) };
       let labelProperties = new ListBuilder<List<Int>>();
       var labelStart = 0;
       for (var k = 0; k <= normalized.length; k += 1) {
@@ -158,7 +147,7 @@ checked as any other label, and must be valid code points in NFC too.
 Where one doesn't decode, it stays as it was.
 
       var bidiDomain = false;
-      for (var k = 0; k < labels.length; k += 1) {
+      for (var k = 0; k < labels.length && (ok || !forAscii); k += 1) {
         var label = labels[k];
         var props = labelProperties[k];
         var valid = true;
@@ -173,15 +162,12 @@ Where one doesn't decode, it stays as it was.
           } else {
             label = rest;
             labels[k] = rest;
-            props = propertiesOf(tables, rest);
+            props = propertiesOf(rest);
             labelProperties[k] = props;
-            valid = !rest.isEmpty && !isAsciiLabel(rest) && isNfcValid(tables, rest);
+            valid = !rest.isEmpty && !isAsciiLabel(rest) && isNfcValid(rest, props);
           }
         }
         if (!valid || !isValidLabel(label, props)) {
-          if (forAscii) {
-            return false;
-          }
           ok = false;
         }
 
@@ -197,11 +183,8 @@ Arabic digit anywhere.
 Last, the Bidi rule, for each label of a Bidi domain name.
 
       if (bidiDomain) {
-        for (var k = 0; k < labels.length; k += 1) {
+        for (var k = 0; k < labels.length && (ok || !forAscii); k += 1) {
           if (!meetsBidiRule(labelProperties[k])) {
-            if (forAscii) {
-              return false;
-            }
             ok = false;
           }
         }
@@ -225,23 +208,25 @@ code points, which are errors already.)
         meetsContextJ(label, props)
     }
 
-Whether a label from Punycode is all valid code points (deviations
-included), in NFC. It can't hold a dot, since Punycode's are all ASCII.
+Whether a label from Punycode, with its properties, is all valid code
+points (deviations included), in NFC. It can't hold a dot, since
+Punycode's are all ASCII.
 
-    let isNfcValid(tables: IdnaTables, label: List<Int>): Boolean {
+    let isNfcValid(label: List<Int>, props: List<Int>): Boolean {
       var valid = true;
       for (var k = 0; k < label.length && valid; k += 1) {
-        valid = isValidCode(tables, label[k]);
+        valid = isValidCode(label[k]);
       }
-      if (!valid || isNfcAlready(tables, label)) {
-        return valid;
+      if (!valid || isNfcQuick(props)) {
+        valid
+      } else {
+        let normal = toNfc(label);
+        var same = normal.length == label.length;
+        for (var k = 0; k < label.length && same; k += 1) {
+          same = normal[k] == label[k];
+        }
+        same
       }
-      let normal = toNfc(tables, label);
-      var same = normal.length == label.length;
-      for (var k = 0; k < label.length && same; k += 1) {
-        same = normal[k] == label[k];
-      }
-      same
     }
 
 The [ContextJ rules](https://www.rfc-editor.org/rfc/rfc5892#appendix-A.1)
@@ -290,9 +275,10 @@ letter (L), may hold no right-to-left letters or Arabic digits, and must
 end with a left-to-right letter or European digit.
 
     let meetsBidiRule(props: List<Int>): Boolean {
-      if (props.isEmpty) {
-        return true;
-      }
+      props.isEmpty || meetsBidiRuleNotEmpty(props)
+    }
+
+    let meetsBidiRuleNotEmpty(props: List<Int>): Boolean {
       let first = props[0] & 0xF;
       var last = props.length - 1;
       while (last > 0 && (props[last] & 0xF) == bidiNSM) {
@@ -329,26 +315,31 @@ each code point canonically, put each run of combining marks in order
 of combining class, then compose each mark with the starter before it,
 where nothing between blocks it.
 
-Most domains are NFC already, and that's quick to see: a string is, if
-no code point decomposes, composes with the one before, or has a
-combining class (which might need reordering). Code points below U+0300
-are left out, since any that decompose (as `é` does) compose back, with
-nothing after them that could join them.
+Most domains are NFC already, and NFC's [quick
+check](https://www.unicode.org/reports/tr15/#Detecting_Normalization_Forms)
+sees that from code points' properties: a string is, if its marks are in
+order of combining class and none may compose with the code point
+before. For valid code points, the check never says a string isn't NFC
+without needing a closer look, so this says only whether it surely is.
+Disallowed ones have no combining class, decomposition, or composition.
 
-    let isNfcAlready(tables: IdnaTables, codes: Listed<Int>): Boolean {
-      var already = true;
-      for (var k = 0; k < codes.length && already; k += 1) {
-        let c = codes[k];
-        already = c < 0x300 || (properties(tables, c) & nfcBits) == 0;
+    let isNfcQuick(props: Listed<Int>): Boolean {
+      var quick = true;
+      var lastClass = 0;
+      for (var k = 0; k < props.length && quick; k += 1) {
+        let p = props[k];
+        let cc = (p >> 8) & 0xFF;
+        quick = (p & composesBit) == 0 && (cc == 0 || lastClass <= cc);
+        lastClass = cc;
       }
-      already
+      quick
     }
 
-    let toNfc(tables: IdnaTables, input: Listed<Int>): List<Int> {
+    let toNfc(input: Listed<Int>): List<Int> {
       let out = new ListBuilder<Int>();
       let props = new ListBuilder<Int>();
       for (var k = 0; k < input.length; k += 1) {
-        decomposeOnto(tables, out, props, input[k]);
+        decomposeOnto(out, props, input[k]);
       }
       for (var k = 1; k < out.length; k += 1) {
         let c = out[k];
@@ -381,7 +372,7 @@ the last one before it, not composed, matters.
           starter >= 0 && (props[k] & composesBit) != 0 &&
           (result.length - 1 == starter || (lastClass != 0 && lastClass < cc))
         ) {
-          composed = composePair(tables, result[starter], c);
+          composed = composePair(result[starter], c);
         }
         if (composed >= 0) {
           result[starter] = composed;
@@ -409,262 +400,305 @@ Hangul syllables are made of two or three jamo, by formula.
 Decomposes `c` fully onto `out`, and each code point's properties onto
 `props`.
 
-    let decomposeOnto(
-      tables: IdnaTables, out: ListBuilder<Int>, props: ListBuilder<Int>, c: Int,
-    ): Void {
-      let p = if (c < 0xC0) { 0 } else { properties(tables, c) };
+    let decomposeOnto(out: ListBuilder<Int>, props: ListBuilder<Int>, c: Int): Void {
+      let p = properties(c);
+      let s = c - hangulBase;
       if ((p & decomposesBit) == 0) {
         out.add(c);
         props.add(p);
-        return;
-      }
-      let s = c - hangulBase;
-      if (s >= 0 && s < hangulCount) {
-        decomposeOnto(tables, out, props, jamoLBase + s / (jamoVCount * jamoTCount));
-        decomposeOnto(
-          tables, out, props, jamoVBase + (s % (jamoVCount * jamoTCount)) / jamoTCount,
-        );
+      } else if (s >= 0 && s < hangulCount) {
+        decomposeOnto(out, props, jamoLBase + s / (jamoVCount * jamoTCount));
+        decomposeOnto(out, props, jamoVBase + (s % (jamoVCount * jamoTCount)) / jamoTCount);
         if (s % jamoTCount != 0) {
-          decomposeOnto(tables, out, props, jamoTBase + s % jamoTCount);
+          decomposeOnto(out, props, jamoTBase + s % jamoTCount);
         }
       } else {
-        let decompositions = tables.decompositions;
-        let at = findDecomposition(decompositions, c);
-        decomposeOnto(tables, out, props, decompositions[at + 1]);
-        decomposeOnto(tables, out, props, decompositions[at + 2]);
+        let parts = decompositionOf(c);
+        decomposeOnto(out, props, parts[0]);
+        decomposeOnto(out, props, parts[1]);
       }
     }
 
 The code point that `first` and `second` compose to, or -1.
 
-    let composePair(tables: IdnaTables, first: Int, second: Int): Int {
+    let composePair(first: Int, second: Int): Int {
       let l = first - jamoLBase;
       let v = second - jamoVBase;
-      if (l >= 0 && l < 19 && v >= 0 && v < jamoVCount) {
-        return hangulBase + (l * jamoVCount + v) * jamoTCount;
-      }
       let s = first - hangulBase;
       let t = second - jamoTBase;
-      if (s >= 0 && s < hangulCount && s % jamoTCount == 0 && t > 0 && t < jamoTCount) {
-        return first + t;
+      if (l >= 0 && l < 19 && v >= 0 && v < jamoVCount) {
+        hangulBase + (l * jamoVCount + v) * jamoTCount
+      } else if (s >= 0 && s < hangulCount && s % jamoTCount == 0 && t > 0 && t < jamoTCount) {
+        first + t
+      } else if (idnaEntry(second) >= 0) {
+        -1
+      } else {
+        compositionOf(first, second)
       }
-      let decompositions = tables.decompositions;
-      let compositionOrder = tables.compositionOrder;
-      var low = 0;
-      var high = compositionOrder.length;
-      var found = -1;
-      while (low < high && found < 0) {
-        let middle = (low + high) / 2;
-        let at = compositionOrder[middle] * 3;
-        let a = decompositions[at + 1];
-        let b = decompositions[at + 2];
-        if (a < first || (a == first && b < second)) {
-          low = middle + 1;
-        } else if (a == first && b == second) {
-          found = decompositions[at];
-        } else {
-          high = middle;
-        }
-      }
-      found
     }
 
 ## Lookups
 
-In the [generated tables](idna-tables.temper.md), decoded the first time
-a domain needs them, so loading the library, and domains in ASCII, cost
-nothing for them. Two threads getting there at once may each decode
-them, and either result serves; in C++, though, Temper doesn't guard
-module-level variables, so that's a race.
+In the [generated tables](idna-tables.temper.md), read where they are:
+a lookup finds its code point's number, or string, of its block or
+sub-block, and reads the string up to the run holding the code point,
+and maybe on to the data after the runs. Nothing is decoded ahead or
+kept, so loading the library costs only the tables' constants, a domain
+reads only the blocks its code points are in, and the first domain
+beyond ASCII costs no more than any other.
 
-    class IdnaTables(
-      public idnaRanges: List<Int>,
-      public idnaIndex: List<Int>,
-      public idnaPool: List<Int>,
-      public decompositions: List<Int>,
-      public compositionOrder: List<Int>,
-      public propertyValues: List<Int>,
-      public propertyRuns: List<Int>,
-      public propertyIndex: List<Int>,
-      public asciiProperties: List<Int>,
-    ) {}
+It's also safe from many threads at once, in every language, since the
+library has no module-level `var`, only `let`s, which are set once as it
+loads and only read after. That matters most in C++, where Temper makes
+a module-level `var` a plain `static std::shared_ptr`, so two threads
+setting one lazily, as these tables once were, race (undefined
+behavior). Its `let`s are set in `hrefine::global_init_init()`, which a
+program must call before using the library, so before any threads do,
+and then only read, and many threads may read, and so copy, the same
+`shared_ptr` at once. (Rust, Java, and C# make module-level state safe
+on their own, if not as cheaply: Rust locks it.) Keep it that way: any
+cache here would need a lock that Temper can't yet write portably.
 
-    var idnaTablesCache: IdnaTables? = null;
+The rarer lookups, of mappings in the pool, decompositions, and
+compositions, read past the runs, so they decode the whole sub-block
+string of code point `c` first. Its digits from U+0060 to U+007F go on,
+and the last is from U+0040 to U+005F, each digit its low five bits.
 
-    let idnaTables(): IdnaTables {
-      let cached = idnaTablesCache;
-      if (cached != null) { cached } else { decodeIdnaTables() }
-    }
-
-`decodeIdnaTables` ends here, with the decoded tables, adding what's
-made from them (the indices below, the composition order, and ASCII's
-properties), and keeping them. Keeping them here, not in `idnaTables`,
-also stops Temper from trying to decode them while compiling, as it
-does for calls it thinks it can work out ahead, which crashes the
-build (as of 2026-10-29).
-
-    let keepIdnaTables(
-      idnaRanges: List<Int>, idnaPool: List<Int>, decompositions: List<Int>,
-      propertyValues: List<Int>, propertyRuns: List<Int>,
-    ): IdnaTables {
-      let propertyIndex = runIndex(propertyRuns);
-      let asciiProperties = new ListBuilder<Int>();
-      for (var c = 0; c < 0x80; c += 1) {
-        asciiProperties.add(
-          propertyValues[propertyRuns[findRun(propertyRuns, propertyIndex, c) + 1]],
-        );
-      }
-      let tables = new IdnaTables(
-        idnaRanges, runIndex(idnaRanges), idnaPool, decompositions,
-        sortCompositions(decompositions), propertyValues, propertyRuns, propertyIndex,
-        asciiProperties.toList(),
-      );
-      idnaTablesCache = tables;
-      tables
-    }
-
-The decompositions' row indices (divided by three), sorted by first part
-and then second part, for composing.
-
-    let sortCompositions(decompositions: List<Int>): List<Int> {
-      let order = new ListBuilder<Int>();
-      for (var k = 0; k < decompositions.length; k += 3) {
-        order.add(k / 3);
-      }
-      order.sort(fn (a: Int, b: Int): Int {
-        let byFirst = decompositions[a * 3 + 1] - decompositions[b * 3 + 1];
-        if (byFirst != 0) { byFirst } else {
-          decompositions[a * 3 + 2] - decompositions[b * 3 + 2]
-        }
-      });
-      order.toList()
-    }
-
-Both the IDNA mapping and the properties are runs of two numbers, sorted
-by the first, the code point where each starts. To find the run holding
-a code point quickly, an index gives, for each block of 1024 code
-points, the run holding the block's first; the search is then between
-that run and the next block's, often only one or two.
-
-    let blockShift = 10;
-
-    let runIndex(table: List<Int>): List<Int> {
-      let index = new ListBuilder<Int>();
-      let runs = table.length / 2;
-      var run = 0;
-      for (var block = 0; block <= 0x10FFFF >> blockShift; block += 1) {
-        let c = block << blockShift;
-        while (run + 1 < runs && table[(run + 1) * 2] <= c) {
-          run += 1;
-        }
-        index.add(run);
-      }
-      index.toList()
-    }
-
-The index in `table` of the run holding `c`, given its block index.
-
-    let findRun(table: List<Int>, index: List<Int>, c: Int): Int {
-      let block = c >> blockShift;
-      var low = index[block];
-      var high = if (block + 1 < index.length) { index[block + 1] + 1 } else { table.length / 2 };
-      while (high - low > 1) {
-        let middle = (low + high) / 2;
-        if (table[middle * 2] <= c) {
-          low = middle;
-        } else {
-          high = middle;
+    let subBlockNumbers(c: Int): List<Int> {
+      let split = -1 - idnaBlocks[c >> idnaBlockShift];
+      let text = idnaTexts[split][-1 - idnaSubBlocks[split][(c & blockMask) >> idnaSubBlockShift]];
+      let numbers = new ListBuilder<Int>();
+      var value = 0;
+      for (var i = String.begin; text.hasIndex(i); i = text.next(i)) {
+        let d = text[i];
+        value = (value << 5) | (d & 0x1F);
+        if (d < 0x60) {
+          numbers.add(value);
+          value = 0;
         }
       }
-      low * 2
+      numbers.toList()
     }
 
-The index of `c`'s row in `decompositions`, which must have it.
+Where the run holding `offset` starts, among the runs at the start of
+`numbers`.
 
-    let findDecomposition(decompositions: List<Int>, c: Int): Int {
-      var low = 0;
-      var high = decompositions.length / 3;
-      while (high - low > 1) {
-        let middle = (low + high) / 2;
-        if (decompositions[middle * 3] <= c) {
-          low = middle;
-        } else {
-          high = middle;
+    let runStartIn(numbers: List<Int>, offset: Int): Int {
+      var start = 0;
+      var k = 0;
+      while (numbers[k] != 0 && offset >= start + numbers[k]) {
+        start += numbers[k];
+        k += 3;
+      }
+      start
+    }
+
+The index just past the runs, where the data after them starts, if
+there is any. The last run's length is 0.
+
+    let afterRuns(numbers: List<Int>): Int {
+      var k = 0;
+      while (numbers[k] != 0) {
+        k += 3;
+      }
+      k + 3
+    }
+
+Adds the code points that `c` maps to, by `mapping`, of kind 6, from its
+sub-block's pool onto `out`, with their properties onto `props`.
+
+    let mapFromPool(c: Int, mapping: Int, out: ListBuilder<Int>, props: ListBuilder<Int>): Void {
+      let numbers = subBlockNumbers(c);
+      let offset = c & subBlockMask;
+      let detail = mapping >> 3;
+      let length = detail & 31;
+      let start = (detail >> 5) + (offset - runStartIn(numbers, offset)) * length;
+      let pool = afterRuns(numbers) + 2;
+      var target = c - offset;
+      for (var k = 0; k < start + length; k += 1) {
+        target += unzigzag(numbers[pool + k]);
+        if (k >= start) {
+          out.add(target);
+          props.add(properties(target));
         }
       }
-      low * 3
     }
 
-IDNA mapping kinds, as `idnaRanges` stores them.
+The canonical decomposition of `c`, which must have one, as its first
+and second parts.
+
+    let decompositionOf(c: Int): List<Int> {
+      let numbers = subBlockNumbers(c);
+      let offset = c & subBlockMask;
+      let at = afterRuns(numbers);
+      var k = at + 2 + numbers[at];
+      var position = numbers[k];
+      while (position != offset) {
+        k += 3;
+        position += numbers[k];
+      }
+      [c - unzigzag(numbers[k + 1]), numbers[k + 2]]
+    }
+
+The code point that `first` and `second` compose to, or -1, for
+`second` in a sub-block with data after its runs.
+
+    let compositionOf(first: Int, second: Int): Int {
+      let numbers = subBlockNumbers(second);
+      let offset = second & subBlockMask;
+      let at = afterRuns(numbers);
+      var k = if (at < numbers.length) { at + 2 + numbers[at] + numbers[at + 1] * 3 } else { at };
+      var secondAt = 0;
+      var firstAt = 0;
+      var found = -1;
+      while (found < 0 && k < numbers.length && secondAt <= offset) {
+        if (numbers[k] != 0) {
+          secondAt += numbers[k];
+          firstAt = 0;
+        }
+        firstAt += numbers[k + 1];
+        if (secondAt == offset && firstAt == first) {
+          found = first + unzigzag(numbers[k + 2]);
+        }
+        k += 3;
+      }
+      found
+    }
+
+`c`'s number for its block or sub-block, as `idnaBlocks` and
+`idnaSubBlocks` give it.
+
+    let idnaEntry(c: Int): Int {
+      let block = idnaBlocks[c >> idnaBlockShift];
+      if (block >= 0) {
+        block
+      } else {
+        idnaSubBlocks[-1 - block][(c & blockMask) >> idnaSubBlockShift]
+      }
+    }
+
+    let blockMask = (1 << idnaBlockShift) - 1;
+    let subBlockMask = (1 << idnaSubBlockShift) - 1;
+
+Most lookups need only a run's mapping and property index, so this finds
+them without decoding, returning `mapping * 128 + propertyIndex` for code
+point `c`, beyond ASCII. Most are in the directory; for the rest, it
+reads the three numbers of each run, digit by digit, till the run that
+holds `c`.
+
+    let runOf(c: Int): Int {
+      let entry = idnaEntry(c);
+      if (entry >= 0) {
+        entry
+      } else {
+        readRun(idnaTexts[-1 - idnaBlocks[c >> idnaBlockShift]][-1 - entry], c & subBlockMask)
+      }
+    }
+
+    let readRun(text: String, offset: Int): Int {
+      var i = String.begin;
+      var start = 0;
+      var field = 0;
+      var value = 0;
+      var length = 0;
+      var mapping = 0;
+      var result = -1;
+      while (result < 0) {
+        let d = text[i];
+        i = text.next(i);
+        value = if (value == 0) { d & 0x1F } else { (value << 5) | (d & 0x1F) };
+        if (d < 0x60) {
+          if (field == 0) {
+            length = value;
+            field = 1;
+          } else if (field == 1) {
+            mapping = value;
+            field = 2;
+          } else if (length == 0 || offset < start + length) {
+            result = (mapping << 7) | value;
+          } else {
+            start += length;
+            field = 0;
+          }
+          value = 0;
+        }
+      }
+      result
+    }
+
+Signed numbers are zigzagged, so 0, -1, 1, -2, and 2 are written as 0,
+1, 2, 3, and 4.
+
+    let unzigzag(n: Int): Int {
+      if ((n & 1) == 0) { n >> 1 } else { -(n >> 1) - 1 }
+    }
+
+IDNA mapping kinds, as the tables store them.
 
     let validKind = 0;
     let disallowedKind = 1;
     let ignoredKind = 2;
     let deltaKind = 3;
-    let alternatingKind = 4;
-    let poolKind = 5;
+    let evenKind = 4;
+    let oddKind = 5;
+    let poolKind = 6;
 
-Maps code point `c` onto `out`, as the IDNA mapping says, and returns
-its kind. Valid and disallowed code points stay as they are, and
-ignored ones go.
+Maps code point `c`, beyond ASCII, onto `out`, as the IDNA mapping says,
+with each code point's properties onto `props`, and returns its kind:
+valid and disallowed code points stay as they are, ignored ones go, and
+alternating ones that aren't mapped are valid.
 
-    let mapCodePoint(tables: IdnaTables, c: Int, out: ListBuilder<Int>): Int {
-      let idnaRanges = tables.idnaRanges;
-      let at = findRun(idnaRanges, tables.idnaIndex, c);
-      let value = idnaRanges[at + 1];
-      let kind = value & 7;
-      let detail = unzigzag(value >> 3);
-      if (kind == deltaKind) {
-        out.add(c + detail);
-      } else if (kind == alternatingKind) {
-        if (((c - idnaRanges[at]) & 1) == 0) {
-          out.add(c + detail);
-        } else {
-          out.add(c);
-          return validKind;
-        }
+    let mapCodePoint(c: Int, out: ListBuilder<Int>, props: ListBuilder<Int>): Int {
+      let run = runOf(c);
+      let mapping = run >> 7;
+      let kind = mapping & 7;
+      let alternating = kind == evenKind || kind == oddKind;
+      if (kind == deltaKind || (alternating && (c & 1) == kind - evenKind)) {
+        let target = c + unzigzag(mapping >> 3);
+        out.add(target);
+        props.add(properties(target));
+        deltaKind
       } else if (kind == poolKind) {
-        let length = detail & 31;
-        let first = (detail >> 5) + (c - idnaRanges[at]) * length;
-        let idnaPool = tables.idnaPool;
-        for (var k = first; k < first + length; k += 1) {
-          out.add(idnaPool[k]);
-        }
-      } else if (kind != ignoredKind) {
+        mapFromPool(c, mapping, out, props);
+        kind
+      } else if (kind == ignoredKind) {
+        kind
+      } else {
         out.add(c);
+        props.add(propertyValues[run & 127]);
+        if (kind == disallowedKind) { kind } else { validKind }
       }
-      kind
     }
 
-Whether `c` is valid (deviations included), and not to be mapped.
+Whether `c` is valid (deviations included), and not to be mapped. All
+of ASCII is but uppercase letters.
 
-    let isValidCode(tables: IdnaTables, c: Int): Boolean {
-      let idnaRanges = tables.idnaRanges;
-      let at = findRun(idnaRanges, tables.idnaIndex, c);
-      let kind = idnaRanges[at + 1] & 7;
-      kind == validKind || (kind == alternatingKind && ((c - idnaRanges[at]) & 1) == 1)
+    let isValidCode(c: Int): Boolean {
+      if (c < 0x80) {
+        c < char'A' || c > char'Z'
+      } else {
+        let kind = (runOf(c) >> 7) & 7;
+        kind == validKind || ((kind == evenKind || kind == oddKind) && (c & 1) != kind - evenKind)
+      }
     }
 
 Properties, packed as the tables say: the bidi class in bits 0 to 3,
 the joining type in 4 to 6, whether it's a mark in 7, the combining
-class in 8 to 15, whether it decomposes in 16, and whether it composes
-with a code point before it in 17.
+class in 8 to 15, whether it decomposes in 16, and whether it may
+compose with a code point before it in 17.
 
-ASCII's are looked up once, since labels are often mostly ASCII.
-
-    let properties(tables: IdnaTables, c: Int): Int {
+    let properties(c: Int): Int {
       if (c < 0x80) {
-        tables.asciiProperties[c]
+        asciiProperties[c]
       } else {
-        let runs = tables.propertyRuns;
-        tables.propertyValues[runs[findRun(runs, tables.propertyIndex, c) + 1]]
+        propertyValues[runOf(c) & 127]
       }
     }
 
-    let propertiesOf(tables: IdnaTables, label: List<Int>): List<Int> {
+    let propertiesOf(label: List<Int>): List<Int> {
       let props = new ListBuilder<Int>();
       for (var k = 0; k < label.length; k += 1) {
-        props.add(properties(tables, label[k]));
+        props.add(properties(label[k]));
       }
       props.toList()
     }
@@ -672,7 +706,6 @@ ASCII's are looked up once, since labels are often mostly ASCII.
     let markBit = 0x80;
     let decomposesBit = 0x1_0000;
     let composesBit = 0x2_0000;
-    let nfcBits = 0x3_FF00;
 
     let bidiL = 0;
     let bidiR = 1;
@@ -692,28 +725,48 @@ ASCII's are looked up once, since labels are often mostly ASCII.
 ## Helpers
 
     let isAsciiString(s: String): Boolean {
-      for (var i = String.begin; s.hasIndex(i); i = s.next(i)) {
-        if (s[i] >= 0x80) {
-          return false;
-        }
+      var ascii = true;
+      for (var i = String.begin; ascii && s.hasIndex(i); i = s.next(i)) {
+        ascii = s[i] < 0x80;
       }
-      true
+      ascii
+    }
+
+ASCII letters lowercased, and the rest as they are, without a copy if
+there's nothing to change.
+
+    let asciiLowercase(s: String): String {
+      var i = String.begin;
+      while (s.hasIndex(i) && (s[i] < char'A' || s[i] > char'Z')) {
+        i = s.next(i);
+      }
+      if (!s.hasIndex(i)) {
+        s
+      } else {
+        let out = new StringBuilder();
+        out.append(s.slice(String.begin, i));
+        while (s.hasIndex(i)) {
+          let c = s[i];
+          appendCode(out, if (c >= char'A' && c <= char'Z') { c + 32 } else { c });
+          i = s.next(i);
+        }
+        out.toString()
+      }
     }
 
     let isAsciiLabel(label: List<Int>): Boolean {
-      for (var k = 0; k < label.length; k += 1) {
-        if (label[k] >= 0x80) {
-          return false;
-        }
+      var ascii = true;
+      for (var k = 0; ascii && k < label.length; k += 1) {
+        ascii = label[k] < 0x80;
       }
-      true
+      ascii
     }
 
 Whether any of a domain's labels starts with `xn--`, in any case.
 
     let hasXnLabel(domain: String): Boolean {
       var matched = 0; // How much of `xn--` the label starts with, or -1.
-      for (var i = String.begin; domain.hasIndex(i); i = domain.next(i)) {
+      for (var i = String.begin; matched < 4 && domain.hasIndex(i); i = domain.next(i)) {
         let c = domain[i];
         if (c == char'.') {
           matched = 0;
@@ -721,12 +774,9 @@ Whether any of a domain's labels starts with `xn--`, in any case.
           let lower = if (c >= char'A' && c <= char'Z') { c + 32 } else { c };
           let want = if (matched == 0) { char'x' } else if (matched == 1) { char'n' } else { char'-' };
           matched = if (lower == want) { matched + 1 } else { -1 };
-          if (matched == 4) {
-            return true;
-          }
         }
       }
-      false
+      matched == 4
     }
 
 Whether a label starts with `xn--`. Mapping has lowercased it already.
@@ -767,7 +817,7 @@ Whether a label starts with `xn--`. Mapping has lowercased it already.
         for (var i = String.begin; s.hasIndex(i); i = s.next(i)) {
           codes.add(s[i]);
         }
-        String.fromCodePoints(toNfc(idnaTables(), codes)) orelse panic()
+        String.fromCodePoints(toNfc(codes)) orelse panic()
       }
       assert(nfc("e\u{301}") == "\u{E9}");
       assert(nfc("a\u{323}\u{302}") == "\u{1EAD}");
@@ -775,4 +825,5 @@ Whether a label starts with `xn--`. Mapping has lowercased it already.
       assert(nfc("\u{1100}\u{1161}\u{11A8}") == "\u{AC01}");
       assert(nfc("\u{AC01}") == "\u{AC01}");
       assert(nfc("\u{1E0B}\u{323}") == "\u{1E0D}\u{307}");
+      assert(nfc("\u{113C2}\u{113C5}") == "\u{113C5}\u{113C2}");
     }

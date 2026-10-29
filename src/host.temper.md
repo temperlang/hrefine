@@ -23,11 +23,13 @@ is a domain, after percent-decoding, unless it ends in a number, as
         if (input[last] != char']' || last == String.begin) {
           bubble();
         }
-        return "[${serializeIpv6(parseIpv6(input.slice(input.next(String.begin), last)))}]";
+        "[${serializeIpv6(parseIpv6(input.slice(input.next(String.begin), last)))}]"
+      } else if (isOpaque) {
+        parseOpaqueHost(input)
+      } else {
+        parseDomain(input)
       }
-      if (isOpaque) {
-        return parseOpaqueHost(input);
-      }
+    }
 
 Otherwise it's a domain: the input percent-decoded, then decoded as
 UTF-8 (without dropping a byte order mark, which IDNA ignores anyway),
@@ -35,11 +37,39 @@ then [converted to ASCII](idna.temper.md), which maps and checks
 international domain names. The result can't hold a [forbidden domain
 code point](#forbidden-code-points).
 
-      let domain = utf8Decode(percentDecode(input));
-      let asciiDomain = domainToAscii(domain);
-      for (var i = String.begin; asciiDomain.hasIndex(i); i = asciiDomain.next(i)) {
-        if (isForbiddenDomainCode(asciiDomain[i])) {
-          bubble();
+Most hosts are ASCII without `%`, which decoding doesn't change, and
+which converting only lowercases, so one look at each code point
+checks for all that, and for forbidden ones.
+
+    let parseDomain(input: String): String throws Bubble {
+      var plain = true;
+      var upper = false;
+      var forbidden = false;
+      for (var i = String.begin; plain && input.hasIndex(i); i = input.next(i)) {
+        let c = input[i];
+        if (c >= 0x80 || c == char'%') {
+          plain = false;
+        } else if (c >= char'A' && c <= char'Z') {
+          upper = true;
+        } else if (isForbiddenDomainCode(c)) {
+          forbidden = true;
+        }
+      }
+      if (plain && (forbidden || input.isEmpty)) {
+        bubble();
+      }
+      let asciiDomain = if (!plain) {
+        domainToAscii(utf8Decode(percentDecode(input)))
+      } else if (upper) {
+        asciiLowercase(input)
+      } else {
+        input
+      };
+      if (!plain) {
+        for (var i = String.begin; asciiDomain.hasIndex(i); i = asciiDomain.next(i)) {
+          if (isForbiddenDomainCode(asciiDomain[i])) {
+            bubble();
+          }
         }
       }
       if (endsInANumber(asciiDomain)) {
@@ -95,28 +125,39 @@ address, or it fails: `1.2.3.09` fails, since `09` is a bad octal
 number.
 
     let endsInANumber(input: String): Boolean {
-      let parts = input.split(".").toListBuilder();
-      if (parts[parts.length - 1] == "") {
-        if (parts.length == 1) {
-          return false;
+      if (!lastLabelStartsWithDigit(input)) {
+        false
+      } else {
+        let parts = input.split(".").toListBuilder();
+        if (parts[parts.length - 1] == "" && parts.length > 1) {
+          parts.removeLast();
         }
-        parts.removeLast();
+        let last = parts[parts.length - 1];
+        (last != "" && allDigits(last)) || ipv4NumberOrNegative(last) >= 0i64
       }
-      let last = parts[parts.length - 1];
-      if (last != "" && allDigits(last)) {
-        return true;
+    }
+
+Every IPv4 number starts with a digit, so a last label that doesn't
+can't be one, which is quick to see, as with most domains.
+
+    let lastLabelStartsWithDigit(input: String): Boolean {
+      var end = input.end;
+      if (end > String.begin && input[input.prev(end)] == char'.') {
+        end = input.prev(end);
       }
-      ipv4NumberOrNegative(last) >= 0i64
+      var start = end;
+      while (start > String.begin && input[input.prev(start)] != char'.') {
+        start = input.prev(start);
+      }
+      start < end && isDigit(input[start])
     }
 
     let allDigits(s: String): Boolean {
-      for (var i = String.begin; s.hasIndex(i); i = s.next(i)) {
-        let c = s[i];
-        if (c < char'0' || c > char'9') {
-          return false;
-        }
+      var digits = true;
+      for (var i = String.begin; digits && s.hasIndex(i); i = s.next(i)) {
+        digits = isDigit(s[i]);
       }
-      true
+      digits
     }
 
 The [IPv4 parser](https://url.spec.whatwg.org/#concept-ipv4-parser)
@@ -171,9 +212,6 @@ stops growing, which is enough to make the address fail.
 The same, but -1 where it fails, for checking without bubbling.
 
     let ipv4NumberOrNegative(input: String): Int64 {
-      if (input.isEmpty) {
-        return -1i64;
-      }
       var radix = 10;
       var i = String.begin;
       let second = input.next(i);
@@ -190,17 +228,16 @@ The same, but -1 where it fails, for checking without bubbling.
         }
       }
       var value = 0i64;
-      while (input.hasIndex(i)) {
+      var valid = !input.isEmpty;
+      while (valid && input.hasIndex(i)) {
         let digit = hexValue(input[i]);
-        if (digit < 0 || digit >= radix) {
-          return -1i64;
-        }
-        if (value <= 0xFFFF_FFFFi64) {
+        valid = digit >= 0 && digit < radix;
+        if (valid && value <= 0xFFFF_FFFFi64) {
           value = value * radix.toInt64() + digit.toInt64();
         }
         i = input.next(i);
       }
-      value
+      if (valid) { value } else { -1i64 }
     }
 
 The [IPv4 serializer](https://url.spec.whatwg.org/#concept-ipv4-serializer)

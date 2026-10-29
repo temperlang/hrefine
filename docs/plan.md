@@ -43,8 +43,8 @@ site that makes the point.
    backends, with Unicode 18.0, which the vendored IDNA tests are for
    (web-platform-tests moved them on 2026-10-04).
    `scripts/idna_tables.py` writes the tables
-   (`src/idna-tables.temper.md`, 33 KB, the numbers written as text and
-   decoded on the first host that needs them); `src/idna.temper.md` has
+   (`src/idna-tables.temper.md`, 53 KB, by block of code points, read
+   in place: see "Speed and size" below); `src/idna.temper.md` has
    domain to ASCII, domain to Unicode, and NFC, and
    `src/punycode.temper.md` Punycode. For a new Unicode version, raise
    `unicode_data.py`'s VERSION, `--repin` (unicode.org isn't reachable
@@ -124,14 +124,27 @@ use; the source view is a separate, opt-in type.
   encode sets; IDNA (mapping, checks, and NFC), Punycode, and IDNA's
   generated tables; and, later, search parameters.
 - **Speed and size:** as small and fast as we can make them, in every
-  language, without giving up exactness: a benchmark like Ordable's,
-  fast paths for the common ASCII case, few allocations, and compact
-  tables; measured per backend (2026-10-29).
-- **Size:** the IDNA tables about double the library (JS 64 to 125 KB).
-  They're decoded on the first host beyond ASCII (or with an `xn--`
-  label), so other uses don't pay for it: in Python, importing dropped
-  from about 90 to 50 ms, and the first such host takes about 40 ms
-  (2026-10-29).
+  language, without giving up exactness, measured with `bench/` (see the
+  README). As of 2026-10-29, against the version before, timed in turns:
+  - The IDNA tables are read in place, by block of code points, so
+    nothing is decoded or cached: the first domain beyond ASCII went
+    from 46 to 0.13 ms in Python, 28 to 0.1 ms in Lua, 18 to 0.45 ms in
+    Java, and 9 to 0.9 ms in JavaScript. With no module-level `var`,
+    there's no state for threads to race on (it was a data race in
+    C++). Steady-state domain to ASCII got 10–30% faster in most
+    languages. The cost: the library is 15–45 KB bigger (3–4 KB
+    gzipped), and loading builds the tables' lists, 0.15 ms in C++ and
+    about 4 ms in C# (JIT of its static constructor).
+  - Parsing takes runs of code points at once, and uses few builders:
+    44% faster in Python, 43% in Lua, about 30% in JavaScript, C++,
+    and Rust, 25% in C#. Java is too noisy here to call.
+  - Hot helpers avoid early returns, which Temper's Python backend
+    turns into raised exceptions.
+  - Tried and dropped: sub-blocks of 32 code points (faster in Python
+    and Lua, but 9 KB bigger and slower to load in C#), storing runs'
+    ends rather than lengths (slower), a module for the tables (Java
+    and C# would load it lazily, but every backend makes its exports
+    public), and `indexOf` for finding tabs (culture-sensitive in C#).
 - **Native JS, maybe later:** once Temper's connected functions can fall
   back to Temper bodies, an opt-in JS build could use the runtime's own
   `URL` (in browsers, Node, Deno, and Bun) for parsing and IDNA, dropping

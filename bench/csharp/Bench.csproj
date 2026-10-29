@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Hrefine's benchmark in C#; see ../run.py, which runs it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RollForward>Major</RollForward>
+    <Optimize>true</Optimize>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Built without tests by ../run.py. -->
+    <ProjectReference Include="../build/lib/temper.out/csharp/hrefine/src/Hrefine.csproj" />
+  </ItemGroup>
+</Project>

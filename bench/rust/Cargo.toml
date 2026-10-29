@@ -1,0 +1,13 @@
+# Hrefine's benchmark in Rust; see ../run.py, which runs it.
+[package]
+name = "bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Built without tests by ../run.py.
+hrefine = { path = "../build/lib/temper.out/rust/hrefine" }
+
+[profile.release]
+debug = false
