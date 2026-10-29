@@ -31,13 +31,15 @@ site that makes the point.
      joiners (RFC 5892).
 
    The tables are this library's own, not Ordable's. They must match the
-   Unicode version of the vendored IDNA tests, which needn't be Ordable's
-   (15.0), and Ordable's Unicode code stays internal to it. If Temper
-   later builds in Unicode data, both libraries could use that instead.
-   Python's `unicodedata` gives NFC and bidi classes. The mapping table
-   and joining types come from unicode.org's data files
-   (`IdnaMappingTable.txt`, `DerivedJoiningType.txt`), which aren't
-   reachable from here yet.
+   Unicode version of the vendored IDNA tests, which is 17.0 (they treat
+   CJK Extension J, new in 17.0, as valid), not Ordable's 15.0, and
+   Ordable's Unicode code stays internal to it. If Temper later builds in
+   Unicode data, both libraries could use that instead. Python's
+   `unicodedata` is older (16.0 as of Python 3.14), so all the data comes
+   from Unicode 17.0's own files, vendored in `data/unicode-17.0.0/`:
+   `IdnaMappingTable.txt`, `UnicodeData.txt`,
+   `DerivedNormalizationProps.txt`, `DerivedBidiClass.txt`, and
+   `DerivedJoiningType.txt`.
 3. **Setters and search parameters:** changing a URL's parts as the
    standard's setters do (`setters_tests.json`), and
    `application/x-www-form-urlencoded` parsing and serializing

@@ -29,3 +29,24 @@ Partly taken: Netloc (crates.io), Waypost (npm), and Urlcraft
 Signpost, Trailhead, Origo, Urlkit, Urlable, Anchorable, Wurl, and Urlex.
 
 My favorites: Hrefine, then Canonica and Hostline.
+
+Web search for companies, products, and trademarks (2026-10-29; a web
+search, not a trademark search, so check USPTO and EUIPO before 1.0):
+
+- **Hrefine:** nothing found. Closest are "Refine" and OpenRefine, both
+  different enough.
+- **Canonica:** no company or mark of that name found, but it's close to
+  Canonical (Ubuntu's maker), a software trademark holder, so it's a
+  confusion risk.
+- **Hostline:** taken in practice by web hosting companies (Hostline in
+  Lithuania, Hostline.BG in Bulgaria), in a neighboring trade. Avoid.
+- **Linkmint, Urlwright, Hrefsmith, Locivo, Hreflect, Urlspec:** nothing
+  found. Hrefmatch, a product for AI agents, is near Hrefsmith.
+
+- **Urlicorn:** nothing found, and free on the four registries. In
+  Python it may read as a sibling of the web servers uvicorn and
+  gunicorn, which it isn't.
+
+So Hrefine is the safest favorite, with Urlicorn liked too (2026-10-29),
+and Canonica and Hostline drop back.
+
