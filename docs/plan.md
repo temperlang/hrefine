@@ -66,7 +66,9 @@ site that makes the point.
    with differences lit up; plus a gallery of the famous tricks
    (`http://127.1`, `http://0x7f.1`, backslashes, look-alike hosts) and
    the security holes they've caused.
-7. **Refine the API and pick a name,** before 1.0.
+7. **Refine the API,** before 1.0. The name, Hrefine, was picked
+   2026-10-29, after checking package registries and a web search for
+   companies and trademarks; check USPTO and EUIPO before 1.0.
 
 ## Starting API
 

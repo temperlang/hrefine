@@ -1,9 +1,8 @@
-# Urlparser
+# Hrefine
 
 Parses and serializes URLs exactly as the [WHATWG URL
 Standard](https://url.spec.whatwg.org/) says, as browsers do, with the
-same results in every language. (The name is a placeholder; see the
-[candidates](docs/names.md).)
+same results in every language.
 
 Most languages' own URL parsers follow older rules, or their own, so
 the same URL can name a different host in Python, Java, C#, and the
