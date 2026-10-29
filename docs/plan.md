@@ -12,10 +12,32 @@ site that makes the point.
    names (hosts beyond ASCII), which wait for step 2. The URL Standard's
    basic URL parser is a state machine, written as the standard writes
    it, so each part can be checked against the text.
-2. **International domain names:** UTS #46 mapping and Punycode, with a
-   generated Unicode table (as Ordable generates its own), passing
-   `toascii.json` and `IdnaTestV2.json`, and the rest of
-   `urltestdata.json`.
+   *Done* (2026-10-29): all of `urltestdata.json` passes on all seven
+   backends but the 40 cases whose hosts need IDNA, which the test
+   counts apart (21 must parse and don't yet; 19 must fail and do, by
+   chance). Hosts beyond ASCII, and `xn--` labels, fail to parse for
+   now.
+2. **International domain names:** UTS #46 mapping and Punycode, with
+   generated Unicode tables (generated the way Ordable generates its own),
+   passing `toascii.json` and `IdnaTestV2.json`, and the rest of
+   `urltestdata.json`. The URL Standard sets UTS #46's options, which
+   call for four kinds of data:
+   - **The IDNA mapping table:** each code point's status (valid,
+     mapped, deviation, or disallowed) and its mapping.
+   - **NFC normalization:** decompositions, combining classes, and
+     composition.
+   - **Bidi classes,** for the Bidi rule (RFC 5893).
+   - **Joining types and viramas,** for the ContextJ rules on zero-width
+     joiners (RFC 5892).
+
+   The tables are this library's own, not Ordable's. They must match the
+   Unicode version of the vendored IDNA tests, which needn't be Ordable's
+   (15.0), and Ordable's Unicode code stays internal to it. If Temper
+   later builds in Unicode data, both libraries could use that instead.
+   Python's `unicodedata` gives NFC and bidi classes. The mapping table
+   and joining types come from unicode.org's data files
+   (`IdnaMappingTable.txt`, `DerivedJoiningType.txt`), which aren't
+   reachable from here yet.
 3. **Setters and search parameters:** changing a URL's parts as the
    standard's setters do (`setters_tests.json`), and
    `application/x-www-form-urlencoded` parsing and serializing
@@ -51,6 +73,8 @@ people know; to refine before 1.0:
 
 - `parseUrl(input: String, base: String? = null): Url throws Bubble`:
   the basic URL parser, failing (bubbling) where the standard fails.
+  `Url.parse` is the same, as in JavaScript; it's there because only
+  the class can call its private constructor.
 - `Url`, immutable at first, with the standard's getters, each a
   `String`: `href`, `origin`, `protocol`, `username`, `password`,
   `host`, `hostname`, `port`, `pathname`, `search`, and `hash`.
