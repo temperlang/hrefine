@@ -29,76 +29,24 @@ is a domain, after percent-decoding, unless it ends in a number, as
         return parseOpaqueHost(input);
       }
 
-The standard decodes the percent-decoded bytes as UTF-8 (without a byte
-order mark), which gives a string beyond ASCII if any byte is past
-U+007F. Domains beyond ASCII need [IDNA](#international-domain-names),
-which comes in step 2 of the [plan](../docs/plan.md), so for now they
-fail to parse.
+Otherwise it's a domain: the input percent-decoded, then decoded as
+UTF-8 (without dropping a byte order mark, which IDNA ignores anyway),
+then [converted to ASCII](idna.temper.md), which maps and checks
+international domain names. The result can't hold a [forbidden domain
+code point](#forbidden-code-points).
 
-      let bytes = percentDecode(input);
-      let domain = new StringBuilder();
-      for (var k = 0; k < bytes.length; k += 1) {
-        let byte = bytes[k];
-        if (byte >= 0x80) {
+      let domain = utf8Decode(percentDecode(input));
+      let asciiDomain = domainToAscii(domain);
+      for (var i = String.begin; asciiDomain.hasIndex(i); i = asciiDomain.next(i)) {
+        if (isForbiddenDomainCode(asciiDomain[i])) {
           bubble();
         }
-        appendCode(domain, byte);
       }
-      let asciiDomain = domainToAscii(domain.toString());
       if (endsInANumber(asciiDomain)) {
         serializeIpv4(parseIpv4(asciiDomain))
       } else {
         asciiDomain
       }
-    }
-
-## International Domain Names
-
-[Domain to ASCII](https://url.spec.whatwg.org/#concept-domain-to-ascii)
-runs UTS #46's ToASCII, which maps and checks Unicode labels and encodes
-them with Punycode, as `xn--` labels. The standard notes that for an
-ASCII domain with no label starting with `xn--` (in any case), ToASCII
-only lowercases it, and that's all this does so far: other domains,
-which need the full mapping and Punycode, fail to parse until step 2.
-After that, an empty result, or one with a [forbidden domain code
-point](#forbidden-code-points), fails.
-
-    let domainToAscii(domain: String): String throws Bubble {
-      let out = new StringBuilder();
-      var labelStart = true;
-      var i = String.begin;
-      while (domain.hasIndex(i)) {
-        let c = domain[i];
-        if (labelStart && startsWithXnDashes(domain, i)) {
-          bubble();
-        }
-        labelStart = c == char'.';
-        appendCode(out, if (c >= char'A' && c <= char'Z') { c + 32 } else { c });
-        i = domain.next(i);
-      }
-      let result = out.toString();
-      if (result.isEmpty) {
-        bubble();
-      }
-      for (var j = String.begin; result.hasIndex(j); j = result.next(j)) {
-        if (isForbiddenDomainCode(result[j])) {
-          bubble();
-        }
-      }
-      result
-    }
-
-Whether `s` has `xn--`, in any case, at `i`.
-
-    let startsWithXnDashes(s: String, i: StringIndex): Boolean {
-      let x = i;
-      if (!s.hasIndex(x) || (s[x] | 0x20) != char'x') { return false; }
-      let n = s.next(x);
-      if (!s.hasIndex(n) || (s[n] | 0x20) != char'n') { return false; }
-      let d1 = s.next(n);
-      if (!s.hasIndex(d1) || s[d1] != char'-') { return false; }
-      let d2 = s.next(d1);
-      s.hasIndex(d2) && s[d2] == char'-'
     }
 
 ## Forbidden Code Points

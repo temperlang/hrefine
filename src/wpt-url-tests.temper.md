@@ -9,12 +9,6 @@ that must either fail or give the expected value for each getter.
 surrogates, which Temper strings can't. The test reports every case that
 differs, with the first few in full, so progress shows as a count.
 
-40 cases need international domain names (IDNA), which wait for
-step 2 of the [plan](../docs/plan.md), so the test counts them apart and
-needn't pass them yet: hosts that need IDNA fail to parse for now, so
-the 21 of them that must parse don't, and the 19 that must fail do,
-but only by chance. Every other case must pass.
-
 Each case is 17 strings: the input; `y` and the base, or `n` and
 nothing; `y` if parsing must fail; `y` if the origin is given; `y` if
 the case waits for IDNA; and the expected href, origin, protocol, username, password, host, hostname, port, pathname, search, and hash.
@@ -140,7 +134,7 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["::23", "y", "http://example.org/foo/bar", "n", "y", "n", "http://example.org/foo/::23", "http://example.org", "http:", "", "", "example.org", "example.org", "", "/foo/::23", "", ""]);
       cases.addAll(["foo://", "y", "http://example.org/foo/bar", "n", "y", "n", "foo://", "null", "foo:", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://a:b@c:29/d", "y", "http://example.org/foo/bar", "n", "y", "n", "http://a:b@c:29/d", "http://c:29", "http:", "a", "b", "c:29", "c", "29", "/d", "", ""]);
-      cases.addAll(["http://\u{E9}@\u{E9}", "n", "", "n", "y", "y", "http://%C3%A9@xn--9ca/", "http://xn--9ca", "http:", "%C3%A9", "", "xn--9ca", "xn--9ca", "", "/", "", ""]);
+      cases.addAll(["http://\u{E9}@\u{E9}", "n", "", "n", "y", "n", "http://%C3%A9@xn--9ca/", "http://xn--9ca", "http:", "%C3%A9", "", "xn--9ca", "xn--9ca", "", "/", "", ""]);
       cases.addAll(["http://\u{E9}@example.com", "n", "", "n", "y", "n", "http://%C3%A9@example.com/", "http://example.com", "http:", "%C3%A9", "", "example.com", "example.com", "", "/", "", ""]);
       cases.addAll(["http::@c:29", "y", "http://example.org/foo/bar", "n", "y", "n", "http://example.org/foo/:@c:29", "http://example.org", "http:", "", "", "example.org", "example.org", "", "/foo/:@c:29", "", ""]);
       cases.addAll(["http://&a:foo(b]c@d:2/", "y", "http://example.org/foo/bar", "n", "y", "n", "http://&a:foo(b%5Dc@d:2/", "http://d:2", "http:", "&a", "foo(b%5Dc", "d:2", "d", "2", "/", "", ""]);
@@ -376,8 +370,8 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["http://Goo%20 goo%7C|.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://[]", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://[:]", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://GOO\u{A0}\u{3000}goo.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://GOO\u{200B}\u{2060}\u{FEFF}goo.com", "y", "http://other.com/", "n", "y", "y", "http://googoo.com/", "http://googoo.com", "http:", "", "", "googoo.com", "googoo.com", "", "/", "", ""]);
+      cases.addAll(["http://GOO\u{A0}\u{3000}goo.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://GOO\u{200B}\u{2060}\u{FEFF}goo.com", "y", "http://other.com/", "n", "y", "n", "http://googoo.com/", "http://googoo.com", "http:", "", "", "googoo.com", "googoo.com", "", "/", "", ""]);
       cases.addAll(["\u{0}\u{1B}\u{4}\u{12} http://example.com/\u{1F} \u{D} ", "n", "", "n", "y", "n", "http://example.com/", "http://example.com", "http:", "", "", "example.com", "example.com", "", "/", "", ""]);
       cases.addAll(["non-special:opaque  ", "n", "", "n", "y", "n", "non-special:opaque", "null", "non-special:", "", "", "", "", "", "opaque", "", ""]);
       cases.addAll(["non-special:opaque  ?hi", "n", "", "n", "y", "n", "non-special:opaque %20?hi", "null", "non-special:", "", "", "", "", "", "opaque %20", "?hi", ""]);
@@ -387,28 +381,28 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["non-special:opaque \u{9}\u{9}  \u{9}#hi", "n", "", "n", "y", "n", "non-special:opaque  %20#hi", "null", "non-special:", "", "", "", "", "", "opaque  %20", "", "#hi"]);
       cases.addAll(["non-special:opaque \u{9}\u{9}  #hi", "n", "", "n", "y", "n", "non-special:opaque  %20#hi", "null", "non-special:", "", "", "", "", "", "opaque  %20", "", "#hi"]);
       cases.addAll(["non-special:opaque\u{9}\u{9}  \u{D} #hi", "n", "", "n", "y", "n", "non-special:opaque  %20#hi", "null", "non-special:", "", "", "", "", "", "opaque  %20", "", "#hi"]);
-      cases.addAll(["http://www.foo\u{3002}bar.com", "y", "http://other.com/", "n", "y", "y", "http://www.foo.bar.com/", "http://www.foo.bar.com", "http:", "", "", "www.foo.bar.com", "www.foo.bar.com", "", "/", "", ""]);
-      cases.addAll(["http://\u{FDD0}zyx.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://%ef%b7%90zyx.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["https://\u{FFFD}", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["https://%EF%BF%BD", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://www.foo\u{3002}bar.com", "y", "http://other.com/", "n", "y", "n", "http://www.foo.bar.com/", "http://www.foo.bar.com", "http:", "", "", "www.foo.bar.com", "www.foo.bar.com", "", "/", "", ""]);
+      cases.addAll(["http://\u{FDD0}zyx.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://%ef%b7%90zyx.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://\u{FFFD}", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://%EF%BF%BD", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["https://x/\u{FFFD}?\u{FFFD}#\u{FFFD}", "n", "", "n", "y", "n", "https://x/%EF%BF%BD?%EF%BF%BD#%EF%BF%BD", "https://x", "https:", "", "", "x", "x", "", "/%EF%BF%BD", "?%EF%BF%BD", "#%EF%BF%BD"]);
-      cases.addAll(["http://a.b.c.xn--pokxncvks", "n", "", "n", "y", "y", "http://a.b.c.xn--pokxncvks/", "http://a.b.c.xn--pokxncvks", "http:", "", "", "a.b.c.xn--pokxncvks", "a.b.c.xn--pokxncvks", "", "/", "", ""]);
-      cases.addAll(["http://10.0.0.xn--pokxncvks", "n", "", "n", "y", "y", "http://10.0.0.xn--pokxncvks/", "http://10.0.0.xn--pokxncvks", "http:", "", "", "10.0.0.xn--pokxncvks", "10.0.0.xn--pokxncvks", "", "/", "", ""]);
-      cases.addAll(["http://a.b.c.XN--pokxncvks", "n", "", "n", "y", "y", "http://a.b.c.xn--pokxncvks/", "http://a.b.c.xn--pokxncvks", "http:", "", "", "a.b.c.xn--pokxncvks", "a.b.c.xn--pokxncvks", "", "/", "", ""]);
-      cases.addAll(["http://a.b.c.Xn--pokxncvks", "n", "", "n", "y", "y", "http://a.b.c.xn--pokxncvks/", "http://a.b.c.xn--pokxncvks", "http:", "", "", "a.b.c.xn--pokxncvks", "a.b.c.xn--pokxncvks", "", "/", "", ""]);
-      cases.addAll(["http://10.0.0.XN--pokxncvks", "n", "", "n", "y", "y", "http://10.0.0.xn--pokxncvks/", "http://10.0.0.xn--pokxncvks", "http:", "", "", "10.0.0.xn--pokxncvks", "10.0.0.xn--pokxncvks", "", "/", "", ""]);
-      cases.addAll(["http://10.0.0.xN--pokxncvks", "n", "", "n", "y", "y", "http://10.0.0.xn--pokxncvks/", "http://10.0.0.xn--pokxncvks", "http:", "", "", "10.0.0.xn--pokxncvks", "10.0.0.xn--pokxncvks", "", "/", "", ""]);
-      cases.addAll(["http://\u{FF27}\u{FF4F}.com", "y", "http://other.com/", "n", "y", "y", "http://go.com/", "http://go.com", "http:", "", "", "go.com", "go.com", "", "/", "", ""]);
+      cases.addAll(["http://a.b.c.xn--pokxncvks", "n", "", "n", "y", "n", "http://a.b.c.xn--pokxncvks/", "http://a.b.c.xn--pokxncvks", "http:", "", "", "a.b.c.xn--pokxncvks", "a.b.c.xn--pokxncvks", "", "/", "", ""]);
+      cases.addAll(["http://10.0.0.xn--pokxncvks", "n", "", "n", "y", "n", "http://10.0.0.xn--pokxncvks/", "http://10.0.0.xn--pokxncvks", "http:", "", "", "10.0.0.xn--pokxncvks", "10.0.0.xn--pokxncvks", "", "/", "", ""]);
+      cases.addAll(["http://a.b.c.XN--pokxncvks", "n", "", "n", "y", "n", "http://a.b.c.xn--pokxncvks/", "http://a.b.c.xn--pokxncvks", "http:", "", "", "a.b.c.xn--pokxncvks", "a.b.c.xn--pokxncvks", "", "/", "", ""]);
+      cases.addAll(["http://a.b.c.Xn--pokxncvks", "n", "", "n", "y", "n", "http://a.b.c.xn--pokxncvks/", "http://a.b.c.xn--pokxncvks", "http:", "", "", "a.b.c.xn--pokxncvks", "a.b.c.xn--pokxncvks", "", "/", "", ""]);
+      cases.addAll(["http://10.0.0.XN--pokxncvks", "n", "", "n", "y", "n", "http://10.0.0.xn--pokxncvks/", "http://10.0.0.xn--pokxncvks", "http:", "", "", "10.0.0.xn--pokxncvks", "10.0.0.xn--pokxncvks", "", "/", "", ""]);
+      cases.addAll(["http://10.0.0.xN--pokxncvks", "n", "", "n", "y", "n", "http://10.0.0.xn--pokxncvks/", "http://10.0.0.xn--pokxncvks", "http:", "", "", "10.0.0.xn--pokxncvks", "10.0.0.xn--pokxncvks", "", "/", "", ""]);
+      cases.addAll(["http://\u{FF27}\u{FF4F}.com", "y", "http://other.com/", "n", "y", "n", "http://go.com/", "http://go.com", "http:", "", "", "go.com", "go.com", "", "/", "", ""]);
     }
 
     let addCases3(cases: ListBuilder<String>): Void {
-      cases.addAll(["http://\u{FF05}\u{FF14}\u{FF11}.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://%ef%bc%85%ef%bc%94%ef%bc%91.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://\u{FF05}\u{FF10}\u{FF10}.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://%ef%bc%85%ef%bc%90%ef%bc%90.com", "y", "http://other.com/", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://\u{4F60}\u{597D}\u{4F60}\u{597D}", "y", "http://other.com/", "n", "y", "y", "http://xn--6qqa088eba/", "http://xn--6qqa088eba", "http:", "", "", "xn--6qqa088eba", "xn--6qqa088eba", "", "/", "", ""]);
-      cases.addAll(["https://fa\u{DF}.ExAmPlE/", "n", "", "n", "y", "y", "https://xn--fa-hia.example/", "https://xn--fa-hia.example", "https:", "", "", "xn--fa-hia.example", "xn--fa-hia.example", "", "/", "", ""]);
+      cases.addAll(["http://\u{FF05}\u{FF14}\u{FF11}.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://%ef%bc%85%ef%bc%94%ef%bc%91.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://\u{FF05}\u{FF10}\u{FF10}.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://%ef%bc%85%ef%bc%90%ef%bc%90.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://\u{4F60}\u{597D}\u{4F60}\u{597D}", "y", "http://other.com/", "n", "y", "n", "http://xn--6qqa088eba/", "http://xn--6qqa088eba", "http:", "", "", "xn--6qqa088eba", "xn--6qqa088eba", "", "/", "", ""]);
+      cases.addAll(["https://fa\u{DF}.ExAmPlE/", "n", "", "n", "y", "n", "https://xn--fa-hia.example/", "https://xn--fa-hia.example", "https:", "", "", "xn--fa-hia.example", "xn--fa-hia.example", "", "/", "", ""]);
       cases.addAll(["sc://fa\u{DF}.ExAmPlE/", "n", "", "n", "y", "n", "sc://fa%C3%9F.ExAmPlE/", "null", "sc:", "", "", "fa%C3%9F.ExAmPlE", "fa%C3%9F.ExAmPlE", "", "/", "", ""]);
       cases.addAll(["http://%zz%66%a.com", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://%25", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
@@ -419,7 +413,7 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["http://%3g%78%63%30%2e%30%32%35%30%2E.01", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://192.168.0.1 hello", "y", "http://other.com/", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["https://x x:12", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://\u{FF10}\u{FF38}\u{FF43}\u{FF10}\u{FF0E}\u{FF10}\u{FF12}\u{FF15}\u{FF10}\u{FF0E}\u{FF10}\u{FF11}", "y", "http://other.com/", "n", "y", "y", "http://192.168.0.1/", "http://192.168.0.1", "http:", "", "", "192.168.0.1", "192.168.0.1", "", "/", "", ""]);
+      cases.addAll(["http://\u{FF10}\u{FF38}\u{FF43}\u{FF10}\u{FF0E}\u{FF10}\u{FF12}\u{FF15}\u{FF10}\u{FF0E}\u{FF10}\u{FF11}", "y", "http://other.com/", "n", "y", "n", "http://192.168.0.1/", "http://192.168.0.1", "http:", "", "", "192.168.0.1", "192.168.0.1", "", "/", "", ""]);
       cases.addAll(["http://./", "n", "", "n", "y", "n", "http://./", "http://.", "http:", "", "", ".", ".", "", "/", "", ""]);
       cases.addAll(["http://../", "n", "", "n", "y", "n", "http://../", "http://..", "http:", "", "", "..", "..", "", "/", "", ""]);
       cases.addAll(["h://.", "n", "", "n", "y", "n", "h://.", "null", "h:", "", "", ".", ".", "", "", "", ""]);
@@ -598,12 +592,12 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["http://ho%7Fst/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://!\u{22}\u{24}&'()*+,-.;=_`{}~/", "n", "", "n", "y", "n", "http://!\u{22}\u{24}&'()*+,-.;=_`{}~/", "http://!\u{22}\u{24}&'()*+,-.;=_`{}~", "http:", "", "", "!\u{22}\u{24}&'()*+,-.;=_`{}~", "!\u{22}\u{24}&'()*+,-.;=_`{}~", "", "/", "", ""]);
       cases.addAll(["sc://\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}\u{8}\u{B}\u{C}\u{E}\u{F}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1A}\u{1B}\u{1C}\u{1D}\u{1E}\u{1F}\u{7F}!\u{22}\u{24}%&'()*+,-.;=_`{}~/", "n", "", "n", "y", "n", "sc://%01%02%03%04%05%06%07%08%0B%0C%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%7F!\u{22}\u{24}%&'()*+,-.;=_`{}~/", "null", "sc:", "", "", "%01%02%03%04%05%06%07%08%0B%0C%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%7F!\u{22}\u{24}%&'()*+,-.;=_`{}~", "%01%02%03%04%05%06%07%08%0B%0C%0E%0F%10%11%12%13%14%15%16%17%18%19%1A%1B%1C%1D%1E%1F%7F!\u{22}\u{24}%&'()*+,-.;=_`{}~", "", "/", "", ""]);
-      cases.addAll(["ftp://example.com%80/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["ftp://example.com%A0/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["https://example.com%80/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["https://example.com%A0/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["ftp://%e2%98%83", "n", "", "n", "y", "y", "ftp://xn--n3h/", "ftp://xn--n3h", "ftp:", "", "", "xn--n3h", "xn--n3h", "", "/", "", ""]);
-      cases.addAll(["https://%e2%98%83", "n", "", "n", "y", "y", "https://xn--n3h/", "https://xn--n3h", "https:", "", "", "xn--n3h", "xn--n3h", "", "/", "", ""]);
+      cases.addAll(["ftp://example.com%80/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["ftp://example.com%A0/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://example.com%80/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://example.com%A0/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["ftp://%e2%98%83", "n", "", "n", "y", "n", "ftp://xn--n3h/", "ftp://xn--n3h", "ftp:", "", "", "xn--n3h", "xn--n3h", "", "/", "", ""]);
+      cases.addAll(["https://%e2%98%83", "n", "", "n", "y", "n", "https://xn--n3h/", "https://xn--n3h", "https:", "", "", "xn--n3h", "xn--n3h", "", "/", "", ""]);
       cases.addAll(["http://127.0.0.1:10100/relative_import.html", "n", "", "n", "y", "n", "http://127.0.0.1:10100/relative_import.html", "http://127.0.0.1:10100", "http:", "", "", "127.0.0.1:10100", "127.0.0.1", "10100", "/relative_import.html", "", ""]);
       cases.addAll(["http://facebook.com/?foo=%7B%22abc%22", "n", "", "n", "y", "n", "http://facebook.com/?foo=%7B%22abc%22", "http://facebook.com", "http:", "", "", "facebook.com", "facebook.com", "", "/", "?foo=%7B%22abc%22", ""]);
     }
@@ -845,12 +839,12 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["10.0.0.7:8080/foo.html", "y", "file:///some/dir/bar.html", "n", "n", "n", "file:///some/dir/10.0.0.7:8080/foo.html", "", "file:", "", "", "", "", "", "/some/dir/10.0.0.7:8080/foo.html", "", ""]);
       cases.addAll(["a!@\u{24}*=/foo.html", "y", "file:///some/dir/bar.html", "n", "n", "n", "file:///some/dir/a!@\u{24}*=/foo.html", "", "file:", "", "", "", "", "", "/some/dir/a!@\u{24}*=/foo.html", "", ""]);
       cases.addAll(["a1234567890-+.:foo/bar", "y", "http://example.com/dir/file", "n", "n", "n", "a1234567890-+.:foo/bar", "", "a1234567890-+.:", "", "", "", "", "", "foo/bar", "", ""]);
-      cases.addAll(["file://a\u{AD}b/p", "n", "", "n", "n", "y", "file://ab/p", "", "file:", "", "", "ab", "ab", "", "/p", "", ""]);
-      cases.addAll(["file://a%C2%ADb/p", "n", "", "n", "n", "y", "file://ab/p", "", "file:", "", "", "ab", "ab", "", "/p", "", ""]);
-      cases.addAll(["file://loC\u{1D400}\u{1D40B}\u{1D407}\u{1D428}\u{1D42C}\u{1D42D}/usr/bin", "n", "", "n", "n", "y", "file:///usr/bin", "", "file:", "", "", "", "", "", "/usr/bin", "", ""]);
-      cases.addAll(["file://\u{AD}/p", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["file://%C2%AD/p", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["file://xn--/p", "n", "", "n", "n", "y", "file://xn--/p", "", "file:", "", "", "xn--", "xn--", "", "/p", "", ""]);
+      cases.addAll(["file://a\u{AD}b/p", "n", "", "n", "n", "n", "file://ab/p", "", "file:", "", "", "ab", "ab", "", "/p", "", ""]);
+      cases.addAll(["file://a%C2%ADb/p", "n", "", "n", "n", "n", "file://ab/p", "", "file:", "", "", "ab", "ab", "", "/p", "", ""]);
+      cases.addAll(["file://loC\u{1D400}\u{1D40B}\u{1D407}\u{1D428}\u{1D42C}\u{1D42D}/usr/bin", "n", "", "n", "n", "n", "file:///usr/bin", "", "file:", "", "", "", "", "", "/usr/bin", "", ""]);
+      cases.addAll(["file://\u{AD}/p", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["file://%C2%AD/p", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["file://xn--/p", "n", "", "n", "n", "n", "file://xn--/p", "", "file:", "", "", "xn--", "xn--", "", "/p", "", ""]);
       cases.addAll(["#link", "y", "https://example.org/##link", "n", "n", "n", "https://example.org/#link", "", "https:", "", "", "example.org", "example.org", "", "/", "", "#link"]);
       cases.addAll(["non-special:cannot-be-a-base-url-\u{0}\u{1}\u{1F}\u{1E}~\u{7F}\u{80}", "n", "", "n", "y", "n", "non-special:cannot-be-a-base-url-%00%01%1F%1E~%7F%C2%80", "null", "non-special:", "", "", "", "", "", "cannot-be-a-base-url-%00%01%1F%1E~%7F%C2%80", "", ""]);
       cases.addAll(["non-special:cannot-be-a-base-url-!\u{22}\u{24}%&'()*+,-.;<=>@[\u{5C}]^_`{|}~@/", "n", "", "n", "y", "n", "non-special:cannot-be-a-base-url-!\u{22}\u{24}%&'()*+,-.;<=>@[\u{5C}]^_`{|}~@/", "null", "non-special:", "", "", "", "", "", "cannot-be-a-base-url-!\u{22}\u{24}%&'()*+,-.;<=>@[\u{5C}]^_`{|}~@/", "", ""]);
@@ -903,12 +897,12 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["http://0999999999999999999/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://foo.0x", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["http://foo.0XFfFfFfFfFfFfFfFfFfAcE123", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["http://\u{1F4A9}.123/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["http://\u{1F4A9}.123/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["https://\u{0}y", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["https://x/\u{0}y", "n", "", "n", "n", "n", "https://x/%00y", "", "https:", "", "", "x", "x", "", "/%00y", "", ""]);
       cases.addAll(["https://x/?\u{0}y", "n", "", "n", "n", "n", "https://x/?%00y", "", "https:", "", "", "x", "x", "", "/", "?%00y", ""]);
       cases.addAll(["https://x/?#\u{0}y", "n", "", "n", "n", "n", "https://x/?#%00y", "", "https:", "", "", "x", "x", "", "/", "", "#%00y"]);
-      cases.addAll(["https://\u{FFFF}y", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://\u{FFFF}y", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["https://x/\u{FFFF}y", "n", "", "n", "n", "n", "https://x/%EF%BF%BFy", "", "https:", "", "", "x", "x", "", "/%EF%BF%BFy", "", ""]);
       cases.addAll(["https://x/?\u{FFFF}y", "n", "", "n", "n", "n", "https://x/?%EF%BF%BFy", "", "https:", "", "", "x", "x", "", "/", "?%EF%BF%BFy", ""]);
       cases.addAll(["https://x/?#\u{FFFF}y", "n", "", "n", "n", "n", "https://x/?#%EF%BF%BFy", "", "https:", "", "", "x", "x", "", "/", "", "#%EF%BF%BFy"]);
@@ -925,10 +919,10 @@ big for the JVM, whose methods can't pass 64 KB of bytecode.
       cases.addAll(["non-special:x/?#\u{FFFF}y", "n", "", "n", "n", "n", "non-special:x/?#%EF%BF%BFy", "", "non-special:", "", "", "", "", "", "x/", "", "#%EF%BF%BFy"]);
       cases.addAll(["", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
       cases.addAll(["https://example.com/\u{22}quoted\u{22}", "n", "", "n", "y", "n", "https://example.com/%22quoted%22", "https://example.com", "https:", "", "", "example.com", "example.com", "", "/%22quoted%22", "", ""]);
-      cases.addAll(["https://a%C2%ADb/", "n", "", "n", "y", "y", "https://ab/", "https://ab", "https:", "", "", "ab", "ab", "", "/", "", ""]);
-      cases.addAll(["https://\u{AD}/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["https://%C2%AD/", "n", "", "y", "n", "y", "", "", "", "", "", "", "", "", "", "", ""]);
-      cases.addAll(["https://xn--/", "n", "", "n", "y", "y", "https://xn--/", "https://xn--", "https:", "", "", "xn--", "xn--", "", "/", "", ""]);
+      cases.addAll(["https://a%C2%ADb/", "n", "", "n", "y", "n", "https://ab/", "https://ab", "https:", "", "", "ab", "ab", "", "/", "", ""]);
+      cases.addAll(["https://\u{AD}/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://%C2%AD/", "n", "", "y", "n", "n", "", "", "", "", "", "", "", "", "", "", ""]);
+      cases.addAll(["https://xn--/", "n", "", "n", "y", "n", "https://xn--/", "https://xn--", "https:", "", "", "xn--", "xn--", "", "/", "", ""]);
       cases.addAll(["constructor:example", "n", "", "n", "y", "n", "constructor:example", "null", "constructor:", "", "", "", "", "", "example", "", ""]);
       cases.addAll(["constructor:/example", "n", "", "n", "y", "n", "constructor:/example", "null", "constructor:", "", "", "", "", "", "/example", "", ""]);
       cases.addAll(["constructor://HOST:80", "n", "", "n", "y", "n", "constructor://HOST:80", "null", "constructor:", "", "", "HOST:80", "HOST", "80", "", "", ""]);

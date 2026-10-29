@@ -980,4 +980,7 @@ The README's examples.
       assert(relative.href == "https://example.com/c");
       let bad: Url? = parseUrl("https://exa mple.com") orelse null;
       assert(bad == null);
+      let international = parseUrl("https://Bücher.example") orelse panic();
+      assert(international.hostname == "xn--bcher-kva.example");
+      assert(domainToUnicode("xn--bcher-kva.example") == "bücher.example");
     }

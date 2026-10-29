@@ -175,6 +175,75 @@ digits after it stays as it is.
       bytes.toList()
     }
 
+[UTF-8 decode without
+BOM](https://encoding.spec.whatwg.org/#utf-8-decode-without-bom) bytes
+into a string, as the Encoding Standard's UTF-8 decoder does: each bad
+sequence becomes U+FFFD, and a byte that can't continue the sequence
+before it starts the next one. A byte order mark stays, as U+FEFF.
+
+    let utf8Decode(bytes: List<Int>): String {
+      let out = new StringBuilder();
+      var needed = 0;
+      var seen = 0;
+      var code = 0;
+      var lower = 0x80;
+      var upper = 0xBF;
+      var k = 0;
+      while (k < bytes.length) {
+        let byte = bytes[k];
+        if (needed == 0) {
+          if (byte < 0x80) {
+            appendCode(out, byte);
+          } else if (byte >= 0xC2 && byte <= 0xDF) {
+            needed = 1;
+            code = byte & 0x1F;
+          } else if (byte >= 0xE0 && byte <= 0xEF) {
+            if (byte == 0xE0) { lower = 0xA0; }
+            if (byte == 0xED) { upper = 0x9F; }
+            needed = 2;
+            code = byte & 0xF;
+          } else if (byte >= 0xF0 && byte <= 0xF4) {
+            if (byte == 0xF0) { lower = 0x90; }
+            if (byte == 0xF4) { upper = 0x8F; }
+            needed = 3;
+            code = byte & 0x7;
+          } else {
+            appendCode(out, 0xFFFD);
+          }
+          k += 1;
+          continue;
+        }
+        if (byte < lower || byte > upper) {
+
+Not a continuation here: the sequence so far is bad, and this byte
+starts again, so it isn't consumed.
+
+          needed = 0;
+          seen = 0;
+          code = 0;
+          lower = 0x80;
+          upper = 0xBF;
+          appendCode(out, 0xFFFD);
+          continue;
+        }
+        lower = 0x80;
+        upper = 0xBF;
+        code = (code << 6) | (byte & 0x3F);
+        seen += 1;
+        if (seen == needed) {
+          appendCode(out, code);
+          needed = 0;
+          seen = 0;
+          code = 0;
+        }
+        k += 1;
+      }
+      if (needed != 0) {
+        appendCode(out, 0xFFFD);
+      }
+      out.toString()
+    }
+
 The value of hex digit `c`, in either case, or -1 if it isn't one.
 
     let hexValue(c: Int): Int {

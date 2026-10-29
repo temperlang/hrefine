@@ -30,16 +30,25 @@ site that makes the point.
    - **Joining types and viramas,** for the ContextJ rules on zero-width
      joiners (RFC 5892).
 
-   The tables are this library's own, not Ordable's. They must match the
-   Unicode version of the vendored IDNA tests, which is 17.0 (they treat
-   CJK Extension J, new in 17.0, as valid), not Ordable's 15.0, and
-   Ordable's Unicode code stays internal to it. If Temper later builds in
+   The tables are this library's own, not Ordable's (which is on 15.0,
+   and keeps its Unicode code internal). If Temper later builds in
    Unicode data, both libraries could use that instead. Python's
    `unicodedata` is older (16.0 as of Python 3.14), so all the data comes
-   from Unicode 17.0's own files, vendored in `data/unicode-17.0.0/`:
-   `IdnaMappingTable.txt`, `UnicodeData.txt`,
+   from Unicode's own files, which `scripts/unicode_data.py` downloads
+   into `data/unicode-17.0.0/` (not in git) and checks against pinned
+   hashes: `IdnaMappingTable.txt`, `UnicodeData.txt`,
    `DerivedNormalizationProps.txt`, `DerivedBidiClass.txt`, and
    `DerivedJoiningType.txt`.
+   *Done* (2026-10-29), but for Unicode 18.0: all three test files pass
+   on all seven backends. `scripts/idna_tables.py` writes the tables
+   (`src/idna-tables.temper.md`, 32 KB, the numbers written as text and
+   decoded on load); `src/idna.temper.md` has domain to ASCII, domain to
+   Unicode, and NFC, and `src/punycode.temper.md` Punycode. The vendored
+   IDNA tests turned out to be for Unicode 18.0 (web-platform-tests
+   moved them on 2026-10-04), so 7 cases that use code points new in
+   18.0 are counted apart until the tables move up: raise
+   `unicode_data.py`'s VERSION, `--repin` (unicode.org isn't reachable
+   from the dev container), and regenerate.
 3. **Setters and search parameters:** changing a URL's parts as the
    standard's setters do (`setters_tests.json`), and
    `application/x-www-form-urlencoded` parsing and serializing
@@ -82,6 +91,10 @@ people know; to refine before 1.0:
 - `Url`, immutable at first, with the standard's getters, each a
   `String`: `href`, `origin`, `protocol`, `username`, `password`,
   `host`, `hostname`, `port`, `pathname`, `search`, and `hash`.
+- `domainToAscii(domain: String): String throws Bubble` and
+  `domainToUnicode(domain: String): String`: the standard's domain to
+  ASCII and domain to Unicode (IDNA), as in Node's `url` module, for
+  checking a domain and for showing one.
 
 Later, perhaps: a builder or setters (step 3), the source view,
 display formatting, and comparison (step 5), `canParse`, and parsing a
@@ -96,7 +109,8 @@ use; the source view is a separate, opt-in type.
   are code points too.
 - **Files:** the parser's state machine; hosts (domains, IPv4 with its
   odd number forms, IPv6, and opaque hosts); percent-encoding and its
-  encode sets; and, later, IDNA and its tables, and search parameters.
+  encode sets; IDNA (mapping, checks, and NFC), Punycode, and IDNA's
+  generated tables; and, later, search parameters.
 - **Speed:** check that parsing is fast enough in every language (a
   benchmark like Ordable's), but correctness first.
 - **Test files are data:** `scripts/wpt_tests.py` writes the Temper test

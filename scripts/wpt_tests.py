@@ -30,7 +30,7 @@ SOURCE = ROOT / "tests" / "wpt" / "urltestdata.json"
 OUT = ROOT / "src" / "wpt-url-tests.temper.md"
 GETTERS = ["href", "origin", "protocol", "username", "password", "host", "hostname", "port",
            "pathname", "search", "hash"]
-IDNA_DONE = False
+IDNA_DONE = True
 CHUNK = 100  # Cases per function of test data.
 SPECIAL = {"http", "https", "ws", "wss", "ftp", "file"}
 
