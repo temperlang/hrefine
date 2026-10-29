@@ -41,6 +41,9 @@ parseUrl("https://exa mple.com") orelse null; // null
 domainToUnicode("xn--bcher-kva.example"); // "bücher.example"
 ```
 
+The [tour](demos/README.md) shows the same in each language, with
+identical output.
+
 ## Using it safely
 
 Hrefine doesn't change how other code reads URLs: `fetch`, `requests`,
@@ -134,6 +137,14 @@ working:
 Or on all of them:
 
     temper test -b cpp -b csharp -b java -b js -b lua -b py -b rust
+
+Run the tour in every language against `temper.out/`, checking each
+prints the same text (see [demos](demos/README.md)):
+
+    uv run demos/run.py
+
+CI runs the tests and the tour on every backend for pull requests and
+pushes to `main`, using Temper's nightly `dev` build.
 
 Regenerate the tests from web-platform-tests' data, and the IDNA tables
 from Unicode's (which `scripts/unicode_data.py` downloads and checks):

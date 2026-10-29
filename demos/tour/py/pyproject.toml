@@ -1,0 +1,16 @@
+[project]
+name = "hrefine-tour"
+version = "0.0.0"
+requires-python = ">=3.11"
+# Temper's runtime too, so its sources below apply, not PyPI's older
+# releases.
+dependencies = ["hrefine", "temper-core", "temper-std"]
+
+[tool.uv]
+package = false
+
+# The libraries `temper build` generates at the repo's top.
+[tool.uv.sources]
+hrefine = { path = "../../../temper.out/py/hrefine", editable = true }
+temper-core = { path = "../../../temper.out/py/temper-core", editable = true }
+temper-std = { path = "../../../temper.out/py/std", editable = true }

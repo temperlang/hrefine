@@ -1,0 +1,66 @@
+# Hrefine tour
+
+## 1. Parsing and reading parts
+input: https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top
+href: https://user:pass@example.com:8080/b/c?q=1#top
+origin: https://example.com:8080
+protocol: https:
+username: user
+password: pass
+host: example.com:8080
+hostname: example.com
+port: 8080
+pathname: /b/c
+search: ?q=1
+hash: #top
+default port: https://example.com/, port ""
+
+## 2. Relative URLs
+base: https://example.com/docs/guide/intro.html
+setup.html -> https://example.com/docs/guide/setup.html
+../api/ -> https://example.com/docs/api/
+/about -> https://example.com/about
+?page=2 -> https://example.com/docs/guide/intro.html?page=2
+#install -> https://example.com/docs/guide/intro.html#install
+//cdn.example/lib.js -> https://cdn.example/lib.js
+Url.parse: https://example.com/docs/guide/setup.html
+from a Url: https://example.com/docs/guide/faq.html
+
+## 3. Failures
+https://exa mple.com, without a base: not a URL
+http://[::1, without a base: not a URL
+https://example.com:99999, without a base: not a URL
+setup.html, without a base: not a URL
+setup.html against not a base: not a URL
+as an optional: nothing
+
+## 4. International domain names
+hostname: xn--bcher-kva.example
+href: https://xn--bcher-kva.example/stra%C3%9Fe?q=%C3%BC
+to ASCII: Bücher.Example -> xn--bcher-kva.example
+to ASCII: faß.de -> xn--fa-hia.de
+to ASCII: ☕.example -> xn--53h.example
+to ASCII: xn--tešla fails
+to Unicode: xn--bcher-kva.example -> bücher.example
+to Unicode: xn--pple-43d.com -> аpple.com
+
+## 5. Serializing with href
+HTTP://EXAMPLE.COM/a/./b/../c -> http://example.com/a/c
+https:\\example.com\path -> https://example.com/path
+http://0x7f.1/ -> http://127.0.0.1/
+https://[0:0::1]:443/ -> https://[::1]/
+https://example.com/a b?c d#e f -> https://example.com/a%20b?c%20d#e%20f
+ https://exa\tmple.com/\n -> https://example.com/
+as a string: https://user:pass@example.com:8080/b/c?q=1#top
+
+## 6. Using it safely
+https://api.example.com/v1/items: fetch https://api.example.com/v1/items
+https://example.com\@evil.example/: fetch https://example.com/@evil.example/
+https://evil.example#@example.com: refuse: host evil.example
+https://0x7f.1/admin: refuse: host 127.0.0.1
+http://example.com/: refuse: protocol http:
+javascript:alert(1): refuse: protocol javascript:
+https://exa mple.com: refuse: not a URL
+next=/account: redirect to https://example.com/account
+next=//evil.example/: refuse, https://evil.example
+next=/\evil.example: refuse, https://evil.example

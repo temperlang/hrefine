@@ -58,6 +58,9 @@ site that makes the point.
    usual web clients and servers (such as `fetch`, `requests`,
    `HttpClient`, and `reqwest`): check with Hrefine, then hand on `href`,
    never the original string (README, "Using it safely").
+   *Done* (2026-10-29), ahead of step 3, to review the API through
+   them: `demos/tour/`, run in CI. What they showed is below, under
+   "API review from the tours".
 5. **Formatting and lossless edits** (designed now, built after the
    above): a formatter in any case, and maybe both a normalizing and a
    preserving form; a source view that keeps the original input with each
@@ -113,6 +116,45 @@ display formatting, and comparison (step 5), `canParse`, and parsing a
 base once to reuse. The canonical `Url` stays what security decisions
 use; the source view is a separate, opt-in type.
 
+## API review from the tours
+
+What writing the tours (`demos/tour/`, 2026-10-29) showed, to weigh
+before 1.0. Several are Temper backend issues, not Hrefine's own.
+
+- **Failures say nothing,** in every language: a bare `RuntimeError`
+  (Python), `Error` (JS), `RuntimeException` (Java), `System.Exception`
+  (C#), `TemperBubble` (C++), the string "Bubble" (Lua), and
+  `Error(None)` (Rust, whose `Display` overflows the stack). Catching
+  them catches unrelated errors too. Six tours wrote their own
+  `tryParse` (Rust has `.ok()`).
+  So: a nullable parse in the library, and a reason (the standard's
+  validation error names) on some result type.
+- **One parse function:** `parseUrl` and `Url.parse` do the same, but
+  JavaScript's `URL.parse` returns null where Hrefine's throws. Keep one
+  throwing parse, and make the other the nullable one, or drop it.
+- **Parsing a base once:** the base is a string, parsed again on each
+  call, and a `Url` can't be one without going through `href`. A
+  `url.resolve(input)` (as Java's `URI.resolve` and Rust's `Url::join`)
+  would fix both.
+- **Typed parts:** `port` is `""` or digits; `origin` is the string
+  `"null"` for opaque origins, so two `data:` URLs compare as the same
+  origin; and telling an IP host from a domain means parsing `hostname`
+  again, which SSRF checks need. Keep the standard's strings, and add a
+  host kind, a numeric port, and an origin check.
+- **`domainToAscii` isn't a host check:** it passes `exa mple.com`,
+  `0x7f.1`, and `[::1]` unchanged, as the standard's algorithm does,
+  though the README offers it "for checking a domain".
+- **Strings and equality:** `href` works everywhere, but `str()`
+  (Python), `tostring` (Lua), `$"{url}"` (C#), `Display` (Rust), and `<<`
+  (C++) don't give it, and no backend compares two `Url`s by value.
+- **Per language:** Rust needs `None::<&str>` for no base, `.as_str()`
+  to compare parts, and `init` first (else a bare `unwrap` panic); Python
+  takes no keywords (`base=` fails); C++ needs `global_init_init()` and
+  Temper's `NullableParam` for an optional base, and its header shows
+  every internal, with `Url`'s fields public and mutable; C# and JS make
+  `Url`'s constructor public, so a `Url` needn't come from the parser;
+  Java and C# reach the functions through a `HrefineGlobal` class.
+
 ## Design notes
 
 - **Code points, not code units:** Temper strings hold Unicode scalar
@@ -145,6 +187,12 @@ use; the source view is a separate, opt-in type.
     ends rather than lengths (slower), a module for the tables (Java
     and C# would load it lazily, but every backend makes its exports
     public), and `indexOf` for finding tabs (culture-sensitive in C#).
+- **JS size matters for everyday use** (2026-10-29): at about 40 KB
+  gzipped, the pure library may be too big for everyday JS, where `URL`
+  is built in, though fine in other languages. So reconsider the native
+  JS build below as JS's everyday choice, with pure Temper as the exact
+  option, while the site still shows why one common implementation
+  matters.
 - **Native JS, maybe later:** once Temper's connected functions can fall
   back to Temper bodies, an opt-in JS build could use the runtime's own
   `URL` (in browsers, Node, Deno, and Bun) for parsing and IDNA, dropping
