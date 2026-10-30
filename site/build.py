@@ -26,7 +26,8 @@ snippets for the page's dev mode: each snippet's lines, in order, for each
 language, dedented, go into `snippets.json`, and the comments come off the
 tours the page shows. Since CI runs every tour, the snippets are known to
 work; every snippet must be in every language, and every spot in
-`devmode.js` must have one.
+`devmode.js` must have one. Each name on a spot's card, as that language
+spells it, must be in its tour too (`spell-node.mjs`).
 
 Runs the JavaScript tour in Node as the page's "Run in your browser" does
 (`tour-node.mjs` and `tourrun.js`), against the built `lib/`, failing
@@ -117,6 +118,16 @@ def check_tour_run(expected):
             expected.splitlines(keepends=True), run.stdout.splitlines(keepends=True), "expected.txt", "in the page"
         )
         raise SystemExit(f"The JS tour, run as the page runs it, prints otherwise:\n{''.join(diff)}")
+
+
+def check_card_names():
+    """Fails unless every name on dev mode's cards, as each language spells
+    it, is in that language's tour."""
+    run = subprocess.run(
+        ["node", str(SITE / "spell-node.mjs"), str(OUT)], capture_output=True, text=True, encoding="utf-8"
+    )
+    if run.returncode:
+        raise SystemExit(run.stderr or run.stdout)
 
 
 def link_modules(name):
@@ -539,6 +550,7 @@ def main():
     expected = (TOUR / "expected.txt").read_text(encoding="utf-8")
     copy(TOUR / "expected.txt", OUT / "tour" / "expected.txt")
     check_tour_run(expected)
+    check_card_names()
     fixes = "\n".join(
         f'<pre class="source fix-code" data-lang="{ext}" tabindex="0" hidden><code>{esc(fix_snippet(ext, text))}</code></pre>'
         for ext, text in sources.items()

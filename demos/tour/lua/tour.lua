@@ -7,6 +7,7 @@ local hrefine = require("hrefine")
 local Url, HostKind, parseUrl, checkUrl = hrefine.Url, hrefine.HostKind, hrefine.parseUrl, hrefine.checkUrl
 local UrlSearchParams, UrlPolicy = hrefine.UrlSearchParams, hrefine.UrlPolicy
 local parseHost, domainToAscii, domainToUnicode = hrefine.parseHost, hrefine.domainToAscii, hrefine.domainToUnicode
+local UrlDisplay, parseUrlSource = hrefine.UrlDisplay, hrefine.parseUrlSource
 -- Temper's runtime gives temper.null, not nil, for no value, so null_to_nil
 -- turns it into nil.
 local temper = require("temper-core")
@@ -297,4 +298,36 @@ for _, target in ipairs({ "/account?tab=2", "//evil.example/", "/\\evil.example"
   local result = redirects:check(target)
   local next = null_to_nil(result.url)
   print("next=" .. shown(target) .. ": " .. (next and "redirect to " .. next.href or "refuse, " .. result:toString()))
+end
+
+section("10. Showing, comparing, and spans")
+
+-- To show people a URL, as browsers' address bars do: hosts in Unicode
+-- where browsers would show them (not look-alikes such as Cyrillic а in
+-- xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
+-- security decisions, nor for handing on: use href for those.
+local display = UrlDisplay.full:withCredentials(false):withRootSlash(false)  -- snippet: display
+for _, input in ipairs({  -- snippet: display
+  "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  -- snippet: display
+  "https://xn--pple-43d.com/",  -- snippet: display
+}) do  -- snippet: display
+  print("display: " .. display:format(parseUrl(input)))  -- snippet: display
+end  -- snippet: display
+
+-- The same URL, the same but for the fragment, or the same origin. All
+-- compare canonical forms, so case and a default port don't matter.
+local intro = parseUrl("https://EXAMPLE.com:443/a/../guide#intro")
+local setup = parseUrl("https://example.com/guide#setup")
+print("same URL: " .. tostring(intro:eq(setup)))
+print("same document: " .. tostring(intro:sameDocument(setup)))
+print("same origin: " .. tostring(intro:sameOrigin(parseUrl("https://example.com/about"))))
+
+-- Where each part was written, for editors and linters: never for security
+-- decisions, which use source.url. Spans count code points.
+local source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1")
+print("href: " .. source.url.href)
+print("host as written: " .. source.hostSpan.asWritten .. ", at " .. source.hostSpan:toString())
+print("path as written: " .. source.pathSpan.asWritten)
+for _, error in ipairs(checkUrl("https://exa mple.com").errors) do
+  print(error.name .. ": from " .. error.position .. ", " .. error.length .. " long")
 end

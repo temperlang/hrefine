@@ -27,7 +27,7 @@
 const find = (selector) => document.querySelector(selector);
 
 /** @type {Spot[]} */
-const SPOTS = [
+export const SPOTS = [
   {
     id: "hero",
     title: "Which host?",
@@ -47,9 +47,15 @@ const SPOTS = [
     target: () => find("#parts"),
   },
   {
+    id: "display",
+    title: "How people see it",
+    about: "`UrlDisplay.full` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), and decodes escaped non-ASCII text where that's safe; methods such as `withCredentials` leave parts out. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
+    target: () => find("#hrefine-what .display-line"),
+  },
+  {
     id: "errors",
     title: "What's wrong with it",
-    about: "`checkUrl` gives the URL, or null, and the standard's validation errors, each with its name and position in code points. Where parsing fails, the last error says why.",
+    about: "`checkUrl` gives the URL, or null, and the standard's validation errors, each with its name, and its `position` and `length` in code points of the input as given. Where parsing fails, the last error says why.",
     target: () => find("#errors"),
   },
   {
@@ -61,7 +67,7 @@ const SPOTS = [
   {
     id: "policy",
     title: "A policy, in one call",
-    about: "Build a `UrlPolicy` once from `UrlPolicy.any`, adding a rule per `with` method, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are loopback too.",
+    about: "Build a `UrlPolicy` once from `UrlPolicy.any`, adding a rule per method such as `withSchemes`, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are loopback too.",
     target: () => find(".fix .policy-step"),
   },
   {
@@ -79,25 +85,33 @@ const SPOTS = [
 ];
 
 // Properties, which some languages read with getters.
-const PROPERTIES = new Set(["href", "strictHref", "hostname", "scheme", "portNumber", "hostKind", "url"]);
+const PROPERTIES = new Set([
+  "href", "strictHref", "hostname", "scheme", "portNumber", "hostKind", "url", "errors", "strictErrors",
+  "asWritten", "hostSpan", "position", "length",
+]);
+// Static properties, such as `UrlPolicy.any`, which Rust reads with a call.
+const STATICS = new Set(["any", "full", "domain", "ipv4", "ipv6", "opaque", "empty"]);
 
 /**
  * A Hrefine name, like `Url.parse` or `hostKind`, as `file`'s language
  * spells it: snake_case in Python and Rust, PascalCase in C#, `::` after a
- * type in C++ and Rust, and properties as getters in C++, Java, and Rust.
+ * type in C++ and Rust, properties as getters in C++, Java, and Rust, and
+ * static properties as calls in Rust (`UrlPolicy::any()`). The build checks
+ * each card's names against the tours (`spell-node.mjs`).
  *
  * @param {string} name
  * @param {string} file
  * @returns {string}
  */
-function spell(name, file) {
-  const parts = name.split(".").map((part) => {
+export function spell(name, file) {
+  const parts = name.split(".").map((part, k, all) => {
     if (/^[A-Z]/.test(part)) return part;
-    const property = PROPERTIES.has(part);
+    const isStatic = k > 0 && /^[A-Z]/.test(all[k - 1]) && STATICS.has(part);
+    const property = !isStatic && PROPERTIES.has(part);
     const snake = part.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
     const pascal = part[0].toUpperCase() + part.slice(1);
     if (file === "py") return snake;
-    if (file === "rs") return property ? `${snake}()` : snake;
+    if (file === "rs") return property || isStatic ? `${snake}()` : snake;
     if (file === "cs") return pascal;
     if (file === "java" && property) return `get${pascal}()`;
     if (file === "cpp" && property) return `get_${part}()`;

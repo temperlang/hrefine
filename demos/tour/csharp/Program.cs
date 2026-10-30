@@ -311,3 +311,37 @@ foreach (var target in new[] { "/account?tab=2", "//evil.example/", "/\\evil.exa
     var result = redirects.Check(target);
     Console.WriteLine($"next={Shown(target)}: {(result.Url is Url next ? "redirect to " + next.Href : "refuse, " + result.ToString())}");
 }
+
+Section("10. Showing, comparing, and spans");
+
+// To show people a URL, as browsers' address bars do: hosts in Unicode
+// where browsers would show them (not look-alikes such as Cyrillic а in
+// xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
+// security decisions, nor for handing on: use Href for those.
+var display = UrlDisplay.Full.WithCredentials(false).WithRootSlash(false);  // snippet: display
+foreach (var input in new[] {  // snippet: display
+    "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
+    "https://xn--pple-43d.com/",  // snippet: display
+})  // snippet: display
+{  // snippet: display
+    Console.WriteLine($"display: {display.Format(ParseUrl(input))}");  // snippet: display
+}  // snippet: display
+
+// The same URL, the same but for the fragment, or the same origin. All
+// compare canonical forms, so case and a default port don't matter.
+var intro = ParseUrl("https://EXAMPLE.com:443/a/../guide#intro");
+var setup = ParseUrl("https://example.com/guide#setup");
+Console.WriteLine($"same URL: {(intro.Eq(setup) ? "true" : "false")}");
+Console.WriteLine($"same document: {(intro.SameDocument(setup) ? "true" : "false")}");
+Console.WriteLine($"same origin: {(intro.SameOrigin(ParseUrl("https://example.com/about")) ? "true" : "false")}");
+
+// Where each part was written, for editors and linters: never for security
+// decisions, which use source.Url. Spans count code points.
+var source = ParseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
+Console.WriteLine($"href: {source.Url.Href}");
+Console.WriteLine($"host as written: {source.HostSpan!.AsWritten}, at {source.HostSpan.ToString()}");
+Console.WriteLine($"path as written: {source.PathSpan!.AsWritten}");
+foreach (var error in CheckUrl("https://exa mple.com").Errors)
+{
+    Console.WriteLine($"{error.Name}: from {error.Position}, {error.Length} long");
+}

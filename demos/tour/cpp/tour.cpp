@@ -13,6 +13,7 @@
 
 using hrefine::HostKind;
 using hrefine::Url;
+using hrefine::UrlDisplay;
 using hrefine::UrlPolicy;
 using hrefine::UrlSearchParams;
 using hrefine::checkUrl;
@@ -20,6 +21,7 @@ using hrefine::domainToAscii;
 using hrefine::domainToUnicode;
 using hrefine::parseHost;
 using hrefine::parseUrl;
+using hrefine::parseUrlSource;
 using temper::core::TemperBubble;
 
 void section(std::string const &title) { std::cout << "\n## " << title << "\n"; }
@@ -302,5 +304,40 @@ int main() {
     auto result = redirects->check(target);
     auto url = result->get_url();
     std::cout << "next=" << shown(target) << ": " << (url ? "redirect to " + url->get_href() : "refuse, " + result->toString()) << "\n";
+  }
+
+  section("10. Showing, comparing, and spans");
+
+  // To show people a URL, as browsers' address bars do: hosts in Unicode
+  // where browsers would show them (not look-alikes such as Cyrillic а in
+  // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
+  // security decisions, nor for handing on: use get_href() for those.
+  auto display = UrlDisplay::full->withCredentials(false)->withRootSlash(false);  // snippet: display
+  for (std::string input : {  // snippet: display
+           "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
+           "https://xn--pple-43d.com/"}) {  // snippet: display
+    std::cout << "display: " << display->format(parseUrl(input)) << "\n";  // snippet: display
+  }  // snippet: display
+
+  // The same URL, the same but for the fragment, or the same origin. All
+  // compare canonical forms, so case and a default port don't matter.
+  auto intro = parseUrl("https://EXAMPLE.com:443/a/../guide#intro");
+  auto setup = parseUrl("https://example.com/guide#setup");
+  std::cout << "same URL: " << (intro->eq(setup) ? "true" : "false") << "\n";
+  std::cout << "same document: " << (intro->sameDocument(setup) ? "true" : "false") << "\n";
+  std::cout << "same origin: " << (intro->sameOrigin(parseUrl("https://example.com/about")) ? "true" : "false") << "\n";
+
+  // Where each part was written, for editors and linters: never for security
+  // decisions, which use get_url(). Spans count code points.
+  auto source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
+  std::cout << "href: " << source->get_url()->get_href() << "\n";
+  std::cout << "host as written: " << source->get_hostSpan()->get_asWritten() << ", at "
+            << source->get_hostSpan()->toString() << "\n";
+  std::cout << "path as written: " << source->get_pathSpan()->get_asWritten() << "\n";
+  // Keep the check in a variable: a range-for over a temporary's list
+  // would outlive it.
+  auto check = checkUrl("https://exa mple.com");
+  for (auto const &error : *check->get_errors()) {
+    std::cout << error->get_name() << ": from " << error->get_position() << ", " << error->get_length() << " long\n";
   }
 }

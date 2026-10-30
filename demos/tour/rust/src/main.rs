@@ -4,8 +4,8 @@
 //! print the same text. See demos/README.md for how to run them.
 
 use hrefine::{
-    check_url, domain_to_ascii, domain_to_unicode, parse_host, parse_url, HostKind, Url,
-    UrlPolicy, UrlSearchParams,
+    check_url, domain_to_ascii, domain_to_unicode, parse_host, parse_url, parse_url_source,
+    HostKind, Url, UrlDisplay, UrlPolicy, UrlSearchParams,
 };
 use std::sync::Arc;
 
@@ -308,5 +308,41 @@ fn main() {
             Some(url) => println!("next={}: redirect to {}", shown(target), url.href()),
             None => println!("next={}: refuse, {}", shown(target), result.to_string()),
         }
+    }
+
+    section("10. Showing, comparing, and spans");
+
+    // To show people a URL, as browsers' address bars do: hosts in Unicode
+    // where browsers would show them (not look-alikes such as Cyrillic а in
+    // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
+    // security decisions, nor for handing on: use href() for those.
+    let display = UrlDisplay::full().with_credentials(false).with_root_slash(false);  // snippet: display
+    for input in [  // snippet: display
+        "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
+        "https://xn--pple-43d.com/",  // snippet: display
+    ] {  // snippet: display
+        let url = parse_url(input, NO_BASE).expect("a URL");  // snippet: display
+        println!("display: {}", display.format(url));  // snippet: display
+    }  // snippet: display
+
+    // The same URL, the same but for the fragment, or the same origin. All
+    // compare canonical forms, so case and a default port don't matter.
+    let intro = parse_url("https://EXAMPLE.com:443/a/../guide#intro", NO_BASE).expect("a URL");
+    let setup = parse_url("https://example.com/guide#setup", NO_BASE).expect("a URL");
+    let about = parse_url("https://example.com/about", NO_BASE).expect("a URL");
+    println!("same URL: {}", intro.eq(setup.clone()));
+    println!("same document: {}", intro.same_document(setup));
+    println!("same origin: {}", intro.same_origin(about));
+
+    // Where each part was written, for editors and linters: never for
+    // security decisions, which use url(). Spans count code points.
+    let source = parse_url_source(" https://EXAMPLE.com:443/a/../b?q=1", NO_BASE).expect("a URL");
+    println!("href: {}", source.url().href());
+    let host = source.host_span().expect("a host");
+    println!("host as written: {}, at {}", host.as_written(), host.to_string());
+    println!("path as written: {}", source.path_span().expect("a path").as_written());
+    let check = check_url("https://exa mple.com", NO_BASE).expect("no base to fail");
+    for error in check.errors().iter() {
+        println!("{}: from {}, {} long", error.name(), error.position(), error.length());
     }
 }

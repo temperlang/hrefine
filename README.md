@@ -16,8 +16,10 @@ Parsing and serializing work on every backend, international domain
 names included, and so do the standard's setters and search parameters
 (`URLSearchParams`), a strict mode, and policies: the usual security
 checks (schemes, credentials, private and loopback addresses, host
-allowlists, and redirect targets) in one call, on the parsed URL. See
-the [plan](docs/plan.md) for what's next.
+allowlists, and redirect targets) in one call, on the parsed URL. And for
+people and tools: a display form, as browsers show URLs, comparisons,
+and where each part was written. See the [plan](docs/plan.md) for
+what's next.
 
 ## Examples
 
@@ -76,6 +78,16 @@ let policy = UrlPolicy.any.withSchemes(["https"]).withCredentials(false)
   .withSpecialHosts(false).withHosts(["example.com"], true);
 policy.check("https://api.example.com/").url;  // the URL
 policy.check("https://127.1/").toString(); // "specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8"
+
+// For people, never for decisions: Unicode hosts where browsers show them.
+let shown = UrlDisplay.full.withCredentials(false).withRootSlash(false);
+shown.format(parseUrl("https://user@xn--bcher-kva.example/") orelse panic()); // "https://bücher.example"
+domainToDisplay("xn--pple-43d.com"); // "xn--pple-43d.com", since it's Cyrillic а and Latin pple
+url.sameDocument(url.withHash("other")); // true: the same but for the fragment
+
+// Where each part was written, for editors and linters.
+let source = parseUrlSource(" https://EXAMPLE.com/a\tb") orelse panic();
+source.hostSpan.asWritten; // "EXAMPLE.com", at 9, 11 long; source.url is for decisions
 ```
 
 The [tour](demos/README.md) shows the same in each language, with
@@ -100,6 +112,8 @@ identical output.
   Hrefine's own, `IPv4-non-canonical` (`127.1`, `0x7f.1`, `2130706433`)
   and `domain-percent-encoded` (`%65vil.example`), which the standard
   doesn't count as errors (see the [plan](docs/plan.md), "Strict mode").
+  Each error also has a `length`: one code point, a whole host or port,
+  the stripped ends, or none at the end of the input.
 - `Url`: the standard's getters, each a string, as in JavaScript:
   `href`, `origin`, `protocol`, `username`, `password`, `host`,
   `hostname`, `port`, `pathname`, `search`, and `hash`. Typed parts
@@ -110,7 +124,10 @@ identical output.
     `url` again; it bubbles where that fails, and `url.tryResolve(ref)`
     gives null instead.
   - `url.sameOrigin(other)`: whether the two have the same origin;
-    opaque origins (as for `data:` URLs) never do.
+    opaque origins (as for `data:` URLs) never do. And
+    `url.sameDocument(other)`: whether they're the same but for the
+    fragment (the standard's URL equals, excluding fragments). A default
+    port, case, and dot segments are already gone from both.
   - `strictHref`: `href` with what RFC 3986 doesn't allow escaped (such
     as `|`, `^`, `{`, `}`, `[` and `]` outside IPv6 hosts, and a `%`
     without two hex digits), and escapes of letters, digits, `-`, `.`,
@@ -158,6 +175,26 @@ identical output.
   `PolicyRule.specialHost`) and a `reason`; it never bubbles. See
   [policy](src/policy.temper.md) for each rule and the table of special
   addresses.
+- `UrlDisplay`: a URL formatted for people, as browsers' address bars
+  show it, never for security decisions or handing on. Start from
+  `UrlDisplay.full` (hosts in Unicode where browsers would show them,
+  and escapes of non-ASCII text decoded where that's safe), and turn
+  parts off with `withCredentials(false)`, `withFragment(false)`,
+  `withRootSlash(false)` (a lone `/` path), `withUnicodeHosts(false)`,
+  and `withDecoding(false)`; then `display.format(url)`.
+  `domainToDisplay(domain)` does a host alone: each label in Unicode
+  only where browsers would show it, else `xn--`. For now that's Latin
+  labels without look-alikes of ASCII letters; other scripts keep
+  `xn--` until Hrefine has Unicode's script data (see the
+  [plan](docs/plan.md), "Display formatting").
+- `parseUrlSource(input, base?)`: a `UrlSource`, with the input
+  `asWritten`, the parsed `url`, and where each part was written:
+  `schemeSpan`, `usernameSpan`, `passwordSpan`, `hostSpan`, `portSpan`,
+  `pathSpan`, `querySpan`, and `fragmentSpan`, each a `SourceSpan`
+  (`start`, `length`, in code points of the input as given, and
+  `asWritten`), or null where the input didn't write that part. For
+  editors and linters: the text as written isn't normalized or checked,
+  so never use it for security decisions; use `url`.
 - `parseHost(input)`: checks a host, as in `https://input/`, giving a
   `Host` with its `kind` and `serialized` form, or bubbles.
 - `domainToAscii(domain)` and `domainToUnicode(domain)`: the standard's
@@ -268,6 +305,14 @@ own URL cases, the ones browsers are checked against, vendored in
   tests. Only the UTF-8 answers apply; the rest are for pages in legacy
   encodings, which the `URL` API never uses.
 
+[Display](src/display.temper.md)'s tests try Latin names browsers show
+in Unicode, and spoofs they don't (mixed scripts, whole-script
+look-alikes, and Latin look-alikes of ASCII letters), all hand-written,
+since neither browser's IDN test data is in web-platform-tests; and
+decoding for display, checking that each display form parses back to the
+same `href`. [Source](src/source.temper.md)'s tests try spans through
+stripped spaces, controls, tabs, and newlines, and against a base.
+
 [Policy](src/policy.temper.md)'s tests try every rule and strict mode
 on the classic bypasses (`127.1`, `0x7f.1`, `[::ffff:127.0.0.1]`,
 `2130706433`, `localhost.`, user info, backslashes and tabs, and IDNA
@@ -282,7 +327,8 @@ same parts once decoded.
 [The site](site/) shows the problem and the fix in one page: one URL that
 other languages' parsers read as different hosts, a tester that parses
 whatever you type live with Hrefine's JavaScript build (beside your
-browser's own `URL`), a gallery of tricks (short and hex IPv4 forms,
+browser's own `URL`, with how browsers would show it, and each
+validation error marked in the input), a gallery of tricks (short and hex IPv4 forms,
 backslashes, `@` and `#@`, tabs, look-alike Unicode, `javascript:`, and
 protocol-relative URLs), a table of 48 more disagreements, by kind
 (backslashes and controls, user info, IPv4 and IPv6 forms, escaped and
@@ -341,8 +387,10 @@ behind them (`site/devmode.js`), each opening a short snippet in any of
 the seven languages. The snippets are lines of the tours marked with a
 comment such as `# snippet: hero, parts`; the build collects them into
 `snippets.json`, failing if one is missing from a tour or a badge has
-none, and strips the markers from the tours the page shows. CI runs
-every tour, so every snippet runs. Visits are counted
+none, and strips the markers from the tours the page shows. It also
+checks each name on a card, as each language spells it, against that
+language's tour (`site/spell-node.mjs`). CI runs every tour, so every
+snippet runs. Visits are counted
 by cookieless GoatCounter, site code `hrefine`. CI
 (`.github/workflows/site.yml`) builds the site on every change and
 publishes it to GitHub Pages from `main`.
@@ -401,9 +449,12 @@ See the [plan](docs/plan.md) for details.
 
 - **Done:** parsing and serializing, international domain names (IDNA),
   setters and search parameters, the strict RFC 3986 form, strict mode
-  and policies, the tours, and the site.
-- **Next:** the rest of the plan's step 5: display formatting,
-  comparison, and the lossless source view.
+  and policies, display formatting, comparison, source spans, the
+  tours, and the site.
+- **Next:** Unicode's script and security data, so display shows other
+  scripts in Unicode as browsers do; lossless editing, designed in the
+  plan, once its span and edit model is settled with a lossless
+  Markdown and HTML library.
 - **Before 1.0:** trademark checks, dropping the `orelse` workaround
   once Temper's nightly has the fix, a minified site bundle, and
   publishing packages.
@@ -437,3 +488,4 @@ from Unicode's (which `scripts/unicode_data.py` downloads and checks):
     uv run scripts/wpt_setter_tests.py
     uv run scripts/wpt_search_params_tests.py
     uv run scripts/idna_tables.py
+    uv run scripts/display_tables.py

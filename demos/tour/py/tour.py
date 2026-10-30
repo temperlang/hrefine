@@ -9,6 +9,7 @@ from temper_core import Pair
 from hrefine import (
     HostKind,
     Url,
+    UrlDisplay,
     UrlPolicy,
     UrlSearchParams,
     check_url,
@@ -16,6 +17,7 @@ from hrefine import (
     domain_to_unicode,
     parse_host,
     parse_url,
+    parse_url_source,
 )
 
 
@@ -275,3 +277,33 @@ redirects = UrlPolicy.any.with_base(site).with_path_only(True)
 for target in ["/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"]:
     result = redirects.check(target)
     print(f"next={shown(target)}: {'redirect to ' + result.url.href if result.url is not None else 'refuse, ' + result.to_string()}")
+
+section("10. Showing, comparing, and spans")
+
+# To show people a URL, as browsers' address bars do: hosts in Unicode
+# where browsers would show them (not look-alikes such as Cyrillic а in
+# xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
+# security decisions, nor for handing on: use href for those.
+display = UrlDisplay.full.with_credentials(False).with_root_slash(False)  # snippet: display
+for text in [  # snippet: display
+    "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  # snippet: display
+    "https://xn--pple-43d.com/",  # snippet: display
+]:  # snippet: display
+    print(f"display: {display.format(parse_url(text))}")  # snippet: display
+
+# The same URL, the same but for the fragment, or the same origin. All
+# compare canonical forms, so case and a default port don't matter.
+intro = parse_url("https://EXAMPLE.com:443/a/../guide#intro")
+setup = parse_url("https://example.com/guide#setup")
+print(f"same URL: {str(intro.eq(setup)).lower()}")
+print(f"same document: {str(intro.same_document(setup)).lower()}")
+print(f"same origin: {str(intro.same_origin(parse_url('https://example.com/about'))).lower()}")
+
+# Where each part was written, for editors and linters: never for security
+# decisions, which use source.url. Spans count code points.
+source = parse_url_source(" https://EXAMPLE.com:443/a/../b?q=1")
+print(f"href: {source.url.href}")
+print(f"host as written: {source.host_span.as_written}, at {source.host_span.to_string()}")
+print(f"path as written: {source.path_span.as_written}")
+for error in check_url("https://exa mple.com").errors:
+    print(f"{error.name}: from {error.position}, {error.length} long")

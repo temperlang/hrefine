@@ -99,6 +99,14 @@ site that makes the point.
    *Strict form done* (2026-10-30): `url.strictHref`, a getter, as
    `href` and `origin` are, since it's another serialization of the
    same URL, with no options. See "The strict RFC 3986 form" below.
+   *Display, comparison, and spans done* (2026-10-30): `UrlDisplay`
+   and `domainToDisplay`, `url.sameDocument`, and `parseUrlSource`
+   with `UrlSource` and `SourceSpan`, and validation errors now carry a
+   `length` beside their `position`. Display shows only Latin labels in
+   Unicode for now, until Unicode's Script and identifier data are
+   pinned. Lossless editing is designed, not built: it waits on htmlmd.
+   See "Display formatting", "Comparison", "Source spans", and
+   "Lossless editing" below.
 6. **The site:** a disagreement explorer. Type a URL and see the parts
    this library reads, beside each language's built-in parser (Python's
    `urllib`, Java's `URI`, C#'s `Uri`, Go's `net/url`, and the
@@ -213,10 +221,10 @@ people know, with JavaScript's names, revised after the tours
   `UrlSearchParams.fromEntries(pairs)` builds one from `Pair`s, as a
   static factory, since a constructor can't be overloaded.
 
-Later, perhaps: the source view, display formatting, and comparison
-options (step 5). The canonical
-`Url` stays what security decisions use; the source view is a separate,
-opt-in type.
+- `UrlDisplay`, `domainToDisplay`, `url.sameDocument`,
+  `parseUrlSource`, `UrlSource`, and `SourceSpan` (step 5, below), and
+  `ValidationError.length`. The canonical `Url` stays what security
+  decisions use; the source view is a separate, opt-in type.
 
 ## API review from the tours
 
@@ -448,6 +456,153 @@ policy with one more rule, and `policy.check(input)` giving a
   base with another host: a path, query, or fragment keeps both hosts,
   while `//evil.example`, `/\evil.example`, `\\evil.example`, and any
   absolute URL don't, all decided on the parsed result.
+
+## Display formatting
+
+Decided 2026-10-30, for step 5. `UrlDisplay.full.format(url)` formats a
+URL for people, built with `with` methods as policies are:
+`withUnicodeHosts`, `withDecoding`, `withCredentials`, `withFragment`,
+and `withRootSlash`, each `false` to turn it off. `domainToDisplay` does
+hosts alone. The display form is never for security decisions, nor for
+handing on, and the docs on both say so.
+
+**Hosts.** Chromium ([IDN in Google
+Chrome](https://chromium.googlesource.com/chromium/src/+/main/docs/idn.md))
+and Firefox ([IDN display
+algorithm](https://wiki.mozilla.org/IDN_Display_Algorithm)) decide each
+label alone, showing Unicode only if it passes rules built on [UTS
+#39](https://www.unicode.org/reports/tr39/)'s restriction levels (Firefox's
+default is Moderately Restrictive; Chromium's is close, but never mixes
+Latin with Cyrillic or Greek), plus Chromium's own checks. What Hrefine
+does, rule by rule:
+
+| Rule | Source | Hrefine |
+|---|---|---|
+| Decide each label alone | both | yes |
+| Valid IDNA, in normal form: the label converts to Unicode and back to the same `xn--` | both (a label that doesn't round-trip stays Punycode) | yes |
+| Characters allowed in identifiers (UTS #39's Identifier Status) | both | in part: only IDNA-valid Latin letters, so no symbols, marks, or other scripts |
+| One script, or an allowed mix (Latin with Han and kana, Bopomofo, or Hangul, or with one other script but Cyrillic and Greek) | both, UTS #39 section 5.2 | in part: Latin only, so nothing mixes |
+| No digits from mixed numbering systems | both | yes, since only ASCII digits pass |
+| No invisible characters or combining marks out of place | both, and Chromium's dot-above checks | yes, by allowing no combining marks at all |
+| Whole-script look-alikes (`аррӏе` in Cyrillic for `apple`) | Chromium, by script and top-level domain | yes, since Cyrillic labels keep `xn--` for now |
+| Latin look-alikes of ASCII letters (`ı`, `ɑ`, `ɡ`, `ĸ`, small capitals) | Unicode's confusables, as Chromium uses them, and Chromium's own additions (`ĸ`, `ħ`, `ŧ`, `ƅ`, `ŋ`) | a hand-picked list of 38, in `src/display.temper.md` |
+| Labels whose look-alike skeleton matches a top domain | Chromium, with its top-domains list | no: that needs the list, and the full confusables table |
+
+So Latin labels show in Unicode (`bücher`, `münchen`, `café`, `faß`)
+unless they hold a look-alike, and all other scripts keep `xn--` for now:
+stricter than both browsers, never looser. Unicode's data for the rest
+isn't pinned yet, and unicode.org isn't reachable from the dev
+container, so the Latin letters come from `UnicodeData.txt` (letters
+named `LATIN …`, a subset of the Latin script), through
+`scripts/display_tables.py` and `unicode_data.py`'s pinned hashes. To
+show other scripts as browsers do, pin and use `Scripts.txt` and
+`ScriptExtensions.txt` (UCD), and `IdentifierStatus.txt`,
+`IdentifierType.txt`, and `confusables.txt` (Unicode's security data),
+then check the restriction level, mixed numbers, and whole-script
+look-alikes as above. The full `confusables.txt` is about 6,300
+mappings; only the look-alikes of ASCII letters, a few hundred, would
+need to ship, as a subset documented the same way.
+
+**Decoding.** A path, query, or fragment shows escapes of non-ASCII
+text decoded, as both browsers' address bars do, but only where it's
+safe: a whole, shortest-form UTF-8 sequence for a code point that IDNA
+calls valid (no controls, spaces, format characters such as bidi
+controls, private use, or unassigned code points), but for the joiners
+U+200C and U+200D, a short list of look-alikes of `/`, `\`, `?`, `#`,
+padlocks, and blanks (after Chromium's and Firefox's decoders), and a
+combining mark that would follow anything but decoded text. Escaped
+ASCII always stays escaped, so `%2F`, `%3F`, `%25`, and `%20` keep their
+meaning, and the display form parses back to the same `href` (the tests
+check this).
+
+**Options:** credentials, as browsers leave them out; the fragment; and
+a path that's only `/`, with nothing after it, which special URLs read
+back the same. The scheme stays: dropping `https://` hides what the
+connection is.
+
+## Comparison
+
+Decided 2026-10-30, for step 5. Plain methods, beside `sameOrigin`,
+rather than a comparison builder: there are three useful questions, and
+each is the standard's or HTML's own:
+
+- `==` (`eq`): the same URL, the standard's URL equals, comparing
+  `href`s.
+- `url.sameDocument(other)`: the same but for the fragment, the
+  standard's URL equals with *exclude fragments*, as HTML uses for a
+  jump within a page.
+- `url.sameOrigin(other)`: the same origin, never for opaque ones.
+
+A default port needs no option: the parser drops it, so
+`https://example.com:443/` is `https://example.com/`, as are case in the
+scheme and host, dot segments, and other IPv4 forms. Ignoring the query,
+or comparing escapes as RFC 3986 does (`%7E` as `~`), would make URLs
+equal that browsers and servers treat as different; comparing
+`strictHref`s does the latter, for anyone who wants it.
+
+## Source spans
+
+Decided 2026-10-30, for step 5. `parseUrlSource(input, base?)` gives a
+`UrlSource`: the input `asWritten`, the parsed `url`, and a `SourceSpan`
+per part (`schemeSpan`, `usernameSpan`, `passwordSpan`, `hostSpan`,
+`portSpan`, `pathSpan`, `querySpan`, and `fragmentSpan`), each with its
+`start` and `length` in code points of the input as given, and its text
+`asWritten`. A part the input didn't write (from the base, or absent)
+has none; a part written empty has an empty span.
+
+- **A separate type,** never members on `Url`, so code checking a URL
+  can't reach the text as written, and policies and strict mode take
+  only input and `Url`s.
+- **Names say "as written":** `asWritten` is neither normalized nor
+  checked (`EXAMPLE.com`, `0x7f.1`, a tab inside a host), and every
+  member's docs say never to use it for security decisions.
+- **Through what the standard strips:** spans count code points in the
+  input as given, so they skip stripped leading and trailing controls
+  and spaces, and keep tabs and newlines inside a part.
+- **One record:** the parser notes where each part starts and ends in
+  the same log as validation errors, so spans cost nothing unless asked
+  for, and `ValidationError` gained a `length`: one code point, a whole
+  host or port, the stripped ends, or none at the end of the input. The
+  site's tester marks each error's span in the input.
+
+Positions count code points, as Temper strings do; JavaScript callers
+showing them in UTF-16 text convert, as the site does with `[...input]`.
+
+## Lossless editing
+
+Designed 2026-10-30, not built. A tool editing URLs in config files,
+docs, or code (a linter fixing `http:` to `https:`, a refactor moving a
+host) should change one part and leave the rest byte for byte as
+written. On top of source spans:
+
+- **An edit gives text and a URL:** `source.withHost("example.org")`
+  (and the like, one per part) gives a new `UrlSource`, whose
+  `asWritten` is the input with that span replaced, and whose `url` is
+  that text parsed again, canonical, as `parseUrl` gives it. Nothing
+  about the new text is trusted until parsed: if it doesn't parse, or
+  its `url` isn't what the matching `Url` setter gives, the edit
+  bubbles.
+- **Escaping:** the new part is escaped only as much as it must be to
+  mean what the setter means (an `@` in a username as `%40`, `#` in a
+  path as `%23`), not normalized, so the rest of the text keeps its
+  style.
+- **Names:** as for spans, nothing on `Url`; methods on `UrlSource`,
+  named for the text (`withHostWritten`, or `editHost`), to settle when
+  built, never anything a policy or strict mode would take.
+- **Risks:** the text as written can mean something else to other
+  parsers than its `url` does (a backslash, a tab, `127.1`), and an edit
+  keeps that. So an edited source's `url` is what to check and hand on,
+  as ever, and a tool should warn when `asWritten` and `url.href`
+  disagree in host or scheme (strict mode's errors say so). Spans
+  across stripped tabs and newlines must be replaced whole, never split
+  inside a removed run, or the edit could join two parts. A part
+  missing from the text (from a base) can't be edited in place, only
+  added, which needs rules for where its delimiters go.
+- **Shared with htmlmd:** a planned lossless Markdown and HTML library
+  (working name htmlmd), whose design hasn't started, needs the same
+  span and edit model: text as written, spans in code points, edits that
+  replace a span and reparse. The model should be one design, used by
+  both, so building waits for htmlmd's design.
 
 ## Design notes
 

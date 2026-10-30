@@ -7,7 +7,12 @@ import * as temperCore from "@temperlang/core";
 import { initDevMode } from "./devmode.js";
 import { runTour } from "./tourrun.js";
 
-const { checkUrl } = hrefine;
+const { checkUrl, UrlDisplay } = hrefine;
+
+// How browsers' address bars would show a URL: hosts in Unicode where
+// they'd show it, escapes of non-ASCII text decoded, and no credentials or
+// lone "/" path. For people only, never for decisions.
+const display = UrlDisplay.full.withCredentials(false).withRootSlash(false);
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -134,7 +139,8 @@ function update() {
     what = "The base isn't a URL.";
   } else if (h.url) {
     const kind = h.url.hostKind === null ? "" : ` <span class="small-note">(${h.url.hostKind} host)</span>`;
-    what = `<span class="host-line">${hostHtml(hHost)}${kind}</span><code>${shown(h.url.href)}</code>`;
+    what = `<span class="host-line">${hostHtml(hHost)}${kind}</span><code>${shown(h.url.href)}</code>` +
+      `<span class="display-line">Shown to people as <code>${shown(display.format(h.url))}</code></span>`;
   } else {
     const last = h.errors.at(-1);
     what = `<span class="host-line">Not a URL</span>${last ? `<code>${escapeHtml(last.name)}</code>` : ""}`;
@@ -176,15 +182,24 @@ function update() {
   }
   /** @type {HTMLElement} */ ($("parts").querySelector("tbody")).innerHTML = rows.join("");
 
-  // Validation errors, marked in the input. Positions count code points.
+  // Validation errors, marked in the input: each covers `length` code
+  // points from `position` (a whole host, say), or none at the end.
   const points = [...input];
-  const at = new Set(h.errors.map((e) => e.position));
+  const marked = new Set();
+  for (const e of h.errors) {
+    for (let i = e.position; i < e.position + Math.max(e.length, 1); i++) marked.add(i);
+  }
   $("marked").innerHTML = h.errors.length
-    ? points.map((c, i) => (at.has(i) ? `<mark>${shown(c)}</mark>` : shown(c))).join("") +
-      (at.has(points.length) ? '<mark title="end"> </mark>' : "")
+    ? points.map((c, i) => (marked.has(i) ? `<mark>${shown(c)}</mark>` : shown(c))).join("") +
+      (marked.has(points.length) ? '<mark title="end"> </mark>' : "")
     : "";
+  /** @param {{ position: number, length: number }} e */
+  const where = (e) =>
+    e.length > 1
+      ? `${e.position} to ${e.position + e.length - 1}, <code>${shown(points.slice(e.position, e.position + e.length).join(""))}</code>`
+      : `${e.position}`;
   $("errors").innerHTML = h.errors.length
-    ? h.errors.map((e) => `<li><code>${escapeHtml(e.name)}</code> at ${e.position}</li>`).join("")
+    ? h.errors.map((e) => `<li><code>${escapeHtml(e.name)}</code> at ${where(e)}</li>`).join("")
     : `<li class="none">${h.baseFailed ? "The base isn't a URL." : "None: a clean URL."}</li>`;
 
   // Other parsers, where this input is one of the recorded ones. The

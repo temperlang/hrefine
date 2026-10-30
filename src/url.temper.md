@@ -77,19 +77,23 @@ else null, for input as cautious parsers would take it. See the
 
 A [validation error](https://url.spec.whatwg.org/#validation-error):
 its name in the standard, such as `invalid-URL-unit` or
-`host-invalid-code-point`, and its position, in code points from 0 in
-the input as given: where the standard's parser was when it noted the
-error, or, for an error in a host or port, where that host or port
-starts. Leading and trailing spaces and controls, and tabs and
-newlines, are each noted at the first such code point.
+`host-invalid-code-point`, and where it is, in code points from 0 in
+the input as given, tabs, newlines, and spaces and controls at the ends
+included: `position`, where the standard's parser was when it noted the
+error, and `length`, how many code points it's about (`1` for one, the
+whole host or port for an error in a host or port, and `0` at the end of
+the input). Leading and trailing spaces and controls are each one error
+for the run, and tabs and newlines one at the first.
 
     export class ValidationError {
       public name: String;
       public position: Int;
+      public length: Int;
 
-      private constructor(name: String, position: Int) {
+      private constructor(name: String, position: Int, length: Int) {
         this.name = name;
         this.position = position;
+        this.length = length;
       }
 
       public toString(): String { "${name} at ${position.toString()}" }
@@ -204,6 +208,18 @@ here, though both serialize as `null`: each is a new origin.
       public sameOrigin(other: Url): Boolean {
         let mine = origin;
         mine != "null" && mine == other.origin
+      }
+
+Whether this URL and `other` are the same but for their fragments, as
+the standard's [URL equals](https://url.spec.whatwg.org/#concept-url-equals)
+with *exclude fragments*, which browsers use to tell a jump within a
+page from loading another. Use `==` (`eq`) for the same URL, fragment
+and all. Both compare canonical forms, so case in the scheme and host,
+a default port written out, dot segments, and IPv4 written in hex all
+compare equal already.
+
+      public sameDocument(other: Url): Boolean {
+        beforeFragment(href) == beforeFragment(other.href)
       }
 
 The [protocol](https://url.spec.whatwg.org/#dom-url-protocol): the
@@ -485,6 +501,17 @@ setters do, and gives the URL.
       urlOf(record)
     }
 
+`href` up to its fragment, if any. Only the fragment can hold a `#`,
+which the path and query sets escape, and which ends an opaque path.
+
+    let beforeFragment(href: String): String {
+      var i = String.begin;
+      while (href.hasIndex(i) && href[i] != char'#') {
+        i = href.next(i);
+      }
+      href.slice(String.begin, i)
+    }
+
 `s` without one leading `c`, if it starts with one.
 
     let withoutLeading(s: String, c: Int): String {
@@ -514,29 +541,60 @@ code points a path, query, fragment, or opaque host keeps or escapes
 (`noteLenient`), and Hrefine's own few (`noteStrict`), which only it
 counts.
 
+The log also keeps where each part of the URL was written, for
+`parseUrlSource` (in [source](source.temper.md)): each a count of code
+points in the cleaned input, or -1 if the parser didn't get there. And
+while the parser reads a host or port, `spanEnd` is where it ends, so
+its errors cover all of it.
+
     class ErrorLog {
       public errors: ListBuilder<ValidationError> = new ListBuilder<ValidationError>();
       public strict: ListBuilder<ValidationError> = new ListBuilder<ValidationError>();
       public removed: ListBuilder<Int> = new ListBuilder<Int>();
+      public var length: Int = 0;
+      public var spanEnd: Int = -1;
+      public var schemeEnd: Int = -1;
+      public var userinfoStart: Int = -1;
+      public var colonAt: Int = -1;
+      public var lastAt: Int = -1;
+      public var hostStart: Int = -1;
+      public var hostEnd: Int = -1;
+      public var portStart: Int = -1;
+      public var portEnd: Int = -1;
+      public var pathStart: Int = -1;
+      public var queryStart: Int = -1;
+      public var fragmentStart: Int = -1;
     }
 
     let noteAt(log: ErrorLog?, name: String, at: Int): Void {
       if (log != null) {
-        let error = new ValidationError(name, positionIn(log, at));
+        let error = errorAt(log, name, at);
         log.errors.add(error);
         log.strict.add(error);
       }
     }
 
     let noteLenient(log: ErrorLog, name: String, at: Int): Void {
-      log.errors.add(new ValidationError(name, positionIn(log, at)));
+      log.errors.add(errorAt(log, name, at));
     }
 
     let noteStrict(log: ErrorLog?, name: String, at: Int): Void {
       if (log != null) {
-        log.strict.add(new ValidationError(name, positionIn(log, at)));
+        log.strict.add(errorAt(log, name, at));
       }
     }
+
+An error at `at` in the cleaned input, to the end of the host or port
+being read, or else one code point, or none at the end.
+
+    let errorAt(log: ErrorLog, name: String, at: Int): ValidationError {
+      let end = if (log.spanEnd > at) { log.spanEnd } else if (at < log.length) { at + 1 } else { at };
+      let position = positionIn(log, at);
+      new ValidationError(name, position, endIn(log, at, end) - position)
+    }
+
+Where `at` in the cleaned input was in the input as given, and where a
+span from `start` to `end` ends there, after its last code point.
 
     let positionIn(log: ErrorLog, at: Int): Int {
       var position = at;
@@ -545,6 +603,10 @@ counts.
         position += 1;
       }
       position
+    }
+
+    let endIn(log: ErrorLog, start: Int, end: Int): Int {
+      if (end > start) { positionIn(log, end - 1) + 1 } else { positionIn(log, start) }
     }
 
     let note(log: ErrorLog?, name: String, input: String, at: StringIndex): Void {
@@ -560,9 +622,17 @@ code points, for a host or port's errors; 0 when there's no log.
       if (log == null) { 0 } else { input.countBetween(String.begin, at) - count }
     }
 
+Where `at` is, as a count of code points, for the log's spans, or -1
+without a log.
+
+    let countAt(log: ErrorLog?, input: String, at: StringIndex): Int {
+      if (log == null) { -1 } else { input.countBetween(String.begin, at) }
+    }
+
 The removals before parsing: one error for any leading or trailing C0
-controls and spaces, and one for any tabs and newlines, and where each
-removed code point was, but for trailing ones, which nothing follows.
+controls and spaces, covering the run, and one for any tabs and
+newlines, at the first, and where each removed code point was, but for
+trailing ones, which nothing follows. It also counts the cleaned input.
 
     let noteCleaning(log: ErrorLog, input: String): Void {
       var start = String.begin;
@@ -577,11 +647,13 @@ removed code point was, but for trailing ones, which nothing follows.
         end = input.prev(end);
       }
       if (count > 0) {
-        noteCleaned(log, 0);
+        noteCleaned(log, 0, count);
       } else if (end < input.end) {
-        noteCleaned(log, input.countBetween(String.begin, end));
+        let at = input.countBetween(String.begin, end);
+        noteCleaned(log, at, input.countBetween(end, input.end));
       }
       var tabAt = -1;
+      var kept = 0;
       for (var i = start; i < end; i = input.next(i)) {
         let c = input[i];
         if (c == 0x9 || c == 0xA || c == 0xD) {
@@ -589,16 +661,19 @@ removed code point was, but for trailing ones, which nothing follows.
             tabAt = count;
           }
           log.removed.add(count);
+        } else {
+          kept += 1;
         }
         count += 1;
       }
       if (tabAt >= 0) {
-        noteCleaned(log, tabAt);
+        noteCleaned(log, tabAt, 1);
       }
+      log.length = kept;
     }
 
-    let noteCleaned(log: ErrorLog, at: Int): Void {
-      let error = new ValidationError("invalid-URL-unit", at);
+    let noteCleaned(log: ErrorLog, at: Int, length: Int): Void {
+      let error = new ValidationError("invalid-URL-unit", at, length);
       log.errors.add(error);
       log.strict.add(error);
     }
@@ -938,6 +1013,9 @@ increases it, which here is `again`.
       while (true) {
         let c = if (input.hasIndex(pointer)) { input[pointer] } else { eof };
         var again = false;
+        if (log != null) {
+          noteSpanStarts(log, state, input, pointer);
+        }
 
 ### Scheme Start State
 
@@ -994,6 +1072,9 @@ A port that's the new scheme's default goes.
             url.scheme = scheme;
             special = isSpecialScheme(url.scheme);
             buffer.clear();
+            if (log != null) {
+              log.schemeEnd = countAt(log, input, pointer);
+            }
             if (url.scheme == "file") {
               if (log != null && (peek(input, pointer) != char'/' || peek(input, input.next(pointer)) != char'/')) {
                 note(log, "special-scheme-missing-following-solidus", input, pointer);
@@ -1062,6 +1143,7 @@ one, and not an opaque path, unless the input is only a fragment.
           if (c == char'/') {
             state = authorityState;
           } else {
+            notePathStart(log, input, pointer, 1);
             state = pathState;
             again = true;
           }
@@ -1122,6 +1204,7 @@ backend can't yet compile assigning `null` to this property.
             url.password = base.password;
             url.host = base.host;
             url.port = base.port;
+            notePathStart(log, input, pointer, 1);
             state = pathState;
             again = true;
           }
@@ -1170,9 +1253,18 @@ as `%40`. Then the parser goes back to read the host and port.
               credentials.append("%40");
             }
             atSignSeen = true;
+            if (log != null) {
+              if (log.userinfoStart < 0) {
+                log.userinfoStart = countAt(log, input, authorityStart);
+              }
+              log.lastAt = countAt(log, input, pointer);
+            }
             for (var i = authorityStart; i < pointer; i = input.next(i)) {
               let code = input[i];
               if (code == char':' && !passwordTokenSeen) {
+                if (log != null) {
+                  log.colonAt = countAt(log, input, i);
+                }
                 url.username = "${url.username}${credentials.toString()}";
                 credentials.clear();
                 passwordTokenSeen = true;
@@ -1218,9 +1310,14 @@ port). A URL with credentials or a port can't lose its host.
             if (override == hostnameState) {
               bubble();
             }
+            noteHostSpan(log, input, pointer, bufferCount);
             url.host = runHostParser(
               buffer.toString(), !special, log, startOf(log, input, pointer, bufferCount),
             );
+            if (log != null) {
+              log.spanEnd = -1;
+              log.portStart = log.hostEnd + 1;
+            }
             buffer.clear();
             bufferCount = 0;
             state = portState;
@@ -1232,9 +1329,13 @@ port). A URL with credentials or a port can't lose its host.
             if (overridden && bufferCount == 0 && (hasCredentials(url) || url.port >= 0)) {
               bubble();
             }
+            noteHostSpan(log, input, pointer, bufferCount);
             url.host = runHostParser(
               buffer.toString(), !special, log, startOf(log, input, pointer, bufferCount),
             );
+            if (log != null) {
+              log.spanEnd = -1;
+            }
             if (overridden) {
               return url;
             }
@@ -1282,6 +1383,10 @@ ends at anything else, and must have a digit.
             }
             bufferCount += 1;
           } else if (c == eof || isAuthorityEnd(c, special) || overridden) {
+            if (log != null) {
+              log.portEnd = countAt(log, input, pointer);
+              log.spanEnd = log.portEnd;
+            }
             if (bufferCount != 0) {
               if (portValue > 65535) {
                 noteAt(log, "port-out-of-range", startOf(log, input, pointer, bufferCount));
@@ -1296,6 +1401,9 @@ ends at anything else, and must have a digit.
             }
             if (overridden) {
               bubble();
+            }
+            if (log != null) {
+              log.spanEnd = -1;
             }
             state = pathStartState;
             again = true;
@@ -1363,6 +1471,7 @@ since their host may be empty, as in `file:///etc`.
                 url.path.add(base.path[0]);
               }
             }
+            notePathStart(log, input, pointer, 1);
             state = pathState;
             again = true;
           }
@@ -1378,18 +1487,32 @@ same as no host.
             again = true;
             let text = buffer.toString();
             if (!overridden && isWindowsDriveLetter(text, false)) {
+              noteHostSpan(log, input, pointer, bufferCount);
               noteAt(log, "file-invalid-Windows-drive-letter-host", startOf(log, input, pointer, bufferCount));
+              if (log != null) {
+                log.spanEnd = -1;
+                log.hostStart = -1;
+                log.pathStart = log.hostEnd - bufferCount;
+              }
               state = pathState;
             } else if (bufferCount == 0) {
+              noteHostSpan(log, input, pointer, 0);
+              if (log != null) {
+                log.spanEnd = -1;
+              }
               url.host = "";
               if (overridden) {
                 return url;
               }
               state = pathStartState;
             } else {
+              noteHostSpan(log, input, pointer, bufferCount);
               let host = runHostParser(
                 text, !special, log, startOf(log, input, pointer, bufferCount),
               );
+              if (log != null) {
+                log.spanEnd = -1;
+              }
               url.host = if (host == "localhost") { "" } else { host };
               if (overridden) {
                 return url;
@@ -1603,6 +1726,41 @@ with" checks.
     let peek(input: String, i: StringIndex): Int {
       let next = input.next(i);
       if (input.hasIndex(i) && input.hasIndex(next)) { input[next] } else { eof }
+    }
+
+Where parts start, for the log's spans: the path where a path state
+first runs, and the query and fragment after their `?` and `#`, where
+their states first run. A path that starts after a lone slash, as in
+`/x` against a base, starts at the slash (`back` 1). A host or port's
+span ends at `at`, and its errors cover it.
+
+    let noteSpanStarts(log: ErrorLog, state: Int, input: String, at: StringIndex): Void {
+      if (
+        log.pathStart < 0 &&
+          (state == pathStartState || state == pathState || state == opaquePathState)
+      ) {
+        log.pathStart = countAt(log, input, at);
+      } else if (log.queryStart < 0 && state == queryState) {
+        log.queryStart = countAt(log, input, at);
+      } else if (log.fragmentStart < 0 && state == fragmentState) {
+        log.fragmentStart = countAt(log, input, at);
+      }
+    }
+
+    let notePathStart(log: ErrorLog?, input: String, at: StringIndex, back: Int): Void {
+      if (log != null) {
+        if (log.pathStart < 0) {
+          log.pathStart = countAt(log, input, at) - back;
+        }
+      }
+    }
+
+    let noteHostSpan(log: ErrorLog?, input: String, at: StringIndex, count: Int): Void {
+      if (log != null) {
+        log.hostEnd = countAt(log, input, at);
+        log.hostStart = log.hostEnd - count;
+        log.spanEnd = log.hostEnd;
+      }
     }
 
 Whether a URL [includes

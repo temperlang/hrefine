@@ -114,3 +114,14 @@ next=//evil.example/: refuse, pathOnly: not just a path, query, or fragment
 next=/\evil.example: refuse, pathOnly: not just a path, query, or fragment
 next=/\t/evil.example: refuse, pathOnly: not just a path, query, or fragment
 next=https://example.com/: refuse, pathOnly: not just a path, query, or fragment
+
+## 10. Showing, comparing, and spans
+display: https://bücher.example/café?q=日本
+display: https://xn--pple-43d.com
+same URL: false
+same document: true
+same origin: true
+href: https://example.com/b?q=1
+host as written: EXAMPLE.com, at 9+11
+path as written: /a/../b
+domain-invalid-code-point: from 8, 12 long

@@ -8,6 +8,7 @@ import static hrefine.HrefineGlobal.domainToAscii;
 import static hrefine.HrefineGlobal.domainToUnicode;
 import static hrefine.HrefineGlobal.parseHost;
 import static hrefine.HrefineGlobal.parseUrl;
+import static hrefine.HrefineGlobal.parseUrlSource;
 
 import hrefine.Host;
 import hrefine.HostKind;
@@ -16,6 +17,8 @@ import hrefine.UrlPolicy;
 import hrefine.PolicyCheck;
 import hrefine.UrlSearchParams;
 import hrefine.UrlCheck;
+import hrefine.UrlDisplay;
+import hrefine.UrlSource;
 import hrefine.ValidationError;
 import java.util.List;
 import java.util.Map;
@@ -310,6 +313,39 @@ public final class Tour {
         for (String target : List.of("/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/")) {
             PolicyCheck result = redirects.check(target);
             System.out.println("next=" + shown(target) + ": " + (result.getUrl() != null ? "redirect to " + result.getUrl().getHref() : "refuse, " + result.toString()));
+        }
+
+        section("10. Showing, comparing, and spans");
+
+        // To show people a URL, as browsers' address bars do: hosts in
+        // Unicode where browsers would show them (not look-alikes such as
+        // Cyrillic а in xn--pple-43d.com), and escapes of non-ASCII text
+        // decoded. Never for security decisions, nor for handing on: use
+        // getHref() for those.
+        UrlDisplay display = UrlDisplay.full.withCredentials(false).withRootSlash(false);  // snippet: display
+        for (String input : List.of(  // snippet: display
+                "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
+                "https://xn--pple-43d.com/")) {  // snippet: display
+            System.out.println("display: " + display.format(parseUrl(input)));  // snippet: display
+        }  // snippet: display
+
+        // The same URL, the same but for the fragment, or the same origin.
+        // All compare canonical forms, so case and a default port don't
+        // matter.
+        Url intro = parseUrl("https://EXAMPLE.com:443/a/../guide#intro");
+        Url setup = parseUrl("https://example.com/guide#setup");
+        System.out.println("same URL: " + intro.eq(setup));
+        System.out.println("same document: " + intro.sameDocument(setup));
+        System.out.println("same origin: " + intro.sameOrigin(parseUrl("https://example.com/about")));
+
+        // Where each part was written, for editors and linters: never for
+        // security decisions, which use getUrl(). Spans count code points.
+        UrlSource source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
+        System.out.println("href: " + source.getUrl().getHref());
+        System.out.println("host as written: " + source.getHostSpan().getAsWritten() + ", at " + source.getHostSpan().toString());
+        System.out.println("path as written: " + source.getPathSpan().getAsWritten());
+        for (ValidationError error : checkUrl("https://exa mple.com").getErrors()) {
+            System.out.println(error.getName() + ": from " + error.getPosition() + ", " + error.getLength() + " long");
         }
     }
 }

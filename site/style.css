@@ -455,6 +455,17 @@ button {
   font-size: 1.05rem;
 }
 
+.verdict-box .what .display-line {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.verdict-box .what .display-line code {
+  color: var(--text);
+}
+
 .verdict-box .what .host-line {
   display: block;
   font-size: 1.25rem;

@@ -4,7 +4,10 @@
 // the same text. See demos/README.md for how to run them.
 
 import { Pair } from "@temperlang/core";
-import { HostKind, Url, UrlPolicy, UrlSearchParams, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl } from "hrefine";
+import {
+  HostKind, Url, UrlDisplay, UrlPolicy, UrlSearchParams, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl,
+  parseUrlSource,
+} from "hrefine";
 
 function section(title) {
   console.log();
@@ -271,4 +274,36 @@ const redirects = UrlPolicy.any.withBase(site).withPathOnly(true);
 for (const target of ["/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"]) {
   const result = redirects.check(target);
   console.log(`next=${shown(target)}: ${result.url !== null ? `redirect to ${result.url.href}` : `refuse, ${result.toString()}`}`);
+}
+
+section("10. Showing, comparing, and spans");
+
+// To show people a URL, as browsers' address bars do: hosts in Unicode
+// where browsers would show them (not look-alikes such as Cyrillic а in
+// xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
+// security decisions, nor for handing on: use href for those.
+const display = UrlDisplay.full.withCredentials(false).withRootSlash(false);  // snippet: display
+for (const input of [  // snippet: display
+  "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
+  "https://xn--pple-43d.com/",  // snippet: display
+]) {  // snippet: display
+  console.log(`display: ${display.format(parseUrl(input))}`);  // snippet: display
+}  // snippet: display
+
+// The same URL, the same but for the fragment, or the same origin. All
+// compare canonical forms, so case and a default port don't matter.
+const intro = parseUrl("https://EXAMPLE.com:443/a/../guide#intro");
+const setup = parseUrl("https://example.com/guide#setup");
+console.log(`same URL: ${intro.eq(setup)}`);
+console.log(`same document: ${intro.sameDocument(setup)}`);
+console.log(`same origin: ${intro.sameOrigin(parseUrl("https://example.com/about"))}`);
+
+// Where each part was written, for editors and linters: never for security
+// decisions, which use source.url. Spans count code points.
+const source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
+console.log(`href: ${source.url.href}`);
+console.log(`host as written: ${source.hostSpan.asWritten}, at ${source.hostSpan.toString()}`);
+console.log(`path as written: ${source.pathSpan.asWritten}`);
+for (const error of checkUrl("https://exa mple.com").errors) {
+  console.log(`${error.name}: from ${error.position}, ${error.length} long`);
 }
