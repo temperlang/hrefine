@@ -102,11 +102,13 @@ identical output.
 - `UrlSearchParams`: JavaScript's `URLSearchParams`, the standard's
   `application/x-www-form-urlencoded` list of names and values.
   `new UrlSearchParams(init?)` parses a query, with or without `?`;
-  `append`, `delete(name, value?)`, `get` (null if missing), `getAll`,
-  `has(name, value?)`, `set`, and `sort` (by UTF-16 code units, as in
-  JavaScript) read and change it in place; `size`, `entries()` (Temper
-  `Pair`s, as each language's own pairs), `keys()`, and `values()` list
-  it; and `toString()` gives the query, as `q=a+b&page=2`.
+  `append`, `remove(name, value?)` (JavaScript's `delete`: it removes
+  every pair with the name, or with the name and value), `get` (null if
+  missing), `getAll`, `has(name, value?)`, `set`, and `sort` (by UTF-16
+  code units, as in JavaScript) read and change it in place; `size`,
+  `entries()` (Temper `Pair`s, as each language's own pairs), `keys()`,
+  and `values()` list it; and `toString()` gives the query, as
+  `q=a+b&page=2`.
 - `parseHost(input)`: checks a host, as in `https://input/`, giving a
   `Host` with its `kind` and `serialized` form, or bubbles.
 - `domainToAscii(domain)` and `domainToUnicode(domain)`: the standard's

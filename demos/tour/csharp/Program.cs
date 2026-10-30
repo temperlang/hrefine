@@ -221,7 +221,7 @@ var searchParams = page.SearchParams;
 Console.WriteLine($"q: {searchParams.Get("q")}");
 searchParams.Append("lang", "fr");
 searchParams.Set("q", "café & more");
-searchParams.Delete("missing");
+searchParams.Remove("missing");
 searchParams.Sort();
 Console.WriteLine($"lang: {string.Join(", ", searchParams.GetAll("lang"))}");
 foreach (var entry in searchParams.Entries())

@@ -192,8 +192,7 @@ const params = page.searchParams;
 console.log(`q: ${params.get("q")}`);
 params.append("lang", "fr");
 params.set("q", "café & more");
-// Temper's JS backend names delete delete_, though JS allows delete.
-params.delete_("missing");
+params.remove("missing");
 params.sort();
 console.log(`lang: ${params.getAll("lang").join(", ")}`);
 for (const entry of params.entries()) {

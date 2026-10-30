@@ -207,7 +207,7 @@ local params = page.searchParams
 print("q: " .. params:get("q"))
 params:append("lang", "fr")
 params:set("q", "café & more")
-params:delete("missing")
+params:remove("missing")
 params:sort()
 local langs = {}
 for _, lang in ipairs(params:getAll("lang")) do

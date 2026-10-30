@@ -208,12 +208,11 @@ int main() {
   std::cout << "port \"http\", ignored: " << page->withPort("http")->get_href() << "\n";
   std::cout << "unchanged: " << page->get_href() << "\n";
   // Search parameters: a copy of the query, changed in place, then put back.
-  // Temper's C++ backend names delete delete_, since delete is C++'s.
   auto params = page->get_searchParams();
   std::cout << "q: " << params->get("q").value << "\n";
   params->append("lang", "fr");
   params->set("q", "café & more");
-  params->delete_("missing");
+  params->remove("missing");
   params->sort();
   // Lists come as shared pointers; keep each alive while looping over it.
   auto langList = params->getAll("lang");

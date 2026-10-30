@@ -223,7 +223,7 @@ fn main() {
     println!("q: {}", params.get("q").expect("a value"));
     params.append("lang", "fr");
     params.set("q", "café & more");
-    params.delete("missing", NO_BASE);
+    params.remove("missing", NO_BASE);
     params.sort();
     let langs: Vec<String> = params.get_all("lang").iter().map(|lang| lang.to_string()).collect();
     println!("lang: {}", langs.join(", "));

@@ -226,7 +226,7 @@ public final class Tour {
         System.out.println("q: " + params.get("q"));
         params.append("lang", "fr");
         params.set("q", "café & more");
-        params.delete("missing");
+        params.remove("missing");
         params.sort();
         System.out.println("lang: " + String.join(", ", params.getAll("lang")));
         for (Map.Entry<String, String> entry : params.entries()) {

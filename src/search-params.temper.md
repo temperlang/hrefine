@@ -116,9 +116,10 @@ Adds a pair at the end.
       }
 
 Removes every pair with this name, or, given a value, every pair with
-both.
+this name and that value. JavaScript's `delete`, named `remove` since
+`delete` is a C++ keyword (see the plan's API notes).
 
-      public delete(name: String, value: String? = null): Void {
+      public remove(name: String, value: String? = null): Void {
         // A loop, not `filter`: Temper's C# backend loses an optional
         // parameter that a closure uses (as of 2026-10-30).
         let next = new ListBuilder<Pair<String, String>>();
@@ -255,7 +256,7 @@ Each `+ ''` there is `toString()` here.
       let params = new UrlSearchParams();
       params.append("a", "b c");
       assert(params.toString() == "a=b+c");
-      params.delete("a");
+      params.remove("a");
       params.append("a b", "c");
       assert(params.toString() == "a+b=c");
       let empty = new UrlSearchParams();
@@ -303,15 +304,15 @@ Each `+ ''` there is `toString()` here.
       assert(new UrlSearchParams("??a=1").get("?a") == "1");
     }
 
-    test("Search parameters: changing (append, delete, set)") {
+    test("Search parameters: changing (append, remove, set)") {
       let params = new UrlSearchParams("a=a&b=b&a=a&c=c");
-      params.delete("a");
+      params.remove("a");
       assert(params.toString() == "b=b&c=c");
       let two = new UrlSearchParams();
       two.append("a", "b");
       two.append("a", "c");
       two.append("a", "d");
-      two.delete("a", "c");
+      two.remove("a", "c");
       assert(two.toString() == "a=b&a=d");
       let set = new UrlSearchParams("a=b&c=d&a=e");
       set.set("a", "B");
@@ -319,7 +320,7 @@ Each `+ ''` there is `toString()` here.
       set.set("e", "f");
       assert(set.toString() == "a=B&c=d&e=f");
       let size = new UrlSearchParams("a=1&b=2&a=3");
-      size.delete("a");
+      size.remove("a");
       assert(size.size == 1);
       size.append("b", "4");
       assert(size.size == 2);
@@ -348,14 +349,14 @@ steps here: read `searchParams`, change them, and `withSearchParams`.
       assert(file.withSearch("?").searchParams.size == 0);
       let both = parseUrl("http://example.com/?param1&param2") orelse panic();
       let gone = both.searchParams;
-      gone.delete("param1");
-      gone.delete("param2");
+      gone.remove("param1");
+      gone.remove("param2");
       let cleared = both.withSearchParams(gone);
       assert(cleared.href == "http://example.com/" && cleared.search == "");
       let opaque = parseUrl("data:space    ?test#test") orelse panic();
       assert(opaque.searchParams.has("test"));
       let none = opaque.searchParams;
-      none.delete("test");
+      none.remove("test");
       let stripped = opaque.withSearchParams(none);
       assert(stripped.pathname == "space   %20" && stripped.href == "data:space   %20#test") {
         stripped.href

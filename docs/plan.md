@@ -122,6 +122,9 @@ site that makes the point.
    and the build runs the same module in Node, failing unless Hrefine
    passes all. Headless Chromium 153 passed 808 of 896, missing mostly
    `file:` and opaque-path cases, and Node 24.22.1 (Ada 4.0.0) all 896.
+   An open gallery card spans its row, and narrow tables (each parser's
+   answers and the more disagreements) stack each row, by container
+   query, as checked in headless Chromium at phone and desktop widths.
    `site.yml` deploys from `main`, untested until it runs on GitHub. Not
    yet: PHP (no binary here), a minified bundle (Ordable uses esbuild,
    which needs approval here), and the strict form, which waits on
@@ -264,6 +267,11 @@ same parts, and chaining `with` methods already builds. Search
 parameters are mutable, as a list being edited, and not tied to a URL:
 reading `searchParams` and handing them back with `withSearchParams` is
 the standard's update steps, made explicit.
+
+`UrlSearchParams` keeps JavaScript's method names but one: `delete` is
+`remove(name, value?)` (2026-10-30), since `delete` is a C++ keyword,
+and Temper renamed it `delete_` in C++ and JavaScript, while `remove`
+is the usual name in Java, C#, Python, and Rust.
 
 ## Design notes
 

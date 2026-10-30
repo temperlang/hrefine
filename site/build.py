@@ -178,8 +178,8 @@ def card_table(row, recorded, compare="host"):
         )
         rows.append(
             f'<tr class="{st}" data-parser="{id}"><th scope="row">{esc(label[id])}</th>'
-            f'<td class="host">{host_html(answer, compare)}</td><td class="verdict">{verdict}</td>'
-            f'<td class="reads">{reads}</td></tr>'
+            f'<td class="host" data-label="{compare.capitalize()}">{host_html(answer, compare)}</td>'
+            f'<td class="verdict">{verdict}</td><td class="reads" data-label="Reads it as">{reads}</td></tr>'
         )
     return (
         '<div class="table-scroll" tabindex="0"><table class="compare">'
@@ -295,7 +295,10 @@ def corpus(gallery, recorded):
             cells = []
             for id in ids:
                 st = status(answers[id], browser, compare)
-                cells.append(f'<td class="mark {st}" title="{esc(label[id])}: {STATUS_TEXT[st]}">{STATUS_SHORT[st]}</td>')
+                cells.append(
+                    f'<td class="mark {st}" data-who="{esc(label[id])}" title="{esc(label[id])}: {STATUS_TEXT[st]}">'
+                    f"{STATUS_SHORT[st]}</td>"
+                )
             base = f'<span class="base">against <code>{shown(item["base"])}</code></span>' if item.get("base") else ""
             base_attr = f' data-base="{esc(item["base"])}"' if item.get("base") else ""
             reads = f'{"path" if compare == "path" else "host"} {host_html(browser, compare)}' if browser["ok"] else host_html(browser)
@@ -307,7 +310,7 @@ def corpus(gallery, recorded):
                 f'<th scope="row"><button type="button" class="more-try" title="Try it in the tester">'
                 f"<code>{shown(item['input'])}</code></button>{base}"
                 f'<span class="more-note">{item["note"]}</span></th>'
-                f'<td class="browser-reads">{reads}</td>{"".join(cells)}</tr>'
+                f'<td class="browser-reads" data-label="Browsers read">{reads}</td>{"".join(cells)}</tr>'
             )
         body.append("</tbody>")
     table = (

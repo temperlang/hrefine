@@ -197,7 +197,7 @@ params = page.search_params
 print(f"q: {params.get('q')}")
 params.append("lang", "fr")
 params.set("q", "café & more")
-params.delete("missing")
+params.remove("missing")
 params.sort()
 print(f"lang: {', '.join(params.get_all('lang'))}")
 for entry in params.entries():

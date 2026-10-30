@@ -633,6 +633,11 @@ tbody th {
   margin-bottom: 0.75rem;
 }
 
+/* An open card takes the whole row, so its table has room. */
+.card:has(details[open]) {
+  grid-column: 1 / -1;
+}
+
 .card summary {
   cursor: pointer;
   color: var(--accent);
@@ -690,6 +695,7 @@ tbody th {
   text-align: left;
   min-width: 16rem;
   max-width: 28rem;
+  white-space: normal;
 }
 
 .more-try {
@@ -972,6 +978,141 @@ footer {
 .misses dd ul {
   margin: 0;
   padding-left: 1rem;
+}
+
+/* Narrow tables: each row stacked, its labels over or beside its values,
+   by the width the table has, not the screen's. */
+
+.table-scroll {
+  container-type: inline-size;
+}
+
+@container (max-width: 30rem) {
+  .compare thead {
+    /* Kept for screen readers; a block, so it clips its row. */
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .compare,
+  .compare tbody {
+    display: block;
+  }
+
+  /* The parser and its verdict, then its host and what it reads. */
+  .compare tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "who verdict" "host host" "reads reads";
+    gap: 0 0.6rem;
+    padding: 0.4rem 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compare th,
+  .compare td {
+    padding: 0;
+    border: 0;
+  }
+
+  .compare th {
+    grid-area: who;
+  }
+
+  .compare .verdict {
+    grid-area: verdict;
+  }
+
+  .compare .host {
+    grid-area: host;
+  }
+
+  .compare .reads {
+    grid-area: reads;
+    min-width: 0;
+  }
+
+  .compare tr.browser {
+    background: var(--browser-bg);
+  }
+
+  .compare td[data-label]::before {
+    content: attr(data-label) " ";
+    color: var(--muted);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+}
+
+@container (max-width: 40rem) {
+  .more-table thead {
+    /* Kept for screen readers; a block, so it clips its row. */
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .more-table,
+  .more-table tbody,
+  .more-table .group,
+  .more-table .group th {
+    display: block;
+  }
+
+  /* The input and its note, what browsers read, then a mark for each
+     parser, its name over it. */
+  .more-table .more-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(3.2rem, 1fr));
+    gap: 0.2rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .more-table .more-row > th,
+  .more-table .more-row > .browser-reads {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    border: 0;
+  }
+
+  .more-table .browser-reads {
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+  }
+
+  .more-table .browser-reads::before {
+    content: attr(data-label) " ";
+    color: var(--muted);
+  }
+
+  .more-table .mark {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.15rem 0.1rem;
+    border: 0;
+    border-radius: 0.3rem;
+  }
+
+  .more-table .mark::before {
+    content: attr(data-who);
+    font-size: 0.68rem;
+    font-weight: 400;
+    line-height: 1.2;
+    color: var(--text);
+    text-align: center;
+  }
 }
 
 /* Phones: one column. */
