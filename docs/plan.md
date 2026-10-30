@@ -97,9 +97,15 @@ site that makes the point.
    Go, libcurl, and Node, and Hrefine's JS and Python builds, which must
    agree. Given Hrefine's `href`, every recorded parser reads every
    gallery URL's host as browsers do (Java's `URL` and curl refuse
-   `javascript:`). Not yet: PHP (no binary here), a minified bundle
-   (Ordable uses esbuild, which needs approval here), deployment, and
-   the strict form, which waits on step 5.
+   `javascript:`). A WPT scoreboard (2026-10-30) runs `urltestdata.json`
+   live through the browser's `URL` and Hrefine, with the misses listed,
+   and the build runs the same module in Node, failing unless Hrefine
+   passes all. Headless Chromium 153 passed 808 of 896, missing mostly
+   `file:` and opaque-path cases, and Node 24.22.1 (Ada 4.0.0) all 896.
+   `site.yml` deploys from `main`, untested until it runs on GitHub. Not
+   yet: PHP (no binary here), a minified bundle (Ordable uses esbuild,
+   which needs approval here), and the strict form, which waits on
+   step 5.
 7. **Refine the API,** before 1.0. The name, Hrefine, was picked
    2026-10-29, after checking package registries and a web search for
    companies and trademarks; check USPTO and EUIPO before 1.0.

@@ -193,13 +193,50 @@
           and every case passes in all seven languages, in CI on every change:
         </p>
         <ul class="numbers">
-          <li><strong>896</strong> URLs, with and without bases, each with every part it must parse to, or a failure (<code>urltestdata.json</code>).</li>
+          <li><strong><!--WPT_COUNT--></strong> URLs, with and without bases, each with every part it must parse to, or a failure (<code>urltestdata.json</code>).</li>
           <li><strong>2,760</strong> of 2,762 international domain names (<code>toascii.json</code> and <code>IdnaTestV2.json</code>). The other 2 need unpaired surrogates, which Temper strings can't hold, so they're left out.</li>
         </ul>
         <p>
           <a href="https://github.com/temperlang/hrefine/tree/main/tests/wpt">The vendored tests</a>,
           and <a href="https://github.com/temperlang/hrefine/blob/main/NOTICE">where they come from</a>.
         </p>
+
+        <div class="scoreboard" id="scoreboard" data-module="scoreboard.js" data-cases="wpt/urltestdata.json"
+             aria-labelledby="scoreboard-title">
+          <h3 id="scoreboard-title">The URL tests, run in your browser</h3>
+          <p>
+            The same <!--WPT_COUNT--> cases, run now in this page, through
+            your browser's own <code>URL</code> and through Hrefine's
+            JavaScript build. A case passes if it fails where it must, or
+            gives the expected <code>href</code> and every part, as
+            Hrefine's own test counts. <span id="score-left-out"></span>
+          </p>
+          <ul class="scores" aria-live="polite">
+            <li class="score" id="score-browser">
+              <span class="who">Your browser <span class="live">live</span></span>
+              <span class="tally-num" id="score-browser-num">Not run yet</span>
+            </li>
+            <li class="score" id="score-hrefine">
+              <span class="who">Hrefine, in this page <span class="live">live</span></span>
+              <span class="tally-num" id="score-hrefine-num">Not run yet</span>
+            </li>
+            <li class="score reference" id="score-node"><!--WPT_NODE--></li>
+          </ul>
+          <p class="score-run">
+            <button type="button" class="small" id="score-run">Run the tests</button>
+            <span class="small-note" id="score-status">They run once you scroll here, or now with this button.</span>
+          </p>
+          <div id="score-misses"></div>
+          <p class="small-note">
+            Browsers follow the standard closely, but some misses are
+            usual: the standard keeps changing, browsers catch up over
+            time, and some keep older behavior for compatibility, such as
+            for <code>file:</code> URLs. Hrefine's point isn't a higher
+            number, but the same answers in every language. Node's score is
+            from when this site was built, by the same scoring code.
+          </p>
+          <script type="application/json" id="score-node-data"><!--WPT_NODE_JSON--></script>
+        </div>
 
         <h3>The tour, in seven languages</h3>
         <p>

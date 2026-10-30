@@ -792,6 +792,117 @@ footer {
   font-size: 0.95rem;
 }
 
+/* The WPT scoreboard: plain numbers, live and from the build. */
+
+.scoreboard {
+  margin-top: 1.5rem;
+}
+
+.scoreboard > p {
+  max-width: 52rem;
+}
+
+.scores {
+  list-style: none;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.5rem;
+}
+
+.score {
+  display: flex;
+  flex-direction: column;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left-width: 5px;
+  border-left-color: var(--accent);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.score .who {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tally-num {
+  font-size: 1.35rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.score.reference {
+  border-left-color: var(--border);
+  background: var(--code-bg);
+}
+
+.score-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.score-run button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.misses {
+  margin: 0.4rem 0;
+}
+
+.misses > summary,
+.misses li summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.misses ol {
+  margin: 0.4rem 0;
+  padding-left: 1.6rem;
+  font-size: 0.9rem;
+}
+
+.misses li {
+  margin: 0.2rem 0;
+  overflow-wrap: anywhere;
+}
+
+.miss-base {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.misses dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.15rem 0.75rem;
+  margin: 0.3rem 0 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--code-bg);
+  border-radius: 0.4rem;
+}
+
+.misses dt {
+  color: var(--muted);
+}
+
+.misses dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.misses dd ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
 /* Phones: one column. */
 
 @media (max-width: 44rem) {
@@ -856,5 +967,14 @@ footer {
 
   h2 {
     font-size: 1.5rem;
+  }
+
+  /* A miss's details: each label over its value. */
+  .misses dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .misses dd + dt {
+    margin-top: 0.3rem;
   }
 }

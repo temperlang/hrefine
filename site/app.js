@@ -397,3 +397,113 @@ fetch("sizes.json")
       .join(" ");
   })
   .catch(() => {});
+
+// The WPT scoreboard: web-platform-tests' URL cases, run in this page on
+// the browser's URL and on Hrefine, with the module build.py runs in Node.
+// It loads and runs only once the section is near, or on its button.
+
+{
+  const board = $("scoreboard");
+  const runButton = /** @type {HTMLButtonElement} */ ($("score-run"));
+  const status = $("score-status");
+
+  /** A case's string as HTML, with control characters shown. @param {string} s */
+  const caseText = (s) =>
+    shown(s).replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, (c) =>
+      `<span class="ctl" title="control character">\\x${c.charCodeAt(0).toString(16).padStart(2, "0")}</span>`);
+  /** @param {string | null} s */
+  const value = (s) => (s === null ? '<span class="none">fails</span>' : s === "" ? '<span class="none">""</span>' : `<code>${caseText(s)}</code>`);
+
+  /**
+   * One parser's misses, each expandable.
+   *
+   * @param {string} who
+   * @param {import("./scoreboard.js").Miss[]} misses
+   */
+  function missesHtml(who, misses) {
+    if (!misses.length) return "";
+    const items = misses.map((m) => {
+      const base = m.base === null ? "" : `<span class="miss-base">against <code>${caseText(m.base)}</code></span>`;
+      const parts = m.parts.length
+        ? `<dt>Parts that differ</dt><dd><ul>${m.parts
+            .map((p) => `<li>${p.part}: ${value(p.got)}, not ${value(p.expected)}</li>`)
+            .join("")}</ul></dd>`
+        : "";
+      return (
+        `<li><details><summary><code>${caseText(m.input)}</code>${base}</summary><dl>` +
+        `<dt>Base</dt><dd>${m.base === null ? '<span class="none">none</span>' : value(m.base)}</dd>` +
+        `<dt>Expected</dt><dd>${m.mustFail ? '<span class="none">fails to parse</span>' : value(m.expected)}</dd>` +
+        `<dt>${escapeHtml(who)} gave</dt><dd>${value(m.got)}</dd>${parts}</dl></details></li>`
+      );
+    });
+    const count = `${misses.length} ${misses.length === 1 ? "case" : "cases"}`;
+    return `<details class="misses"><summary>${escapeHtml(who)}'s misses: ${count}</summary><ol>${items.join("")}</ol></details>`;
+  }
+
+  /** The browser's name and major version, from its brand, or null. */
+  function browserName() {
+    const brands = /** @type {any} */ (navigator).userAgentData?.brands;
+    if (!Array.isArray(brands)) return null;
+    const real = brands.filter((b) => !/not.?a.?brand/i.test(b.brand));
+    const brand = real.find((b) => b.brand !== "Chromium") ?? real[0];
+    return brand ? `${brand.brand} ${brand.version}` : null;
+  }
+
+  const node = JSON.parse($("score-node-data").textContent ?? "{}");
+  const nodeName = `Node ${node.node}`;
+  $("score-misses").innerHTML = missesHtml(nodeName, node.builtIn.misses);
+  $("score-left-out").textContent = node.leftOut
+    ? `${node.leftOut} cases with unpaired surrogates are left out, as in Hrefine's tests, since Temper strings can't hold them.`
+    : "None of these cases has unpaired surrogates, which Hrefine's tests leave out, since Temper strings can't hold them.";
+
+  let started = false;
+  async function run() {
+    if (started) return;
+    started = true;
+    runButton.disabled = true;
+    status.textContent = "Running…";
+    try {
+      const [scoreboard, data] = await Promise.all([
+        import(new URL(board.dataset.module ?? "", document.baseURI).href),
+        fetch(board.dataset.cases ?? "").then((r) => r.json()),
+      ]);
+      const { cases } = scoreboard.wptCases(data);
+      const pause = () => new Promise((resolve) => setTimeout(resolve));
+      const name = browserName();
+      const who = name ? `Your browser (${name})` : "Your browser";
+      const t0 = performance.now();
+      const browser = await scoreboard.score(cases, scoreboard.builtInParse, pause);
+      const ours = await scoreboard.score(cases, hrefine.parseUrl, pause);
+      const ms = performance.now() - t0;
+      for (const [id, label, s] of [["browser", who, browser], ["hrefine", "Hrefine, in this page", ours]]) {
+        const row = $(`score-${id}`);
+        row.querySelector(".who")?.firstChild?.replaceWith(`${label} `);
+        $(`score-${id}-num`).textContent = `${s.passed} of ${s.total}`;
+        row.classList.add(s.passed === s.total ? "all" : "some");
+      }
+      $("score-misses").innerHTML =
+        missesHtml(name ?? "Your browser", browser.misses) +
+        missesHtml("Hrefine", ours.misses) +
+        missesHtml(nodeName, node.builtIn.misses);
+      status.textContent = `Ran in ${Math.round(ms)} ms.`;
+    } catch (error) {
+      status.textContent = `Couldn't run the tests: ${error}`;
+      started = false;
+      runButton.disabled = false;
+    }
+  }
+
+  runButton.addEventListener("click", run);
+  if ("IntersectionObserver" in window) {
+    const watch = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        watch.disconnect();
+        run();
+      }
+    }, { rootMargin: "400px 0px" });
+    // Only after the page has loaded, so the tests never slow the opening.
+    const start = () => watch.observe(board);
+    if (document.readyState === "complete") start();
+    else addEventListener("load", start, { once: true });
+  }
+}

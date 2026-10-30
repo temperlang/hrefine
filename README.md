@@ -166,7 +166,18 @@ gallery, or to update the versions:
     temper build -b js -b py
     uv run site/record/record.py
 
-Build the site, with no tools beyond Temper and Python, and preview it:
+A scoreboard runs web-platform-tests' URL cases (`urltestdata.json`)
+in the visitor's browser, through its own `URL` and through Hrefine,
+lazily, once the section is near, and lists each miss. It counts as
+Hrefine's own test does (each case must fail, or give the expected
+`href` and every part), leaving out cases with unpaired surrogates, of
+which this file has none. `site/scoreboard.js` holds the scoring, and the
+build runs the same module in Node (`site/scoreboard-node.mjs`), showing
+Node's score beside the visitor's, and failing unless Hrefine passes
+every case.
+
+Build the site, with Temper, Python, and Node 24 or later, and preview
+it:
 
     temper build -b js
     uv run site/build.py
@@ -176,7 +187,9 @@ The build copies the JS library and Temper's runtime as plain ES modules
 (no bundler, so about 55 KB gzipped), renders the opening and the gallery
 from the recorded answers, and takes the fix's code from each tour's
 "Using it safely" section, failing if it can't find it. Visits are counted
-by cookieless GoatCounter, site code `hrefine`.
+by cookieless GoatCounter, site code `hrefine`. CI
+(`.github/workflows/site.yml`) builds the site on every change and
+publishes it to GitHub Pages from `main`.
 
 ## Languages
 

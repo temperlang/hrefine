@@ -17,6 +17,12 @@ Renders the opening and the trick gallery into the page from
 `site/record/record.py` records), so they show before any script runs. The
 fix's code comes from each tour's "Using it safely" section, which CI runs
 in every language, and the tours themselves go in `tour/`.
+
+Runs web-platform-tests' URL cases (`tests/wpt/urltestdata.json`, copied
+into `wpt/` for the page's live scoreboard) in Node, through Node's `URL`
+and Hrefine's built JS, with the page's own scoring module
+(`scoreboard-node.mjs` and `scoreboard.js`). Node's score goes in the page
+beside the visitor's, and the build fails unless Hrefine passes every case.
 """
 
 import gzip
@@ -25,6 +31,7 @@ import html
 import json
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +39,7 @@ SITE = ROOT / "site"
 OUT = SITE / "build"
 JS = ROOT / "temper.out" / "js"
 TOUR = ROOT / "demos" / "tour"
+WPT = ROOT / "tests" / "wpt" / "urltestdata.json"
 
 # Each tour's source, by the extension the page asks for, in the site's
 # language order.
@@ -275,6 +283,37 @@ def sizes(name, files):
     return {"name": name, "raw": len(data), "gzip": len(gzip.compress(data, 9))}
 
 
+def node_scores():
+    """Node's and Hrefine's WPT scores, run in Node on the built site."""
+    try:
+        run = subprocess.run(
+            ["node", str(SITE / "scoreboard-node.mjs"), str(OUT)], capture_output=True, text=True, encoding="utf-8"
+        )
+    except FileNotFoundError:
+        raise SystemExit("The build needs Node (24 or later), to score the WPT cases.")
+    if run.returncode:
+        raise SystemExit(f"scoreboard-node.mjs failed:\n{run.stderr}")
+    scores = json.loads(run.stdout)
+    hrefine = scores["hrefine"]
+    if hrefine["passed"] != hrefine["total"]:
+        shown = "\n".join(
+            f"  {m['input']!r} (base {m['base']!r}): expected {m['expected']!r}, got {m['got']!r} {m['parts']}"
+            for m in hrefine["misses"][:10]
+        )
+        raise SystemExit(f"Hrefine misses {len(hrefine['misses'])} of {hrefine['total']} WPT cases in Node:\n{shown}")
+    return scores
+
+
+def node_line(scores):
+    """Node's score, as the page shows it before the live run."""
+    ada = f" (Ada {esc(scores['ada'])})" if scores["ada"] else ""
+    built_in = scores["builtIn"]
+    return (
+        f'<span class="who">Node {esc(scores["node"])}{ada}, at build time</span>'
+        f'<span class="tally-num">{built_in["passed"]} of {built_in["total"]}</span>'
+    )
+
+
 def main():
     if not (JS / "hrefine" / "hrefine.internal.js").exists():
         raise SystemExit("Build the JS library first: temper build -b js")
@@ -300,6 +339,9 @@ def main():
         lib.append(OUT / "lib" / "temper-core" / path.name)
     measured = [sizes("Hrefine and Temper's JS runtime, as ES modules, unminified", lib)]
     (OUT / "sizes.json").write_text(json.dumps(measured, indent=2) + "\n")
+    copy(WPT, OUT / "wpt" / "urltestdata.json")
+    copy(SITE / "scoreboard.js", OUT / "scoreboard.js")
+    scores = node_scores()
 
     sources = {ext: (TOUR / path).read_text(encoding="utf-8") for ext, path in TOURS.items()}
     for ext, text in sources.items():
@@ -320,6 +362,10 @@ def main():
         "RECORDED_DATE": esc(recorded["date"]),
         "PLATFORM": esc(recorded["platform"]),
         "TRICK_COUNT": str(len(recorded["results"])),
+        "WPT_COUNT": f'{scores["hrefine"]["total"]:,}',
+        "WPT_NODE": node_line(scores),
+        # Safe inside a script element, with no "<" in it.
+        "WPT_NODE_JSON": json.dumps(scores, ensure_ascii=True).replace("<", "\\u003c"),
     }
     for key, value in parts.items():
         page = page.replace(f"<!--{key}-->", value)
@@ -328,12 +374,14 @@ def main():
         raise SystemExit(f"Unfilled in index.html: {', '.join(left)}")
     # Each reference gets its file's hash, so browsers fetch changed files
     # instead of reusing cached ones.
-    for ref in ["style.css", "app.js"]:
+    for ref in ["style.css", "app.js", "scoreboard.js", "wpt/urltestdata.json"]:
         digest = hashlib.sha256((OUT / ref).read_bytes()).hexdigest()[:10]
         page = page.replace(f'"{ref}"', f'"{ref}?v={digest}"')
     (OUT / "index.html").write_text(page, encoding="utf-8")
     for m in measured:
         print(f"{m['name']}: {m['raw']} bytes, {m['gzip']} gzipped")
+    for name, s in [(f"Node {scores['node']}", scores["builtIn"]), ("Hrefine, in Node", scores["hrefine"])]:
+        print(f"WPT URL cases: {name}: {s['passed']} of {s['total']}")
     print(f"Built {OUT.relative_to(ROOT)}")
 
 
