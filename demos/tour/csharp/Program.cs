@@ -25,6 +25,7 @@ Section("1. Parsing and reading parts");
 var text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
 var url = ParseUrl(text);  // snippet: hero, parts
 Console.WriteLine($"input: {text}");
+// No username or password in href, by design (see section 5).
 Console.WriteLine($"href: {url.Href}");  // snippet: parts
 Console.WriteLine($"origin: {url.Origin}");  // snippet: parts
 Console.WriteLine($"protocol: {url.Protocol}");  // snippet: parts
@@ -130,13 +131,17 @@ foreach (var input in new[] {
 {
     Console.WriteLine($"{Shown(input)} -> {ParseUrl(input).Href}");
 }
-// url.ToString() masks credentials, for logs, but it hides object.ToString
-// rather than overriding it, so $"{url}" gives "Hrefine.Url". Hand on Href,
-// which keeps them, or drop them first.
-Console.WriteLine($"as a string: {url.ToString()}");
+// Href has no credentials, by design, unlike JavaScript's URL.href, so it's
+// the one to hand on, store, or compare as text. url.ToString() masks them,
+// for logs, but it hides object.ToString rather than overriding it, so
+// $"{url}" gives "Hrefine.Url". WithoutCredentials() gives a Url without
+// them. Only to send them deliberately, there's HrefWithCredentials, which
+// has the password: never log it.
 Console.WriteLine($"href, to hand on: {url.Href}");
-Console.WriteLine($"without credentials: {url.WithoutCredentials().Href}");
-// Eq compares hrefs; == compares objects.
+Console.WriteLine($"as a string: {url.ToString()}");
+Console.WriteLine($"without credentials: {url.WithoutCredentials().ToString()}");
+// Eq compares whole URLs, credentials included; == compares objects.
+Console.WriteLine($"same without credentials: {(url.Eq(url.WithoutCredentials()) ? "true" : "false")}");
 Console.WriteLine($"same URL: {(ParseUrl("HTTP://EXAMPLE.COM/a/./b/../c").Eq(ParseUrl("http://example.com/a/c")) ? "true" : "false")}");
 // StrictHref also escapes what RFC 3986 parsers reject, for those that
 // follow it strictly.
@@ -244,8 +249,9 @@ Console.WriteLine($"from pairs: {fromPairs.ToString()}");
 Section("8. Test cases");
 
 // Each of web-platform-tests' URL cases gives an input, a base, and the
-// href it must parse to, or "" where parsing must fail. Hrefine's tests run
-// them all, checking every part, and so does the site, in the browser.
+// standard's href it must parse to (the full form, with credentials), or
+// "" where parsing must fail. Hrefine's tests run them all, checking
+// every part, and so does the site, in the browser.
 var cases = new[] {
     ("http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"),
     ("../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"),
@@ -255,7 +261,7 @@ var cases = new[] {
 foreach (var (input, baseUrl, href) in cases)  // snippet: scoreboard
 {  // snippet: scoreboard
     var parsed = Url.Parse(input, baseUrl);  // snippet: scoreboard
-    var got = parsed?.Href ?? "";  // snippet: scoreboard
+    var got = parsed?.HrefWithCredentials ?? "";  // snippet: scoreboard
     Console.WriteLine($"{input} against {baseUrl}: {(got == href ? "pass" : "fail")}");  // snippet: scoreboard
 }  // snippet: scoreboard
 

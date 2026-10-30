@@ -30,6 +30,7 @@ section("1. Parsing and reading parts")
 local text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top"  -- snippet: hero
 local url = parseUrl(text)  -- snippet: hero, parts
 print("input: " .. text)
+-- No username or password in href, by design (see section 5).
 print("href: " .. url.href)  -- snippet: parts
 print("origin: " .. url.origin)  -- snippet: parts
 print("protocol: " .. url.protocol)  -- snippet: parts
@@ -128,12 +129,16 @@ for _, input in ipairs({
 }) do
   print(shown(input) .. " -> " .. parseUrl(input).href)
 end
--- url:toString() masks credentials, for logs (tostring(url) doesn't call it
--- yet). Hand on href, which keeps them, or drop them first.
-print("as a string: " .. url:toString())
+-- href has no credentials, by design, unlike JavaScript's URL.href, so it's
+-- the one to hand on, store, or compare as text. url:toString() masks them,
+-- for logs (tostring(url) doesn't call it yet), and url:withoutCredentials()
+-- gives a Url without them. Only to send them deliberately, there's
+-- hrefWithCredentials, which has the password: never log it.
 print("href, to hand on: " .. url.href)
-print("without credentials: " .. url:withoutCredentials().href)
--- eq compares hrefs; == compares tables.
+print("as a string: " .. url:toString())
+print("without credentials: " .. url:withoutCredentials():toString())
+-- eq compares whole URLs, credentials included; == compares tables.
+print("same without credentials: " .. tostring(url:eq(url:withoutCredentials())))
 print("same URL: " .. tostring(parseUrl("HTTP://EXAMPLE.COM/a/./b/../c"):eq(parseUrl("http://example.com/a/c"))))
 -- strictHref also escapes what RFC 3986 parsers reject, for those that
 -- follow it strictly.
@@ -235,8 +240,9 @@ print("from pairs: " .. UrlSearchParams.fromEntries(pairs_):toString())
 section("8. Test cases")
 
 -- Each of web-platform-tests' URL cases gives an input, a base, and the
--- href it must parse to, or "" where parsing must fail. Hrefine's tests run
--- them all, checking every part, and so does the site, in the browser.
+-- standard's href it must parse to (the full form, with credentials), or
+-- "" where parsing must fail. Hrefine's tests run them all, checking
+-- every part, and so does the site, in the browser.
 local cases = {
   { "http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/" },
   { "../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt" },
@@ -246,7 +252,7 @@ local cases = {
 for _, test in ipairs(cases) do  -- snippet: scoreboard
   local input, base, href = test[1], test[2], test[3]  -- snippet: scoreboard
   local url = null_to_nil(Url.parse(input, base))  -- snippet: scoreboard
-  local got = url and url.href or ""  -- snippet: scoreboard
+  local got = url and url.hrefWithCredentials or ""  -- snippet: scoreboard
   print(input .. " against " .. base .. ": " .. (got == href and "pass" or "fail"))  -- snippet: scoreboard
 end  -- snippet: scoreboard
 

@@ -35,7 +35,7 @@ struct Pair {
 static std::string parse(const Pair& pair) {
   try {
     auto url = pair.hasBase ? hrefine::parseUrl(pair.input, pair.base) : hrefine::parseUrl(pair.input);
-    return url->get_href();
+    return url->get_hrefWithCredentials();
   } catch (...) {
     return "fail";
   }

@@ -63,6 +63,7 @@ fn main() {
     let url = parse_url(text, NO_BASE).expect("a URL");  // snippet: hero, parts
     println!("input: {text}");
     // Each part is an Arc<String>.
+    // No username or password in href, by design (see section 5).
     println!("href: {}", url.href());  // snippet: parts
     println!("origin: {}", url.origin());  // snippet: parts
     println!("protocol: {}", url.protocol());  // snippet: parts
@@ -158,13 +159,18 @@ fn main() {
         let url = parse_url(input, NO_BASE).expect("a URL");
         println!("{} -> {}", shown(input), url.href());
     }
-    // url.to_string() masks credentials, for logs, but Url has no Display, so
-    // format!("{url}") doesn't compile. Hand on href(), which keeps them, or
-    // drop them first.
-    println!("as a string: {}", url.to_string());
+    // href() has no credentials, by design, unlike JavaScript's URL.href, so
+    // it's the one to hand on, store, or compare as text. url.to_string()
+    // masks them, for logs, but Url has no Display, so format!("{url}")
+    // doesn't compile. without_credentials() gives a Url without them. Only
+    // to send them deliberately, there's href_with_credentials(), which has
+    // the password: never log it.
     println!("href, to hand on: {}", url.href());
-    println!("without credentials: {}", url.without_credentials().href());
-    // eq compares hrefs; there's no PartialEq, so == doesn't compile.
+    println!("as a string: {}", url.to_string());
+    println!("without credentials: {}", url.without_credentials().to_string());
+    // eq compares whole URLs, credentials included; there's no PartialEq, so
+    // == doesn't compile.
+    println!("same without credentials: {}", url.eq(url.without_credentials()));
     let a = parse_url("HTTP://EXAMPLE.COM/a/./b/../c", NO_BASE).expect("a URL");
     let b = parse_url("http://example.com/a/c", NO_BASE).expect("a URL");
     println!("same URL: {}", a.eq(b));
@@ -248,9 +254,9 @@ fn main() {
     section("8. Test cases");
 
     // Each of web-platform-tests' URL cases gives an input, a base, and the
-    // href it must parse to, or "" where parsing must fail. Hrefine's tests
-    // run them all, checking every part, and so does the site, in the
-    // browser.
+    // standard's href it must parse to (the full form, with credentials), or
+    // "" where parsing must fail. Hrefine's tests run them all, checking
+    // every part, and so does the site, in the browser.
     let cases = [
         ["http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"],
         ["../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"],
@@ -259,7 +265,7 @@ fn main() {
     ];
     for [input, base, href] in cases {  // snippet: scoreboard
         let url = Url::parse(input, Some(base));  // snippet: scoreboard
-        let got = url.map_or(String::new(), |url| url.href().to_string());  // snippet: scoreboard
+        let got = url.map_or(String::new(), |url| url.href_with_credentials().to_string());  // snippet: scoreboard
         println!("{input} against {base}: {}", if got == href { "pass" } else { "fail" });  // snippet: scoreboard
     }  // snippet: scoreboard
 

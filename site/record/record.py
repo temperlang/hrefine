@@ -23,9 +23,13 @@ and the date are recorded too, since answers change between versions.
 - Hrefine's Python build (`probe_hrefine.py`), to check two of Hrefine's
   languages agree here too (all seven pass the same tests in CI).
 
-Then it gives every parser Hrefine's `href` for each input, in place of the
-input, and then its `strictHref` (the strict RFC 3986 form), to show the
-fix: the parsers then read the host as browsers do.
+Then it gives every parser Hrefine's URL for each input, in place of the
+input, and then its strict RFC 3986 form, to show the fix: the parsers then
+read the host as browsers do. Both are the full forms,
+`hrefWithCredentials` and `strictHrefWithCredentials`, so tricks in the
+user info are kept; Hrefine's `href` and `strictHref` leave the credentials
+out. The JSON keeps the names `href` and `strictHref` for them, as each
+parser's `href` is its own exact serialization.
 
 Each probe reads lines of base64 input and base (or `-`) on stdin, so tabs
 and newlines in inputs survive, and prints a JSON line for each.
@@ -207,8 +211,8 @@ def main():
     inputs = [{"input": i["input"], "base": i.get("base")} for i in gallery["hero"] + gallery["cards"] + corpus]
     results, versions, missing = record(inputs)
 
-    # The fix, checked: each parser given Hrefine's href instead of the
-    # input, and then its strict RFC 3986 form. Inputs Hrefine rejects have
+    # The fix, checked: each parser given Hrefine's URL (hrefWithCredentials)
+    # instead of the input, and then its strict RFC 3986 form. Inputs Hrefine rejects have
     # neither, and are left out.
     hrefs = [{"input": r["hrefine"]["href"]} for r in results if r["hrefine"]["ok"]]
     href_results, _, _ = record(hrefs)

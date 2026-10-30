@@ -18,7 +18,7 @@ fn read_lines(folder: &str, name: &str) -> Vec<String> {
 
 fn parse(pair: &(String, Option<String>)) -> String {
     match hrefine::parse_url(pair.0.as_str(), pair.1.as_deref()) {
-        Ok(url) => url.href().to_string(),
+        Ok(url) => url.href_with_credentials().to_string(),
         Err(_) => "fail".to_string(),
     }
 }

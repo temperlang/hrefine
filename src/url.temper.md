@@ -157,14 +157,27 @@ whether `parseUrl` would give a URL, without making one.
         record != null
       }
 
-The [href](https://url.spec.whatwg.org/#dom-url-href): the whole URL,
-serialized, credentials (the username and password written in the URL)
-and all, and what `==` compares. **Use `href` to hand the URL on** (to
-an HTTP client, a redirect, or storage), never `toString`, which masks
-the credentials. It may contain credentials and other secrets, as
+The URL to hand on (to an HTTP client, a redirect, or storage), or to
+compare as text: the standard's
+[serialization](https://url.spec.whatwg.org/#concept-url-serializer)
+run as if the username and password were empty. **It has no
+credentials, by design,** unlike JavaScript's `URL.href`, so passing it
+around can't leak them; a request that needed them fails to
+authenticate, a loud and safe failure. Use `hrefWithCredentials` only
+when you mean to send them, `withoutCredentials()` for a `Url` without
+them, and `toString` for logs. It may still contain other secrets, as
 tokens in the query or fragment, so don't log it.
 
       public get href(): String {
+        serializeUrl(schemeValue, "", "", hostValue, portValue, pathValue, query, fragment)
+      }
+
+The standard's [href](https://url.spec.whatwg.org/#dom-url-href),
+exactly: the whole URL, serialized, **with the username and password**,
+and what `==` compares. It contains credentials and other secrets, so
+never log it; use it only to send the credentials deliberately.
+
+      public get hrefWithCredentials(): String {
         serializeUrl(
           schemeValue, usernameValue, passwordValue, hostValue, portValue, pathValue, query,
           fragment,
@@ -173,15 +186,23 @@ tokens in the query or fragment, so don't log it.
 
 The [strict RFC 3986 form](strict.temper.md): `href`, with what RFC
 3986 doesn't allow there (such as `|`, `^`, `{`, and `}`) escaped, for
-strict parsers such as Java's `URI`. It means the same URL.
+strict parsers such as Java's `URI`. It means the same URL, and like
+`href`, has no credentials. `strictHrefWithCredentials` is
+`hrefWithCredentials`'s strict form, with the username and password: it
+contains credentials and other secrets, so never log it.
 
-      public get strictHref(): String {
+      public get strictHref(): String { strictSerialized("", "") }
+
+      public get strictHrefWithCredentials(): String {
+        strictSerialized(usernameValue, passwordValue)
+      }
+
+      private strictSerialized(username: String, password: String): String {
         let h = hostValue;
         let q = query;
         let f = fragment;
         serializeUrl(
-          schemeValue, strictPart(usernameValue, strictUserinfo),
-          strictPart(passwordValue, strictUserinfo),
+          schemeValue, strictPart(username, strictUserinfo), strictPart(password, strictUserinfo),
           if (h == null) {
             null
           } else if (h.hasIndex(String.begin) && h[String.begin] == char'[') {
@@ -195,12 +216,12 @@ strict parsers such as Java's `URI`. It means the same URL.
         )
       }
 
-Redacted for logging; use `href` for the exact URL. It's `href` with
-the credentials (the username and password written in the URL, as in
-`https://user:pass@host/`; not cookies, headers, or tokens in the
-query) each shown as `***`, as `https://***:***@example.com/`, since
-logs, string interpolation, and debuggers use it. A username is masked
-too, since API tokens are often passed as one
+Redacted for logging. It's the URL with the credentials (the username
+and password written in the URL, as in `https://user:pass@host/`; not
+cookies, headers, or tokens in the query) each shown as `***`, as
+`https://***:***@example.com/`, so logs show that there were some,
+since logs, string interpolation, and debuggers use it. A username is
+masked too, since API tokens are often passed as one
 (`https://TOKEN@example.com/`). An empty one stays empty, as in
 `https://:***@example.com/`. `***` still parses, as a username of
 `***`, so a URL copied from a log won't authenticate. Never hand it on;
@@ -216,8 +237,14 @@ helper as a possible addition.
         )
       }
 
+Whether the two are the same URL, as the standard's [URL
+equals](https://url.spec.whatwg.org/#concept-url-equals):
+`hrefWithCredentials` compared, so credentials count, and a URL with
+them doesn't equal its `withoutCredentials()`. Compare `href`s to leave
+them out.
+
       @operator("==")
-      public eq(other: Url): Boolean { href == other.href }
+      public eq(other: Url): Boolean { hrefWithCredentials == other.hrefWithCredentials }
 
 The [origin](https://url.spec.whatwg.org/#dom-url-origin), serialized:
 `scheme://host` with any port, for `http`, `https`, `ws`, `wss`, and
@@ -240,12 +267,12 @@ Whether this URL and `other` are the same but for their fragments, as
 the standard's [URL equals](https://url.spec.whatwg.org/#concept-url-equals)
 with *exclude fragments*, which browsers use to tell a jump within a
 page from loading another. Use `==` (`eq`) for the same URL, fragment
-and all. Both compare canonical forms, so case in the scheme and host,
+and all. Credentials count, as for `==`. Both compare canonical forms, so case in the scheme and host,
 a default port written out, dot segments, and IPv4 written in hex all
 compare equal already.
 
       public sameDocument(other: Url): Boolean {
-        beforeFragment(href) == beforeFragment(other.href)
+        beforeFragment(hrefWithCredentials) == beforeFragment(other.hrefWithCredentials)
       }
 
 The [protocol](https://url.spec.whatwg.org/#dom-url-protocol): the
@@ -267,7 +294,8 @@ the standard's credentials, written in the URL, as in
       public get password(): String { passwordValue }
 
 This URL without credentials: no username or password, all else the
-same, as `https://example.com/` for `https://user:pw@example.com/`.
+same, as `https://example.com/` for `https://user:pw@example.com/`, for
+when a `Url` is wanted. Its `hrefWithCredentials` is this URL's `href`.
 
       public withoutCredentials(): Url {
         if (usernameValue == "" && passwordValue == "") {
@@ -336,7 +364,9 @@ fragment, after `?` and `#`, or empty if they're empty or missing.
         if (f == null) { "" } else if (f == "") { "" } else { "#${f}" }
       }
 
-Resolves `ref` against this URL, as `parseUrl(ref, href)` would, but
+Resolves `ref` against this URL, as `parseUrl(ref, hrefWithCredentials)`
+would (credentials and all, as the standard keeps them for a relative
+`ref`), but
 without parsing this one again: `ref` is parsed with this URL as its
 base. It bubbles where that fails; `tryResolve` gives null instead.
 
@@ -354,7 +384,9 @@ as methods that give a new URL, each named for the getter it sets:
 JavaScript, they don't fail: a value that can't be set leaves the URL
 as it was, or as far as the standard got, as `withHost("example.com:x")`
 changes the host but not the port. Only `withHref` bubbles, as setting
-`href` throws, since it parses a whole new URL.
+`href` throws, since it parses a whole new URL. It's JavaScript's
+`url.href = value`: it parses `value` exactly, so its credentials, if
+any, are kept, and the new URL's `hrefWithCredentials` has them.
 
       public withHref(href: String): Url throws Bubble { parseUrl(href) }
 
@@ -1957,7 +1989,9 @@ The README's examples.
 
     test("README examples") {
       let url = parseUrl("https://user@EXAMPLE.com:443/a/../b?q=1#top") orelse panic();
-      assert(url.href == "https://user@example.com/b?q=1#top");
+      assert(url.href == "https://example.com/b?q=1#top");
+      assert(url.toString() == "https://***@example.com/b?q=1#top");
+      assert(url.hrefWithCredentials == "https://user@example.com/b?q=1#top");
       assert(url.hostname == "example.com");
       assert(url.pathname == "/b");
       let relative = parseUrl("../c", "https://example.com/a/b") orelse panic();
@@ -1982,8 +2016,9 @@ The README's examples.
       assert(international.hostname == "xn--bcher-kva.example");
       assert(domainToUnicode("xn--bcher-kva.example") == "bücher.example");
       let moved = url.withHost("example.org:8443").withPathname("/c d").withHash("");
-      assert(moved.href == "https://user@example.org:8443/c%20d?q=1");
-      assert(url.href == "https://user@example.com/b?q=1#top");
+      assert(moved.href == "https://example.org:8443/c%20d?q=1");
+      assert(moved.hrefWithCredentials == "https://user@example.org:8443/c%20d?q=1");
+      assert(url.hrefWithCredentials == "https://user@example.com/b?q=1#top");
       let params = moved.searchParams;
       params.append("lang", "en US");
       params.set("q", "2");
@@ -2036,7 +2071,7 @@ does, for every kind of path and base.
           assert(actual == null) { "${cases[k + 1]} against ${cases[k]} must fail" };
         } else {
           assert(actual != null && actual == expected) {
-            "${cases[k + 1]} against ${cases[k]} must give ${expected.href}"
+            "${cases[k + 1]} against ${cases[k]} must give ${expected.hrefWithCredentials}"
           };
         }
       }
@@ -2087,39 +2122,87 @@ The typed parts, origins, equality, and strings.
       assert(a.toString() == "http://example.com/a");
     }
 
-`toString` masks credentials; `href` keeps them, and `==` compares
-`href`s.
+`toString` masks credentials, `href` leaves them out, and
+`hrefWithCredentials` keeps them, as `==` and `sameDocument` do. Each
+case is the input, `toString`, `href`, and `hrefWithCredentials`.
 
-    test("toString masks credentials") {
+    test("credentials") {
       let cases = [
         "https://user:pw@example.com/a?q#f", "https://***:***@example.com/a?q#f",
-        "https://user:pw@example.com/a?q#f",
-        "https://TOKEN@example.com/", "https://***@example.com/", "https://TOKEN@example.com/",
-        "https://:pw@example.com/", "https://:***@example.com/", "https://:pw@example.com/",
-        "https://user:@example.com/", "https://***@example.com/", "https://user@example.com/",
+        "https://example.com/a?q#f", "https://user:pw@example.com/a?q#f",
+        "https://TOKEN@example.com/", "https://***@example.com/", "https://example.com/",
+        "https://TOKEN@example.com/",
+        "https://:pw@example.com/", "https://:***@example.com/", "https://example.com/",
+        "https://:pw@example.com/",
+        "https://user:@example.com/", "https://***@example.com/", "https://example.com/",
+        "https://user@example.com/",
         "https://:@example.com/", "https://example.com/", "https://example.com/",
+        "https://example.com/",
         "https://@example.com/", "https://example.com/", "https://example.com/",
-        "ftp://a%40b:c%3Ad@example.com:21/", "ftp://***:***@example.com/",
+        "https://example.com/",
+        "ftp://a%40b:c%3Ad@example.com:21/", "ftp://***:***@example.com/", "ftp://example.com/",
         "ftp://a%40b:c%3Ad@example.com/",
-        "foo://u:p@h:9/x", "foo://***:***@h:9/x", "foo://u:p@h:9/x",
+        "foo://u:p@h:9/x", "foo://***:***@h:9/x", "foo://h:9/x", "foo://u:p@h:9/x",
         "mailto:user:pw@example.com", "mailto:user:pw@example.com", "mailto:user:pw@example.com",
+        "mailto:user:pw@example.com",
+        "https://u|v:p@example.com/a|b", "https://***:***@example.com/a|b",
+        "https://example.com/a|b", "https://u%7Cv:p@example.com/a|b",
       ];
-      for (var k = 0; k < cases.length; k += 3) {
+      for (var k = 0; k < cases.length; k += 4) {
         let url = parseUrl(cases[k]) orelse panic();
         assert(url.toString() == cases[k + 1]) { "${cases[k]} as a string" };
         assert(url.href == cases[k + 2]) { "${cases[k]} href" };
+        assert(url.hrefWithCredentials == cases[k + 3]) { "${cases[k]} hrefWithCredentials" };
+        let problem = credentialsProblem(url);
+        assert(problem == "") { problem };
       }
       let secret = parseUrl("https://alice:hunter2@example.com/") orelse panic();
-      let text = secret.toString();
-      assert(text.split("alice").length == 1 && text.split("hunter2").length == 1) { "leaked" };
+      for (let text of [secret.toString(), secret.href, secret.strictHref]) {
+        assert(text.split("alice").length == 1 && text.split("hunter2").length == 1) {
+          "a credential leaked"
+        };
+      }
+      assert(secret.strictHrefWithCredentials == "https://alice:hunter2@example.com/");
       assert(secret == (parseUrl("https://alice:hunter2@example.com/") orelse panic()));
       assert(secret != secret.withoutCredentials());
-      assert(secret.withoutCredentials().href == "https://example.com/");
+      assert(secret.href == secret.withoutCredentials().href);
+      assert(!secret.sameDocument(secret.withoutCredentials()));
+      assert(secret.withoutCredentials().hrefWithCredentials == "https://example.com/");
       assert(secret.withPassword("").toString() == "https://***@example.com/");
       assert(secret.withUsername("").toString() == "https://:***@example.com/");
+      let resolved = secret.resolve("/b") orelse panic();
+      assert(resolved.hrefWithCredentials == "https://alice:hunter2@example.com/b") {
+        "resolving keeps credentials"
+      };
+      let set = secret.withHref("https://bob:pw@example.org/") orelse panic();
+      assert(set.username == "bob" && set.hrefWithCredentials == "https://bob:pw@example.org/") {
+        "withHref keeps credentials"
+      };
       let plain = parseUrl("https://example.com/?token=abc") orelse panic();
-      assert(plain.withoutCredentials().href == plain.href);
+      assert(plain.withoutCredentials() == plain);
+      assert(plain.href == plain.hrefWithCredentials && plain.strictHref == plain.strictHrefWithCredentials);
       assert(plain.toString() == plain.href) { "no credentials" };
+    }
+
+What's wrong with `url`'s forms without credentials, if anything: `href`
+and `strictHref` must be `withoutCredentials()`'s full forms, and the
+same as the full forms where there are no credentials. web-platform-tests'
+URLs and setters check it for every case.
+
+    let credentialsProblem(url: Url): String {
+      let bare = url.withoutCredentials();
+      if (url.href != bare.hrefWithCredentials) {
+        "href ${url.href} isn't ${bare.hrefWithCredentials}"
+      } else if (url.strictHref != bare.strictHrefWithCredentials) {
+        "strictHref ${url.strictHref} isn't ${bare.strictHrefWithCredentials}"
+      } else if (
+        url.username == "" && url.password == "" &&
+          (url.href != url.hrefWithCredentials || url.strictHref != url.strictHrefWithCredentials)
+      ) {
+        "href ${url.href} differs without credentials"
+      } else {
+        ""
+      }
     }
 
 Checking hosts, unlike domain to ASCII, which passes all of these.
@@ -2148,8 +2231,8 @@ Checking hosts, unlike domain to ASCII, which passes all of these.
     }
 
 Validation errors, each checked by hand against the standard: the
-input, the base or empty for none, the href or empty where parsing
-fails, and the errors.
+input, the base or empty for none, the `hrefWithCredentials` or empty
+where parsing fails, and the errors.
 
     test("validation errors") {
       let cases = [
@@ -2213,7 +2296,7 @@ fails, and the errors.
         let base: String? = if (cases[k + 1] == "") { null } else { cases[k + 1] };
         let check = checkUrl(input, base) orelse panic();
         let url = check.url;
-        let href = if (url == null) { "" } else { url.href };
+        let href = if (url == null) { "" } else { url.hrefWithCredentials };
         let errors = check.errors.join(", ") { e => e.toString() };
         assert(href == cases[k + 2] && errors == cases[k + 3]) {
           "${input}: ${href}, with ${errors}"

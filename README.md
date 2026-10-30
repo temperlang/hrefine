@@ -19,9 +19,9 @@ checks (schemes, credentials, private and loopback addresses, host
 allowlists, and redirect targets) in one call, on the parsed URL, with
 a preset for URLs a server fetches. Credentials (the username and
 password written in the URL, as in `https://user:pass@host/`; not
-cookies, headers, or tokens in the query) are hard to expose:
-`toString` masks them, the display form leaves them out, and policies
-never echo them. And for people and tools: a display form, as browsers
+cookies, headers, or tokens in the query) are hard to expose: `href`
+leaves them out, `toString` masks them, the display form leaves them
+out, and policies never echo them. And for people and tools: a display form, as browsers
 show URLs, comparisons, and where each part was written. See the [plan](docs/plan.md) for
 what's next.
 
@@ -33,8 +33,9 @@ as `new URL()` does, and `Url.parse` gives null:
 
 ```temper
 let url = parseUrl("https://user@EXAMPLE.com:443/a/../b?q=1#top") orelse panic();
-url.href;     // "https://user@example.com/b?q=1#top", to hand on
+url.href;     // "https://example.com/b?q=1#top", to hand on: no credentials
 url.toString(); // "https://***@example.com/b?q=1#top", for logs
+url.hrefWithCredentials; // "https://user@example.com/b?q=1#top", only to send them
 url.hostname; // "example.com" (lowercased; the default port is dropped)
 url.pathname; // "/b"
 
@@ -64,7 +65,7 @@ domainToUnicode("xn--bcher-kva.example"); // "bücher.example"
 
 // Setters give a new URL; url itself never changes.
 let moved = url.withHost("example.org:8443").withPathname("/c d").withHash("");
-moved.href; // "https://user@example.org:8443/c%20d?q=1"
+moved.href; // "https://example.org:8443/c%20d?q=1"
 url.withPort("x").port; // "" (as in JavaScript, a value that can't be set is ignored)
 url.withPortNumber(8443).port; // "8443"
 
@@ -83,7 +84,7 @@ UrlSearchParams.fromEntries([new Pair("q", "a b")]).toString(); // "q=a+b"
 let policy = UrlPolicy.fetch.withHosts(["example.com"], true);
 policy.check("https://api.example.com/").url;  // the URL
 policy.check("https://127.0.0.1/").toString(); // "specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8"
-url.withoutCredentials().href; // "https://example.com/b?q=1#top"
+url.withoutCredentials(); // a Url without the username and password
 
 // For people, never for decisions: Unicode hosts where browsers show them,
 // and no credentials.
@@ -122,7 +123,7 @@ identical output.
   Each error also has a `length`: one code point, a whole host or port,
   the stripped ends, or none at the end of the input.
 - `Url`: the standard's getters, each a string, as in JavaScript:
-  `href`, `origin`, `protocol`, `username`, `password`, `host`,
+  `href` (without credentials; see below), `origin`, `protocol`, `username`, `password`, `host`,
   `hostname`, `port`, `pathname`, `search`, and `hash`. Typed parts
   beside them: `scheme` (without the colon), `portNumber` (null where
   `port` is empty), and `hostKind` (`HostKind.domain`, `ipv4`, `ipv6`,
@@ -135,27 +136,39 @@ identical output.
     `url.sameDocument(other)`: whether they're the same but for the
     fragment (the standard's URL equals, excluding fragments). A default
     port, case, and dot segments are already gone from both.
+  - `href`: the URL to hand on, store, or compare as text: the
+    standard's serialization, run as if the username and password were
+    empty. It has no credentials, by design, unlike JavaScript's
+    `URL.href`, so passing it around can't leak them; a request that
+    needed them fails to authenticate, which is loud and safe.
+  - `hrefWithCredentials`: the standard's `href` exactly, with the
+    username and password. It contains credentials and other secrets:
+    never log it, and use it only to send them deliberately.
   - `strictHref`: `href` with what RFC 3986 doesn't allow escaped (such
     as `|`, `^`, `{`, `}`, `[` and `]` outside IPv6 hosts, and a `%`
     without two hex digits), and escapes of letters, digits, `-`, `.`,
     `_`, and `~` decoded, as RFC 3986 normalizes them, for strict
     parsers such as Java's `URI`. It means the same URL: Hrefine and
-    browsers read it back with every part the same once decoded.
-  - `toString()`: redacted for logging; use `href` for the exact URL.
-    It gives `href` with the credentials (the username and password
-    written in the URL; not cookies, as JavaScript's `fetch` means by
-    the word) each masked as `***`, as `https://***:***@example.com/`
-    (an empty one stays empty). `***` still parses, as a username of
-    `***`, so a URL copied from a log won't authenticate. Hand on
-    `href`, never `toString()`. `==` in Temper compares `href`s (`eq` in
-    other languages).
+    browsers read it back with every part the same once decoded. Like
+    `href`, it has no credentials; `strictHrefWithCredentials` has them.
+  - `toString()`: redacted for logging. It gives the URL with the
+    credentials (the username and password written in the URL; not
+    cookies, as JavaScript's `fetch` means by the word) each masked as
+    `***`, as `https://***:***@example.com/` (an empty one stays
+    empty), so logs show there were some. `***` still parses, as a
+    username of `***`, so a URL copied from a log won't authenticate.
+    Hand on `href`, never `toString()`.
+  - `==` in Temper (`eq` in other languages) compares whole URLs,
+    `hrefWithCredentials`, so credentials count; compare `href`s to
+    leave them out.
   - `url.withoutCredentials()`: the URL without its username and
-    password.
+    password, for when a `Url` is wanted.
   - The standard's setters, as methods that give a new `Url`:
     `withHref`, `withProtocol`, `withUsername`, `withPassword`,
     `withHost`, `withHostname`, `withPort`, `withPathname`,
     `withSearch`, and `withHash`, so `url.withHash("top")` is
-    JavaScript's `url.hash = "top"`; and `withPortNumber`, beside
+    JavaScript's `url.hash = "top"` (and `withHref` keeps the
+    credentials in the string it's given); and `withPortNumber`, beside
     `portNumber`, taking a number or null. As there, a value that can't be
     set leaves the URL as it was (or as far as the standard got: a host
     with a bad port sets only the host), and only `withHref` bubbles.
@@ -179,7 +192,7 @@ identical output.
   someone's behalf (`https` only, no credentials, no special hosts,
   strict, and at most 8,192 code points), or `UrlPolicy.any` (no
   rules), each `with` method giving a new policy with one more rule: `withStrict(true)`,
-  `withMaxLength(n)` (of the input and `href`), `withBase(url)` (for
+  `withMaxLength(n)` (of the input and `hrefWithCredentials`), `withBase(url)` (for
   relative input), `withSchemes(list)`, `withCredentials(false)`,
   `withIpHosts(false)`, `withSpecialHosts(false)` (no private, loopback,
   link-local, multicast, IPv4-mapped, or other special addresses, by
@@ -233,11 +246,24 @@ is two steps here, reading `searchParams` and handing them back with
 
 Every language gets these names in its own style (`parse_url` and
 `url.host_kind` in Python and Rust, `ParseUrl` and `url.HostKind` in C#,
-`getHref()` in Java). Some don't yet carry everything over from Temper:
+`getHref()` and `getHrefWithCredentials()` in Java). Some don't yet carry everything over from Temper:
 `toString` and `==` reach only some languages' own string conversion
 (JavaScript's templates and Java's concatenation, which mask credentials
 too) and equality, and only Java and Rust keep `Url`'s constructor
 private; see the tour for each.
+
+### Coming from JavaScript's `URL`
+
+The names are the WHATWG `URL` API's, but for one, deliberately: its
+`href` has the username and password, and Hrefine's doesn't. Where
+JavaScript code reads `url.href`, Hrefine's `href` is usually what's
+meant, since few URLs carry credentials; where it must send them, use
+`hrefWithCredentials`, which is easy to search for in review. In short:
+
+- `href`, to hand on, store, or compare as text;
+- `withoutCredentials()`, for a `Url` without them;
+- `hrefWithCredentials`, only to send credentials deliberately;
+- `toString()`, for logs.
 
 ## Using it safely
 
@@ -282,9 +308,11 @@ let redirects = UrlPolicy.any.withBase(site).withPathOnly(true);
 A policy can't see where DNS sends a name, so against SSRF, also check
 the address your client connects to, and check or turn off redirects.
 
-Keep credentials out of logs: log `url.toString()`, which masks the
-username and password, or a policy's `reason`, never `href` or the
-input. Hrefine can't tell which query parameters or fragments hold
+Keep credentials out of logs: `href` has none, and `url.toString()`
+masks them, showing that there were some; or log a policy's `reason`.
+Never log `hrefWithCredentials` or the input. If a request needs the
+credentials in the URL, send `hrefWithCredentials` deliberately; handed
+`href`, it fails to authenticate rather than leaking them. Hrefine can't tell which query parameters or fragments hold
 secrets (`?token=`, `#access_token=`), so don't log URLs that may carry
 tokens there; a masking helper is a possible addition (see the
 [plan](docs/plan.md), "Credentials").
@@ -349,7 +377,9 @@ look-alikes), and on the site's recorded inputs.
 
 Each URL from `urltestdata.json` and `setters_tests.json` also checks
 `strictHref`: it must be RFC 3986, by the grammar, and parse back to the
-same parts once decoded.
+same parts once decoded. Their expected `href` is the standard's, so it's
+checked against `hrefWithCredentials`, and `href` and `strictHref` must
+be the same without the credentials.
 
 ## Site
 
@@ -370,8 +400,9 @@ recorded URLs are recorded ahead of time, with their versions and the date:
 Python's `urllib.parse`, Java's `URI` and `URL`, .NET's `Uri`, Go's
 `net/url`, libcurl's URL API, and Node's `URL`, standing in for browsers.
 `site/record/record.py` runs each one that's installed on the inputs in
-`site/gallery.json`, then on Hrefine's `href` and `strictHref` for each,
-and writes `site/recorded.json`, which is checked in. Each parser counts
+`site/gallery.json`, then on Hrefine's full forms of each,
+`hrefWithCredentials` and `strictHrefWithCredentials` (the exact URL,
+since some tricks are in the user info), and writes `site/recorded.json`, which is checked in. Each parser counts
 as agreeing with browsers if it reads the same host (IPv6 addresses
 compared as addresses), or for path tricks the same path. Given
 `strictHref`, every recorded parser agrees on every URL Hrefine

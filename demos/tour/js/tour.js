@@ -24,6 +24,7 @@ section("1. Parsing and reading parts");
 const text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
 const url = parseUrl(text);  // snippet: hero, parts
 console.log(`input: ${text}`);
+// No username or password in href, by design (see section 5).
 console.log(`href: ${url.href}`);  // snippet: parts
 console.log(`origin: ${url.origin}`);  // snippet: parts
 console.log(`protocol: ${url.protocol}`);  // snippet: parts
@@ -117,12 +118,16 @@ for (const input of [
 ]) {
   console.log(`${shown(input)} -> ${parseUrl(input).href}`);
 }
-// toString() masks credentials, for logs; templates and String() give it
-// too. Hand on href, which keeps them, or drop them first.
-console.log(`as a string: ${url.toString()}`);
+// href has no credentials, by design, unlike JavaScript's URL.href, so it's
+// the one to hand on, store, or compare as text. toString() masks them, for
+// logs (templates and String() give it too), and withoutCredentials() gives
+// a Url without them. Only to send them deliberately, there's
+// hrefWithCredentials, which has the password: never log it.
 console.log(`href, to hand on: ${url.href}`);
-console.log(`without credentials: ${url.withoutCredentials().href}`);
-// eq compares hrefs; === compares objects.
+console.log(`as a string: ${url.toString()}`);
+console.log(`without credentials: ${url.withoutCredentials().toString()}`);
+// eq compares whole URLs, credentials included; === compares objects.
+console.log(`same without credentials: ${url.eq(url.withoutCredentials())}`);
 console.log(`same URL: ${parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c"))}`);
 // strictHref also escapes what RFC 3986 parsers reject, for those that
 // follow it strictly.
@@ -217,8 +222,9 @@ console.log(`from pairs: ${UrlSearchParams.fromEntries([new Pair("q", "a b"), ne
 section("8. Test cases");
 
 // Each of web-platform-tests' URL cases gives an input, a base, and the
-// href it must parse to, or "" where parsing must fail. Hrefine's tests
-// run them all, checking every part, and so does the site, in the browser.
+// standard's href it must parse to (the full form, with credentials), or
+// "" where parsing must fail. Hrefine's tests run them all, checking
+// every part, and so does the site, in the browser.
 const cases = [
   ["http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"],
   ["../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"],
@@ -227,7 +233,7 @@ const cases = [
 ];
 for (const [input, base, href] of cases) {  // snippet: scoreboard
   const url = Url.parse(input, base);  // snippet: scoreboard
-  const got = url === null ? "" : url.href;  // snippet: scoreboard
+  const got = url === null ? "" : url.hrefWithCredentials;  // snippet: scoreboard
   console.log(`${input} against ${base}: ${got === href ? "pass" : "fail"}`);  // snippet: scoreboard
 }  // snippet: scoreboard
 

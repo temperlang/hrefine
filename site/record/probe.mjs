@@ -33,7 +33,11 @@ function hrefine(input, base) {
   const url = check.url;
   if (url === null) return { ok: false, error: errors.at(-1) ?? "failure", errors };
   const host = url.hostKind === null ? null : url.hostname;
-  return { ok: true, scheme: url.scheme, host, path: url.pathname, href: url.href, strictHref: url.strictHref, hostKind: url.hostKind?.toString() ?? null, errors };
+  // The exact URL, credentials and all, as Node's href is: some tricks are in
+  // the user info. Hrefine's own href would leave them out.
+  const href = url.hrefWithCredentials;
+  const strictHref = url.strictHrefWithCredentials;
+  return { ok: true, scheme: url.scheme, host, path: url.pathname, href, strictHref, hostKind: url.hostKind?.toString() ?? null, errors };
 }
 
 for await (const line of createInterface({ input: process.stdin })) {

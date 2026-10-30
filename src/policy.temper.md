@@ -99,8 +99,8 @@ no `@` without a host after it, and the rest. See `checkUrl`.
       }
 
 **Maximum length,** in code points, of both the input, checked before
-parsing it, and `href`, which escapes can make longer; negative for no
-limit.
+parsing it, and `hrefWithCredentials`, which escapes can make longer;
+negative for no limit.
 
       public withMaxLength(maxLength: Int): UrlPolicy {
         new UrlPolicy(
@@ -227,9 +227,9 @@ to the base's own host. It needs a base, from `withBase`.
 ## Checking
 
 Parses `input`, against the base if there is one, and checks each rule,
-in this order: the input's length, parsing, strict mode, `href`'s
-length, the scheme, credentials, IP hosts, special hosts, the host
-allowlist, the same origin, and path only. It says which rule failed
+in this order: the input's length, parsing, strict mode,
+`hrefWithCredentials`'s length, the scheme, credentials, IP hosts,
+special hosts, the host allowlist, the same origin, and path only. It says which rule failed
 first, or gives the URL. It never bubbles.
 
       public check(input: String): PolicyCheck {
@@ -237,7 +237,9 @@ first, or gives the URL. It never bubbles.
           refuse(PolicyRule.maxLength, "input longer than ${maxLength.toString()}")
         } else if (strict) {
           let b = base;
-          let found: UrlCheck? = checkUrl(input, if (b == null) { null } else { b.href }) orelse null;
+          // The base's full form, as resolve uses it, credentials and all.
+          let baseText: String? = if (b == null) { null } else { b.hrefWithCredentials };
+          let found: UrlCheck? = checkUrl(input, baseText) orelse null;
           let url: Url? = if (found == null) { null } else { found.url };
           let errors: List<ValidationError> = if (found == null) { [] } else { found.strictErrors };
           if (url == null) {
@@ -264,7 +266,8 @@ is read as a special URL's host would be (`gopher://0x7f.1/` has
 read that way fails the host rules.
 
       private checkParsed(input: String, url: Url): PolicyCheck {
-        let href = url.href;
+        // Credentials count toward the length, as a client sending them would.
+        let href = url.hrefWithCredentials;
         var kind = url.hostKind;
         var host = url.hostname;
         var unreadable = false;
@@ -957,6 +960,16 @@ Redirect targets, against a site: same origin, or a path only.
         "/a\\b", "strict",
         "/\t/evil.example", "strict",
       ]);
+      // A base's credentials carry over to relative input, strict or not,
+      // as the standard says; href still leaves them out.
+      let signedIn = parseUrl("https://user:pw@good.example/app/") orelse panic();
+      for (let p of [UrlPolicy.any.withBase(signedIn), UrlPolicy.any.withBase(signedIn).withStrict(true)]) {
+        let url = p.check("/account").url;
+        let full = if (url == null) { "refused" } else { url.hrefWithCredentials };
+        let bare = if (url == null) { "refused" } else { url.href };
+        assert(full == "https://user:pw@good.example/account") { "base credentials kept" };
+        assert(bare == "https://good.example/account") { "href without credentials" };
+      }
     }
 
 The recorded corpus's inputs, the gallery's and the table's on the site
@@ -1090,7 +1103,7 @@ for one rule or another, and never echoes credentials in its reasons.
       // Each of the specialHost cases fails the same way as https.
       for (let input of refused) {
         let plain = Url.parse(input);
-        let secure = if (plain == null) { "" } else { plain.withProtocol("https").href };
+        let secure = if (plain == null) { "" } else { plain.withProtocol("https").hrefWithCredentials };
         if (secure.split("https:").length == 2) {
           let result = UrlPolicy.fetch.check(secure);
           assert(result.url == null) { "the preset must refuse ${input} as https" };

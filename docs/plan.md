@@ -191,14 +191,15 @@ people know, with JavaScript's names, revised after the tours
   for `parseUrl`, so normal parsing pays only null checks in rare
   branches and one per run of code points.
 - `Url`, immutable at first, with the standard's getters, each a
-  `String`: `href`, `origin`, `protocol`, `username`, `password`,
+  `String`: `href` (without credentials since; see "Credentials"),
+  `origin`, `protocol`, `username`, `password`,
   `host`, `hostname`, `port`, `pathname`, `search`, and `hash`; typed
   parts beside them: `scheme`, `portNumber: Int?`, and
   `hostKind: HostKind?`; `resolve(ref): Url throws Bubble` and
   `tryResolve(ref): Url?`, against the parsed URL without reparsing it;
   `sameOrigin(other)`, false for opaque origins; `toString()` giving
-  `href` with credentials masked (see "Credentials", below);
-  `withoutCredentials()`; and `==` comparing `href`s. Its constructor is private, so a
+  the URL with credentials masked (see "Credentials", below);
+  `withoutCredentials()`; and `==` comparing whole URLs. Its constructor is private, so a
   `Url` comes only from the parser, but C#, JS, Python, Lua, and C++
   still make it public (only Java and Rust hide it).
 - `HostKind`: `domain`, `ipv4`, `ipv6`, `opaque`, and `empty`, as a
@@ -265,9 +266,9 @@ Hrefine's own, which stay open in Temper.
 - **Strings and equality:** `href` works everywhere, but `str()`
   (Python), `tostring` (Lua), `$"{url}"` (C#), `Display` (Rust), and `<<`
   (C++) don't give it, and no backend compares two `Url`s by value.
-  *Done in Temper:* `toString()` gives `href` (masking credentials since;
+  *Done in Temper:* `toString()` gives the URL (masking credentials since;
   see "Credentials"), and `@operator("==")`
-  compares `href`s. *Open in Temper:* backends still emit them as plain
+  compares whole URLs, credentials included (`hrefWithCredentials`). *Open in Temper:* backends still emit them as plain
   `toString`/`eq` methods, so only Java's string concatenation and JS
   templates use `toString`, and no language's own `==` or `equals`
   compares by value (Python, C#, Rust, C++, and Lua get no `__eq__`,
@@ -294,9 +295,9 @@ immutable types name them), because:
 - **Security:** the README's pattern is to check a parsed URL and hand
   on its `href`. A URL that can change after the check, by any code
   holding it, undoes that. A new value can't.
-- **Values:** `==` compares `href`s, which is safe only if they can't
-  change, and immutable values are safe to share between threads in
-  C++, C#, Java, and Rust without locks.
+- **Values:** `==` compares serializations, which is safe only if they
+  can't change, and immutable values are safe to share between threads
+  in C++, C#, Java, and Rust without locks.
 - **Every language:** methods that return a value translate plainly to
   all seven backends; property setters and a live child object tied to
   its parent don't (Lua and C++ have no property setters, and Rust's
@@ -537,14 +538,30 @@ cookies, headers, or tokens in the query (JavaScript's `fetch` uses the
 word for cookies). Names say "credentials"; none say "secret", "safe",
 or "secure", which would promise more than Hrefine gives.
 
-- **`toString()` masks them** (its docs open "redacted for logging;
-  use `href` for the exact URL") as `***` each, keeping the structure
-  (`https://***:***@example.com/`, `https://***@example.com/`), since
+- **`href` has none** (decided later on 2026-10-30, biased to secure).
+  It's the standard's serializer run as if the username and password
+  were empty: still a valid URL to hand on, store, or compare as text,
+  and if credentials were needed, the request fails to authenticate, a
+  loud and safe failure, where the standard's `href` would leak them
+  into logs, analytics, referrers, and error messages. The exact
+  serialization is `hrefWithCredentials` (and
+  `strictHrefWithCredentials`): the default name is safe, and the
+  dangerous one is explicit, and easy to grep for in review. It's the
+  one name that differs in meaning from JavaScript's `URL`, which the
+  README says plainly; few URLs carry credentials, so code ported from
+  JavaScript usually means `href` anyway. Everything that means the
+  exact URL uses the full form: `==` and `sameDocument` (so credentials
+  count; compare `href`s to leave them out), resolving against a base,
+  a policy's base and length, `withHref` (which keeps credentials from
+  its string), web-platform-tests' expected `href`, and the site's
+  recorded corpus and scoreboard.
+- **`toString()` masks them** (its docs open "redacted for logging")
+  as `***` each, keeping the structure (`https://***:***@example.com/`,
+  `https://***@example.com/`), so logs show there were some, since
   logging, interpolation, and debuggers use it. The username too, since
   API tokens are often passed as one (`https://TOKEN@host/`). An empty
-  one stays empty. `href` stays exact, as the standard requires, and is
-  what `==` compares and what to hand on. `***` still parses, as a
-  username of `***`, so a URL copied from a log won't authenticate.
+  one stays empty. `***` still parses, as a username of `***`, so a URL
+  copied from a log won't authenticate.
   JavaScript templates and
   Java's concatenation use `toString`; other backends' own conversions
   don't reach it yet, so they show no URL text at all.
@@ -562,7 +579,12 @@ or "secure", which would promise more than Hrefine gives.
   for that use, as the Fetch standard names getting a resource, rather
   than "safe" or "strict", which would promise more than it can (it
   can't see DNS). `UrlPolicy.any` stays the blank slate.
-- **`url.withoutCredentials()`** strips both in one call.
+- **`url.withoutCredentials()`** strips both in one call, for when a
+  `Url` is wanted rather than text.
+
+So: `href` to hand on, store, or compare as text; `withoutCredentials()`
+for a `Url`; `hrefWithCredentials` only to send credentials
+deliberately; and `toString()` for logs.
 - **Text as written** (`UrlSource.asWritten`, each `SourceSpan`'s) is
   documented as possibly holding credentials and other secrets.
 
@@ -581,7 +603,7 @@ rather than a comparison builder: there are three useful questions, and
 each is the standard's or HTML's own:
 
 - `==` (`eq`): the same URL, the standard's URL equals, comparing
-  `href`s.
+  `hrefWithCredentials`, so credentials count.
 - `url.sameDocument(other)`: the same but for the fragment, the
   standard's URL equals with *exclude fragments*, as HTML uses for a
   jump within a page.

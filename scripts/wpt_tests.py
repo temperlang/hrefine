@@ -28,6 +28,9 @@ from urllib.parse import unquote_to_bytes
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "tests" / "wpt" / "urltestdata.json"
 OUT = ROOT / "src" / "wpt-url-tests.temper.md"
+# The standard's href is Hrefine's hrefWithCredentials; Hrefine's href
+# leaves the credentials out, and is checked against it.
+GETTER_OF = {"href": "hrefWithCredentials"}
 GETTERS = ["href", "origin", "protocol", "username", "password", "host", "hostname", "port",
            "pathname", "search", "hash"]
 IDNA_DONE = True
@@ -104,8 +107,8 @@ def main() -> None:
     }}
 """ for k, start in enumerate(range(0, len(rows), CHUNK))]
     getters = "\n".join(
-        f'          check("{g}", url.{g}, data[i + {6 + k}]);' for k, g in enumerate(GETTERS)
-        if g != "origin")
+        f'          check("{g}", url.{GETTER_OF.get(g, g)}, data[i + {6 + k}]);'
+        for k, g in enumerate(GETTERS) if g != "origin")
     idna_note = (f"""
 {idna} cases need international domain names (IDNA), which wait for
 step 2 of the [plan](../docs/plan.md), so the test counts them apart and
@@ -132,7 +135,9 @@ the case waits for IDNA; and the expected {", ".join(GETTERS[:-1])}, and {GETTER
 `checkUrl` must say why where parsing fails: a base that doesn't parse
 bubbles, and otherwise the URL fails with at least one error. And each
 URL's [strict form](strict.temper.md) must be RFC 3986, and mean the
-same URL.
+same URL. The standard's href is `hrefWithCredentials`, and `href` and
+`strictHref` must be the same without the credentials
+(`credentialsProblem`).
 
     let otherWays(input: String, base: String?, url: Url?): String {{
       let baseFails = base != null && !Url.canParse(base);
@@ -154,13 +159,16 @@ same URL.
           }} else if (checked.errors.isEmpty) {{
             problem = "checkUrl fails without errors";
           }}
-        }} else if (url == null || checkedUrl.href != url.href) {{
-          problem = "checkUrl gives ${{checkedUrl.href}}";
+        }} else if (url == null || checkedUrl.hrefWithCredentials != url.hrefWithCredentials) {{
+          problem = "checkUrl gives ${{checkedUrl.hrefWithCredentials}}";
         }}
       }}
       if (url != null) {{
         if (problem == "") {{
           problem = strictProblem(url);
+        }}
+        if (problem == "") {{
+          problem = credentialsProblem(url);
         }}
       }}
       problem
@@ -184,7 +192,7 @@ same URL.
         if (url == null) {{
           problem = if (mustFail) {{ "" }} else {{ "failed to parse" }};
         }} else if (mustFail) {{
-          problem = "parsed, but must fail, as ${{url.href}}";
+          problem = "parsed, but must fail, as ${{url.hrefWithCredentials}}";
         }} else {{
           let check(name: String, actual: String, expected: String): Void {{
             if (problem == "" && actual != expected) {{

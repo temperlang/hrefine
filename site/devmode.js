@@ -43,7 +43,7 @@ export const SPOTS = [
   {
     id: "parts",
     title: "Each part",
-    about: "A `Url` has the standard's parts as strings, as JavaScript's URL does, and typed ones beside them: `scheme`, `portNumber`, and `hostKind`.",
+    about: "A `Url` has the standard's parts as strings, as JavaScript's URL does, but `href` leaves out the credentials, by design; `hrefWithCredentials` has them. Typed parts sit beside them: `scheme`, `portNumber`, and `hostKind`.",
     target: () => find("#parts"),
   },
   {
@@ -61,7 +61,7 @@ export const SPOTS = [
   {
     id: "card",
     title: "Check, then hand on href",
-    about: "Decide with `Url.parse`, checking `scheme`, `hostKind`, and `hostname`, then give your HTTP client `href`, never the original string, so it can't read another host.",
+    about: "Decide with `Url.parse`, checking `scheme`, `hostKind`, and `hostname`, then give your HTTP client `href`, never the original string, so it can't read another host. `href` has no credentials, so it can't leak them; use `hrefWithCredentials` only to send them deliberately.",
     target: () => find(".cards .card"),
   },
   {
@@ -73,20 +73,20 @@ export const SPOTS = [
   {
     id: "proof",
     title: "href and strictHref",
-    about: "`href` is the standard's canonical form, which other parsers read alike. `strictHref` also escapes what RFC 3986 doesn't allow, for strict parsers such as Java's URI.",
+    about: "`href` is the standard's canonical form, without credentials, which other parsers read alike. `strictHref` also escapes what RFC 3986 doesn't allow, for strict parsers such as Java's URI.",
     target: () => find(".proof-table"),
   },
   {
     id: "scoreboard",
     title: "Running the test cases",
-    about: "Each web-platform-tests case gives an input, a base, and the `href` it must parse to, or that parsing must fail, where `Url.parse` gives null. This scoreboard and Hrefine's own tests check every part too.",
+    about: "Each web-platform-tests case gives an input, a base, and the standard's href it must parse to (Hrefine's `hrefWithCredentials`, since its `href` leaves them out), or that parsing must fail, where `Url.parse` gives null. This scoreboard and Hrefine's own tests check every part too.",
     target: () => find("#score-hrefine"),
   },
 ];
 
 // Properties, which some languages read with getters.
 const PROPERTIES = new Set([
-  "href", "strictHref", "hostname", "scheme", "portNumber", "hostKind", "url", "errors", "strictErrors",
+  "href", "hrefWithCredentials", "strictHref", "strictHrefWithCredentials", "hostname", "scheme", "portNumber", "hostKind", "url", "errors", "strictErrors",
   "asWritten", "hostSpan", "position", "length",
 ]);
 // Static properties, such as `UrlPolicy.any`, which Rust reads with a call.

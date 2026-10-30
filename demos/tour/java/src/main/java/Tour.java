@@ -69,6 +69,7 @@ public final class Tour {
         String text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
         Url url = parseUrl(text);  // snippet: hero, parts
         System.out.println("input: " + text);
+        // No username or password in href, by design (see section 5).
         System.out.println("href: " + url.getHref());  // snippet: parts
         System.out.println("origin: " + url.getOrigin());  // snippet: parts
         System.out.println("protocol: " + url.getProtocol());  // snippet: parts
@@ -167,12 +168,18 @@ public final class Tour {
         )) {
             System.out.println(shown(input) + " -> " + parseUrl(input).getHref());
         }
-        // toString() masks credentials, for logs; string concatenation gives
-        // it too. Hand on getHref(), which keeps them, or drop them first.
-        System.out.println("as a string: " + url.toString());
+        // getHref() has no credentials, by design, unlike JavaScript's
+        // URL.href, so it's the one to hand on, store, or compare as text.
+        // toString() masks them, for logs (string concatenation gives it
+        // too), and withoutCredentials() gives a Url without them. Only to
+        // send them deliberately, there's getHrefWithCredentials(), which has
+        // the password: never log it.
         System.out.println("href, to hand on: " + url.getHref());
-        System.out.println("without credentials: " + url.withoutCredentials().getHref());
-        // eq compares hrefs; equals, not overridden, compares objects.
+        System.out.println("as a string: " + url.toString());
+        System.out.println("without credentials: " + url.withoutCredentials().toString());
+        // eq compares whole URLs, credentials included; equals, not
+        // overridden, compares objects.
+        System.out.println("same without credentials: " + url.eq(url.withoutCredentials()));
         System.out.println("same URL: " + parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c")));
         // getStrictHref() also escapes what RFC 3986 parsers reject, such as
         // java.net.URI, which refuses the href below.
@@ -253,10 +260,10 @@ public final class Tour {
 
         section("8. Test cases");
 
-        // Each of web-platform-tests' URL cases gives an input, a base, and
-        // the href it must parse to, or "" where parsing must fail.
-        // Hrefine's tests run them all, checking every part, and so does
-        // the site, in the browser.
+        // Each of web-platform-tests' URL cases gives an input, a base, and the
+        // standard's href it must parse to (the full form, with credentials), or
+        // "" where parsing must fail. Hrefine's tests run them all, checking
+        // every part, and so does the site, in the browser.
         String[][] cases = {
             {"http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"},
             {"../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"},
@@ -266,7 +273,7 @@ public final class Tour {
         for (String[] test : cases) {  // snippet: scoreboard
             String input = test[0], base = test[1], href = test[2];  // snippet: scoreboard
             Url parsed = Url.parse(input, base);  // snippet: scoreboard
-            String got = parsed == null ? "" : parsed.getHref();  // snippet: scoreboard
+            String got = parsed == null ? "" : parsed.getHrefWithCredentials();  // snippet: scoreboard
             System.out.println(input + " against " + base + ": " + (got.equals(href) ? "pass" : "fail"));  // snippet: scoreboard
         }  // snippet: scoreboard
 

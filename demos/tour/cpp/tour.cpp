@@ -66,6 +66,7 @@ int main() {
   std::string text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
   auto url = parseUrl(text);  // snippet: hero, parts
   std::cout << "input: " << text << "\n";
+  // No username or password in href, by design (see section 5).
   std::cout << "href: " << url->get_href() << "\n";  // snippet: parts
   std::cout << "origin: " << url->get_origin() << "\n";  // snippet: parts
   std::cout << "protocol: " << url->get_protocol() << "\n";  // snippet: parts
@@ -158,12 +159,16 @@ int main() {
                             " https://exa\tmple.com/\n"}) {
     std::cout << shown(input) << " -> " << parseUrl(input)->get_href() << "\n";
   }
-  // toString() masks credentials, for logs, but there's no operator<<. Hand
-  // on get_href(), which keeps them, or drop them first.
-  std::cout << "as a string: " << url->toString() << "\n";
+  // get_href() has no credentials, by design, unlike JavaScript's URL.href,
+  // so it's the one to hand on, store, or compare as text. toString() masks
+  // them, for logs, but there's no operator<<. withoutCredentials() gives a
+  // Url without them. Only to send them deliberately, there's
+  // get_hrefWithCredentials(), which has the password: never log it.
   std::cout << "href, to hand on: " << url->get_href() << "\n";
-  std::cout << "without credentials: " << url->withoutCredentials()->get_href() << "\n";
-  // eq compares hrefs; == compares pointers.
+  std::cout << "as a string: " << url->toString() << "\n";
+  std::cout << "without credentials: " << url->withoutCredentials()->toString() << "\n";
+  // eq compares whole URLs, credentials included; == compares pointers.
+  std::cout << "same without credentials: " << (url->eq(url->withoutCredentials()) ? "true" : "false") << "\n";
   std::cout << "same URL: "
             << (parseUrl("HTTP://EXAMPLE.COM/a/./b/../c")->eq(parseUrl("http://example.com/a/c")) ? "true" : "false")
             << "\n";
@@ -249,8 +254,9 @@ int main() {
   section("8. Test cases");
 
   // Each of web-platform-tests' URL cases gives an input, a base, and the
-  // href it must parse to, or "" where parsing must fail. Hrefine's tests
-  // run them all, checking every part, and so does the site, in the browser.
+  // standard's href it must parse to (the full form, with credentials), or
+  // "" where parsing must fail. Hrefine's tests run them all, checking
+  // every part, and so does the site, in the browser.
   std::string cases[][3] = {
       {"http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"},
       {"../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"},
@@ -259,7 +265,7 @@ int main() {
   };
   for (auto const &[input, base, href] : cases) {  // snippet: scoreboard
     auto url = Url::parse(input, base);  // snippet: scoreboard
-    std::string got = url ? url->get_href() : "";  // snippet: scoreboard
+    std::string got = url ? url->get_hrefWithCredentials() : "";  // snippet: scoreboard
     std::cout << input << " against " << base << ": " << (got == href ? "pass" : "fail") << "\n";  // snippet: scoreboard
   }  // snippet: scoreboard
 

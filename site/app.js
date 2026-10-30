@@ -142,7 +142,8 @@ function update() {
     what = `<span class="host-line">${hostHtml(hHost)}${kind}</span><code>${shown(h.url.href)}</code>` +
       `<span class="display-line">Shown to people as <code>${shown(display.format(h.url))}</code></span>` +
       (h.url.username !== "" || h.url.password !== ""
-        ? `<span class="display-line">Logged, by <code>toString()</code>, as <code>${shown(h.url.toString())}</code></span>`
+        ? `<span class="display-line">Logged, by <code>toString()</code>, as <code>${shown(h.url.toString())}</code></span>` +
+          '<span class="display-line"><code>href</code> leaves out the credentials, by design; <code>hrefWithCredentials</code> keeps them, only to send them.</span>'
         : "");
   } else {
     const last = h.errors.at(-1);
@@ -152,7 +153,7 @@ function update() {
 
   const browserBox = $("browser-verdict");
   const same = b.url
-    ? h.url !== null && b.url.href === h.url.href
+    ? h.url !== null && b.url.href === h.url.hrefWithCredentials
     : h.url === null;
   if (b.url) {
     $("browser-what").innerHTML = `<span class="host-line">${hostHtml(b.host)}</span><code>${shown(b.url.href)}</code>`;
@@ -166,13 +167,20 @@ function update() {
   browserBox.className = `verdict-box ${same ? "same" : "differs"}`;
 
   // Parts, side by side.
+  const cell = (/** @type {string | null} */ v) => (v === null ? '<span class="none">—</span>' : v === "" ? '<span class="none">""</span>' : `<code>${shown(v)}</code>`);
+  // Hrefine's href leaves out credentials, by design, so its
+  // hrefWithCredentials is what's compared with the browser's href.
+  const full = h.url ? h.url.hrefWithCredentials : null;
   const rows = PARTS.map((part) => {
     const hv = h.url ? /** @type {any} */ (h.url)[part] : null;
     const bv = b.url ? /** @type {any} */ (b.url)[part] : null;
-    const cell = (/** @type {string | null} */ v) => (v === null ? '<span class="none">—</span>' : v === "" ? '<span class="none">""</span>' : `<code>${shown(v)}</code>`);
-    const diff = h.url !== null && b.url !== null && hv !== bv;
-    return `<tr class="${diff ? "diff" : ""}"><th scope="row">${part}</th><td>${cell(hv)}</td><td>${cell(bv)}${diff ? ' <span aria-label="differs">≠</span>' : ""}</td></tr>`;
+    const diff = h.url !== null && b.url !== null && (part === "href" ? full : hv) !== bv;
+    const note = part === "href" && full !== hv ? ' <span class="small-note">(no credentials, by design)</span>' : "";
+    return `<tr class="${diff ? "diff" : ""}"><th scope="row">${part}</th><td>${cell(hv)}${note}</td><td>${cell(bv)}${diff ? ' <span aria-label="differs">≠</span>' : ""}</td></tr>`;
   });
+  if (h.url && full !== h.url.href) {
+    rows.splice(1, 0, `<tr class="typed"><th scope="row">hrefWithCredentials</th><td>${cell(full)}</td><td><span class="none">its href, above</span></td></tr>`);
+  }
   if (h.url) {
     const typed = [
       ["scheme", h.url.scheme],

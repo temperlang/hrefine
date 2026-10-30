@@ -1,9 +1,9 @@
 // Scores a URL parser on web-platform-tests' urltestdata.json, by the same
 // rules as Hrefine's own test (scripts/wpt_tests.py): each case either must
-// fail, or must give the expected href and every other part, with the
-// origin checked where the case gives one. Cases whose strings hold
-// unpaired surrogates are left out, and counted, as Hrefine's test leaves
-// them out.
+// fail, or must give the expected href (Hrefine's hrefWithCredentials) and
+// every other part, with the origin checked where the case gives one. Cases
+// whose strings hold unpaired surrogates are left out, and counted, as
+// Hrefine's test leaves them out.
 //
 // The page runs this on the browser's `URL` and on Hrefine's JS build, and
 // `scoreboard-node.mjs` runs it in Node at build time, so both count alike.
@@ -12,6 +12,17 @@
 /** The parts every case that parses must match, origin only where given. */
 export const PARTS = ["href", "origin", "protocol", "username", "password", "host", "hostname", "port",
   "pathname", "search", "hash"];
+
+/**
+ * A part of a parsed URL, as a string. The cases give the standard's href,
+ * which Hrefine calls `hrefWithCredentials`, since its `href` leaves the
+ * username and password out, by design; built-in URLs have only `href`.
+ *
+ * @param {any} url
+ * @param {string} part
+ */
+const partOf = (url, part) =>
+  String(part === "href" && "hrefWithCredentials" in url ? url.hrefWithCredentials : url[part]);
 
 /** @param {string} s */
 const hasLoneSurrogate = (s) => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s);
@@ -55,14 +66,14 @@ export function checkCase(c, parse) {
   } catch {
     url = null;
   }
-  const got = url ? String(url.href) : null;
+  const got = url ? partOf(url, "href") : null;
   const miss = { input: c.input, base, mustFail, expected: mustFail ? null : (c.href ?? ""), got, parts: [] };
   if (url === null) return mustFail ? null : miss;
   if (mustFail) return miss;
   for (const part of PARTS) {
     if (part === "origin" && !("origin" in c)) continue;
     const expected = c[part] ?? "";
-    const actual = String(url[part]);
+    const actual = partOf(url, part);
     if (actual !== expected) miss.parts.push({ part, expected, got: actual });
   }
   return miss.parts.length ? miss : null;

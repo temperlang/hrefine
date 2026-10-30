@@ -38,6 +38,7 @@ section("1. Parsing and reading parts")
 text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top"  # snippet: hero
 url = parse_url(text)  # snippet: hero, parts
 print(f"input: {text}")
+# No username or password in href, by design (see section 5).
 print(f"href: {url.href}")  # snippet: parts
 print(f"origin: {url.origin}")  # snippet: parts
 print(f"protocol: {url.protocol}")  # snippet: parts
@@ -123,12 +124,16 @@ for text in [
     " https://exa\tmple.com/\n",
 ]:
     print(f"{shown(text)} -> {parse_url(text).href}")
-# to_string() masks credentials, for logs (str() doesn't call it yet). Hand
-# on href, which keeps them, or drop them first.
-print(f"as a string: {url.to_string()}")
+# href has no credentials, by design, unlike JavaScript's URL.href, so it's
+# the one to hand on, store, or compare as text. to_string() masks them, for
+# logs (str() doesn't call it yet), and without_credentials() gives a Url
+# without them. Only to send them deliberately, there's
+# href_with_credentials, which has the password: never log it.
 print(f"href, to hand on: {url.href}")
-print(f"without credentials: {url.without_credentials().href}")
-# eq compares hrefs; == compares objects.
+print(f"as a string: {url.to_string()}")
+print(f"without credentials: {url.without_credentials().to_string()}")
+# eq compares whole URLs, credentials included; == compares objects.
+print(f"same without credentials: {str(url.eq(url.without_credentials())).lower()}")
 print(f"same URL: {str(parse_url('HTTP://EXAMPLE.COM/a/./b/../c').eq(parse_url('http://example.com/a/c'))).lower()}")
 # strict_href also escapes what RFC 3986 parsers reject, for those that
 # follow it strictly.
@@ -223,8 +228,9 @@ print(f"from pairs: {UrlSearchParams.from_entries([Pair('q', 'a b'), Pair('page'
 section("8. Test cases")
 
 # Each of web-platform-tests' URL cases gives an input, a base, and the
-# href it must parse to, or "" where parsing must fail. Hrefine's tests
-# run them all, checking every part, and so does the site, in the browser.
+# standard's href it must parse to (the full form, with credentials), or
+# "" where parsing must fail. Hrefine's tests run them all, checking
+# every part, and so does the site, in the browser.
 cases = [
     ["http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"],
     ["../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"],
@@ -233,7 +239,7 @@ cases = [
 ]
 for text, base, href in cases:  # snippet: scoreboard
     url = Url.parse(text, base)  # snippet: scoreboard
-    got = "" if url is None else url.href  # snippet: scoreboard
+    got = "" if url is None else url.href_with_credentials  # snippet: scoreboard
     print(f"{text} against {base}: {'pass' if got == href else 'fail'}")  # snippet: scoreboard
 
 section("9. Policies")

@@ -21,7 +21,7 @@ const domains = readLines("domains.txt");
 
 function parse([input, base]) {
   try {
-    return hrefine.parseUrl(input, base).href;
+    return hrefine.parseUrl(input, base).hrefWithCredentials;
   } catch {
     return "fail";
   }

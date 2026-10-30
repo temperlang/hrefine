@@ -28,7 +28,7 @@ domains = read_lines("domains.txt")
 
 def parse(pair):
     try:
-        return hrefine.parse_url(pair[0], pair[1]).href
+        return hrefine.parse_url(pair[0], pair[1]).href_with_credentials
     except Exception:
         return "fail"
 

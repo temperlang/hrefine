@@ -5,8 +5,9 @@
 `tour/` shows Hrefine in each supported language: parsing and reading a
 URL's parts, typed ones too, resolving against a parsed base, failures
 and why (`checkUrl`'s validation errors), international domain names,
-serializing with `href` and its strict RFC 3986 form (and `toString`,
-which masks credentials, for logs), using it safely
+serializing with `href`, which leaves out credentials by design, and
+its strict RFC 3986 form (and `toString`, which masks them, for logs,
+and `withoutCredentials`), using it safely
 (deciding with Hrefine, by scheme, host kind, and origin, then handing
 on `href`, with that language's usual HTTP clients and servers shown in
 comments), changing parts with the setters (a port number too) and

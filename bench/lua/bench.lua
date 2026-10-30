@@ -30,7 +30,7 @@ end
 local domains = readLines("domains.txt")
 
 local function parse(pair)
-  local ok, href = pcall(function() return hrefine.parseUrl(pair[1], pair[2]).href end)
+  local ok, href = pcall(function() return hrefine.parseUrl(pair[1], pair[2]).hrefWithCredentials end)
   return ok and href or "fail"
 end
 
