@@ -24,7 +24,8 @@ and the date are recorded too, since answers change between versions.
   languages agree here too (all seven pass the same tests in CI).
 
 Then it gives every parser Hrefine's `href` for each input, in place of the
-input, to show the fix: the parsers then read the host as browsers do.
+input, and then its `strictHref` (the strict RFC 3986 form), to show the
+fix: the parsers then read the host as browsers do.
 
 Each probe reads lines of base64 input and base (or `-`) on stdin, so tabs
 and newlines in inputs survive, and prints a JSON line for each.
@@ -207,9 +208,12 @@ def main():
     results, versions, missing = record(inputs)
 
     # The fix, checked: each parser given Hrefine's href instead of the
-    # input. Inputs Hrefine rejects have no href, and are left out.
+    # input, and then its strict RFC 3986 form. Inputs Hrefine rejects have
+    # neither, and are left out.
     hrefs = [{"input": r["hrefine"]["href"]} for r in results if r["hrefine"]["ok"]]
     href_results, _, _ = record(hrefs)
+    stricts = [{"input": r["hrefine"]["strictHref"]} for r in results if r["hrefine"]["ok"]]
+    strict_results, _, _ = record(stricts)
 
     recorded = {
         "date": datetime.date.today().isoformat(),
@@ -223,11 +227,12 @@ def main():
         "hrefine": versions["hrefine"],
         "results": [{**i, "answers": r} for i, r in zip(inputs, results)],
         "hrefs": [{**i, "answers": r} for i, r in zip(hrefs, href_results)],
+        "stricts": [{**i, "answers": r} for i, r in zip(stricts, strict_results)],
     }
     OUT.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     for id, name, _ in PARSERS:
         print(f"{name}: {versions.get(id, 'not installed')}")
-    print(f"Wrote {OUT.relative_to(ROOT)}, {len(inputs)} inputs and {len(hrefs)} hrefs")
+    print(f"Wrote {OUT.relative_to(ROOT)}, {len(inputs)} inputs, and {len(hrefs)} hrefs and strict forms")
 
 
 if __name__ == "__main__":

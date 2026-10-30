@@ -36,6 +36,7 @@ import json
 import re
 import shutil
 import subprocess
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -229,38 +230,58 @@ def cards(gallery, recorded):
 
 
 def href_proof(recorded, compares):
-    """How many inputs each parser reads as the browser does, as typed and as
-    Hrefine's href (for those Hrefine accepts), by host or by path."""
+    """How many inputs each parser reads as the browser does: as typed, and,
+    for those Hrefine accepts, as Hrefine's href and as its strict RFC 3986
+    form, by host or by path."""
     ids = [p["id"] for p in recorded["parsers"] if p["id"] not in HERO_FIRST]
     label = names(recorded)
     total = len(recorded["results"])
-    hrefs = {r["input"]: r for r in recorded["hrefs"]}
+    given = {"href": {r["input"]: r for r in recorded["hrefs"]}, "strictHref": {r["input"]: r for r in recorded["stricts"]}}
     accepted = [r for r in recorded["results"] if r["answers"]["hrefine"]["ok"]]
+    check_strict_means_the_same(accepted, given)
     lines = []
     for id in ids:
         raw = sum(
             status(r["answers"][id], r["answers"]["browser"], compares[row_key(r)]) == "same" for r in recorded["results"]
         )
-        fixed = 0
-        refused = 0
-        for r in accepted:
-            got = hrefs[r["answers"]["hrefine"]["href"]]["answers"]
-            st = status(got[id], got["browser"], compares[row_key(r)])
-            fixed += st == "same"
-            # Refusing a scheme it doesn't fetch, such as javascript:, isn't
-            # reading another host.
-            refused += st == "rejects"
-        note = f", and refuses {refused}" if refused else ""
-        lines.append(
-            f'<tr><th scope="row">{esc(label[id])}</th><td>{raw} of {total}</td>'
-            f"<td>{fixed} of {len(accepted)}{note}</td></tr>"
-        )
+        cells = []
+        for form in ["href", "strictHref"]:
+            fixed = 0
+            refused = 0
+            for r in accepted:
+                got = given[form][r["answers"]["hrefine"][form]]["answers"]
+                st = status(got[id], got["browser"], compares[row_key(r)])
+                fixed += st == "same"
+                # Refusing a scheme it doesn't fetch, such as javascript:,
+                # isn't reading another host.
+                refused += st == "rejects"
+            note = f', <span class="n">{refused} refused</span>' if refused else ""
+            cells.append(f'<td><span class="n">{fixed} of {len(accepted)}</span>{note}</td>')
+        lines.append(f'<tr><th scope="row">{esc(label[id])}</th><td><span class="n">{raw} of {total}</span></td>{"".join(cells)}</tr>')
     return (
         '<div class="table-scroll" tabindex="0"><table class="proof-table">'
         '<thead><tr><th scope="col">Parser</th><th scope="col">Given the input</th>'
-        "<th scope=\"col\">Given Hrefine's href</th></tr></thead>"
+        "<th scope=\"col\">Given Hrefine's <code>href</code></th>"
+        "<th scope=\"col\">Given its <code>strictHref</code></th></tr></thead>"
         f"<tbody>{''.join(lines)}</tbody></table></div>"
     )
+
+
+def check_strict_means_the_same(accepted, given):
+    """Fails the build unless browsers read each strict form as they read
+    its href: the same host, and a path with the same bytes once decoded."""
+    for r in accepted:
+        hrefine = r["answers"]["hrefine"]
+        a = given["href"][hrefine["href"]]["answers"]["browser"]
+        b = given["strictHref"][hrefine["strictHref"]]["answers"]["browser"]
+        same = (
+            a["ok"]
+            and b["ok"]
+            and host_key(a.get("host")) == host_key(b.get("host"))
+            and urllib.parse.unquote_to_bytes(a["path"]) == urllib.parse.unquote_to_bytes(b["path"])
+        )
+        if not same:
+            raise SystemExit(f"Browsers read the strict form of {r['input']!r} otherwise: {a} and {b}")
 
 
 def row_key(row):

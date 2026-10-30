@@ -33,7 +33,7 @@ function hrefine(input, base) {
   const url = check.url;
   if (url === null) return { ok: false, error: errors.at(-1) ?? "failure", errors };
   const host = url.hostKind === null ? null : url.hostname;
-  return { ok: true, scheme: url.scheme, host, path: url.pathname, href: url.href, hostKind: url.hostKind?.toString() ?? null, errors };
+  return { ok: true, scheme: url.scheme, host, path: url.pathname, href: url.href, strictHref: url.strictHref, hostKind: url.hostKind?.toString() ?? null, errors };
 }
 
 for await (const line of createInterface({ input: process.stdin })) {

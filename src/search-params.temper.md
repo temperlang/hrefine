@@ -105,6 +105,18 @@ Parses `init`, without a leading `?` if it has one, as in
         parseUrlencoded(withoutLeading(init, char'?'), list);
       }
 
+From pairs of names and values, in order, as JavaScript's
+`new URLSearchParams([["q", "a b"], ["page", "2"]])`, and as `entries()`
+gives them.
+
+      public static fromEntries(entries: Listed<Pair<String, String>>): UrlSearchParams {
+        let params = new UrlSearchParams();
+        for (var k = 0; k < entries.length; k += 1) {
+          params.append(entries[k].key, entries[k].value);
+        }
+        params
+      }
+
 How many name and value pairs there are, counting repeats.
 
       public get size(): Int { list.length }
@@ -302,6 +314,20 @@ Each `+ ''` there is `toString()` here.
       assert(params.values().join(",") { s => s } == "b,d,e,f,");
       assert(new UrlSearchParams("?a=1").get("a") == "1");
       assert(new UrlSearchParams("??a=1").get("?a") == "1");
+    }
+
+From pairs, as urlsearchparams-constructor's sequences of pairs.
+
+    test("Search parameters: from pairs (urlsearchparams-constructor)") {
+      let params = UrlSearchParams.fromEntries([new Pair("a", "b"), new Pair("c", "d")]);
+      assert(params.get("a") == "b" && params.get("c") == "d");
+      let empty = UrlSearchParams.fromEntries([]);
+      assert(empty.size == 0 && empty.toString() == "");
+      let odd = UrlSearchParams.fromEntries([new Pair("a b", "c+d&e"), new Pair("a b", "")]);
+      assert(odd.toString() == "a+b=c%2Bd%26e&a+b=") { odd.toString() };
+      let copy = UrlSearchParams.fromEntries(odd.entries());
+      copy.append("x", "y");
+      assert(copy.size == 3 && odd.size == 2);
     }
 
     test("Search parameters: changing (append, remove, set)") {

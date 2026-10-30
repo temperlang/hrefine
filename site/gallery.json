@@ -329,6 +329,11 @@
           "input": "https://good.example/%zz",
           "compare": "path",
           "note": "A <code>%</code> without hex digits stays as it is; C# escapes it again."
+        },
+        {
+          "input": "https://good.example/a|b^c",
+          "compare": "path",
+          "note": "Browsers leave <code>|</code> as it is, which RFC 3986 doesn't allow: Java's <code>URI</code> refuses it, even in <code>href</code>, and C# escapes it."
         }
       ]
     }

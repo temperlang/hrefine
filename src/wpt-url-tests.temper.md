@@ -15,7 +15,9 @@ the case waits for IDNA; and the expected href, origin, protocol, username, pass
 
 `Url.canParse` and `checkUrl` must agree with `parseUrl`, and
 `checkUrl` must say why where parsing fails: a base that doesn't parse
-bubbles, and otherwise the URL fails with at least one error.
+bubbles, and otherwise the URL fails with at least one error. And each
+URL's [strict form](strict.temper.md) must be RFC 3986, and mean the
+same URL.
 
     let otherWays(input: String, base: String?, url: Url?): String {
       let baseFails = base != null && !Url.canParse(base);
@@ -39,6 +41,11 @@ bubbles, and otherwise the URL fails with at least one error.
           }
         } else if (url == null || checkedUrl.href != url.href) {
           problem = "checkUrl gives ${checkedUrl.href}";
+        }
+      }
+      if (url != null) {
+        if (problem == "") {
+          problem = strictProblem(url);
         }
       }
       problem

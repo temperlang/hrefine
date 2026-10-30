@@ -173,31 +173,35 @@
         <ul class="steps">
           <li><strong>Parse once,</strong> with <code>Url.parse</code>, which gives null for anything that isn't a URL.</li>
           <li><strong>Check the parsed parts:</strong> <code>scheme</code>, <code>hostKind</code> (a name, or an address however it's written), and <code>hostname</code>.</li>
-          <li><strong>Hand on <code>href</code>,</strong> the standard's canonical form: no backslashes, tabs, or odd address forms left to disagree on.</li>
+          <li><strong>Hand on <code>href</code>,</strong> the standard's canonical form: no backslashes, tabs, or odd address forms left to disagree on. For clients that follow RFC 3986 strictly, such as Java's <code>URI</code>, hand on <code>strictHref</code>.</li>
           <li><strong>Check redirects too,</strong> or turn them off. For a <code>next</code> parameter, resolve it against your own site and check <code>sameOrigin</code>.</li>
         </ul>
         <div class="tabs" role="tablist" aria-label="Language" data-tabs="fix"></div>
         <p class="code-from">From the <span class="lang-name">Python</span> tour's “Using it safely” section, which CI runs in every language.</p>
 <!--FIXES-->
-        <h3>Given <code>href</code>, the parsers agree</h3>
+        <h3>Given <code>href</code>, or its strict form, the parsers agree</h3>
         <p>
           The same parsers, given each of the <!--TRICK_COUNT--> recorded URLs as
-          typed, and then given Hrefine's <code>href</code> for each URL
-          Hrefine accepts: how often each reads the same host (or path, for
-          path tricks) as the browser.
+          typed, then given Hrefine's <code>href</code> for each URL Hrefine
+          accepts, and then its <code>strictHref</code>: <code>href</code>
+          with the few characters RFC 3986 doesn't allow (such as
+          <code>|</code> and <code>{</code>) escaped, for strict parsers.
+          Counted is how often each reads the same host (or path, for path
+          tricks) as the browser.
         </p>
 <!--HREF_PROOF-->
         <p class="small-note">
-          Java's <code>URL</code> and curl refuse <code>javascript:</code>,
-          a scheme they don't fetch, which is fine. The rest are paths:
-          C# decodes escaped dots (<code>%2E%2E%2F</code>), and a
-          <code>%</code> without hex digits, which <code>href</code> keeps
-          as it is (<code>/%zz</code>), is refused by Java's
-          <code>URI</code> and Go, and escaped again by C#. Java's
-          <code>URI</code> follows RFC 3986, which also rejects a few
-          characters <code>href</code> leaves as they are (such as
-          <code>|</code> and <code>^</code>); a strict form of
-          <code>href</code> for such parsers is planned.
+          Given <code>href</code>, the misses are paths: C# decodes escaped
+          dots (<code>%2E%2E%2F</code>), and a <code>%</code> without hex
+          digits (<code>/%zz</code>) and a <code>|</code>, which
+          <code>href</code> keeps as they are, are refused by Java's
+          <code>URI</code>, which follows RFC 3986, and by Go, or escaped
+          again by C# and Go. <code>strictHref</code> escapes them, and
+          decodes escaped dots, as RFC 3986's normalization does, so every
+          parser agrees but Java's <code>URL</code> and curl, which refuse
+          <code>javascript:</code>, a scheme they don't fetch, which is
+          fine. Browsers read each strict form as they read its
+          <code>href</code>, which the build checks.
         </p>
       </div>
     </section>

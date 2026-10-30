@@ -5,7 +5,9 @@
 
 use hrefine::{
     check_url, domain_to_ascii, domain_to_unicode, parse_host, parse_url, HostKind, Url,
+    UrlSearchParams,
 };
+use std::sync::Arc;
 
 /// No base. `None` alone can't say which string type it isn't.
 const NO_BASE: Option<&str> = None;
@@ -163,6 +165,10 @@ fn main() {
     let a = parse_url("HTTP://EXAMPLE.COM/a/./b/../c", NO_BASE).expect("a URL");
     let b = parse_url("http://example.com/a/c", NO_BASE).expect("a URL");
     println!("same URL: {}", a.eq(b));
+    // strict_href also escapes what RFC 3986 parsers reject, for those that
+    // follow it strictly.
+    let strict = parse_url("https://example.com/a|b/%zz?q={x}#c^d", NO_BASE).expect("a URL");
+    println!("strict: {} -> {}", strict.href(), strict.strict_href());
 
     section("6. Using it safely");
 
@@ -216,6 +222,7 @@ fn main() {
     println!("with pathname and hash: {}", page.with_pathname("/a b").with_hash("top").href());
     println!("with protocol: {}", page.with_protocol("http").href());
     println!("port \"http\", ignored: {}", page.with_port("http").href());
+    println!("with port number: {}", page.with_port_number(Some(8443)).href());
     println!("unchanged: {}", page.href());
     // Search parameters: a copy of the query, changed in place, then put
     // back. Its methods take &self, as Temper's Rust classes do.
@@ -231,4 +238,7 @@ fn main() {
         println!("{name} = {value}");
     }
     println!("with search params: {}", page.with_search_params(params.clone()).href());
+    // Or from pairs of names and values.
+    let pairs = [("q", "a b"), ("page", "2")].map(|(name, value)| (Arc::new(name.to_string()), Arc::new(value.to_string())));
+    println!("from pairs: {}", UrlSearchParams::from_entries(pairs).to_string());
 }

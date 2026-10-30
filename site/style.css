@@ -833,6 +833,10 @@ pre.output {
   max-width: 40rem;
 }
 
+.proof-table .n {
+  white-space: nowrap;
+}
+
 .numbers {
   padding-left: 1.2rem;
 }

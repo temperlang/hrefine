@@ -57,6 +57,7 @@ https://example.com/a b?c d#e f -> https://example.com/a%20b?c%20d#e%20f
  https://exa\tmple.com/\n -> https://example.com/
 as a string: https://user:pass@example.com:8080/b/c?q=1#top
 same URL: true
+strict: https://example.com/a|b/%zz?q={x}#c^d -> https://example.com/a%7Cb/%25zz?q=%7Bx%7D#c%5Ed
 
 ## 6. Using it safely
 https://api.example.com/v1/items: fetch https://api.example.com/v1/items
@@ -80,6 +81,7 @@ with host: https://example.org:8443/docs?lang=en&q=a+b
 with pathname and hash: https://example.com/a%20b?lang=en&q=a+b#top
 with protocol: http://example.com/docs?lang=en&q=a+b
 port "http", ignored: https://example.com/docs?lang=en&q=a+b
+with port number: https://example.com:8443/docs?lang=en&q=a+b
 unchanged: https://example.com/docs?lang=en&q=a+b
 q: a b
 lang: en, fr
@@ -87,3 +89,4 @@ lang = en
 lang = fr
 q = café & more
 with search params: https://example.com/docs?lang=en&lang=fr&q=caf%C3%A9+%26+more
+from pairs: q=a+b&page=2

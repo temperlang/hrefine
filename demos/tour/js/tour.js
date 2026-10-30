@@ -3,7 +3,8 @@
 // The same tour exists for each language Hrefine supports, and they all print
 // the same text. See demos/README.md for how to run them.
 
-import { HostKind, Url, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl } from "hrefine";
+import { Pair } from "@temperlang/core";
+import { HostKind, Url, UrlSearchParams, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl } from "hrefine";
 
 function section(title) {
   console.log();
@@ -117,6 +118,10 @@ for (const input of [
 console.log(`as a string: ${url}`);
 // eq compares hrefs; === compares objects.
 console.log(`same URL: ${parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c"))}`);
+// strictHref also escapes what RFC 3986 parsers reject, for those that
+// follow it strictly.
+const strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");
+console.log(`strict: ${strict.href} -> ${strict.strictHref}`);
 
 section("6. Using it safely");
 
@@ -186,6 +191,7 @@ console.log(`with host: ${page.withHost("example.org:8443").href}`);
 console.log(`with pathname and hash: ${page.withPathname("/a b").withHash("top").href}`);
 console.log(`with protocol: ${page.withProtocol("http").href}`);
 console.log(`port "http", ignored: ${page.withPort("http").href}`);
+console.log(`with port number: ${page.withPortNumber(8443).href}`);
 console.log(`unchanged: ${page.href}`);
 // Search parameters: a copy of the query, changed in place, then put back.
 const params = page.searchParams;
@@ -199,3 +205,5 @@ for (const entry of params.entries()) {
   console.log(`${entry.key} = ${entry.value}`);
 }
 console.log(`with search params: ${page.withSearchParams(params).href}`);
+// Or from pairs of names and values.
+console.log(`from pairs: ${UrlSearchParams.fromEntries([new Pair("q", "a b"), new Pair("page", "2")])}`);

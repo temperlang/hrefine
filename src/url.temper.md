@@ -144,6 +144,30 @@ serialized. It's also what `toString` gives, and what `==` compares.
         )
       }
 
+The [strict RFC 3986 form](strict.temper.md): `href`, with what RFC
+3986 doesn't allow there (such as `|`, `^`, `{`, and `}`) escaped, for
+strict parsers such as Java's `URI`. It means the same URL.
+
+      public get strictHref(): String {
+        let h = hostValue;
+        let q = query;
+        let f = fragment;
+        serializeUrl(
+          schemeValue, strictPart(usernameValue, strictUserinfo),
+          strictPart(passwordValue, strictUserinfo),
+          if (h == null) {
+            null
+          } else if (h.hasIndex(String.begin) && h[String.begin] == char'[') {
+            h
+          } else {
+            strictPart(h, strictHost)
+          },
+          portValue, strictPart(pathValue, if (opaquePath) { strictOpaquePath } else { strictPath }),
+          if (q == null) { null } else { strictPart(q, strictQuery) },
+          if (f == null) { null } else { strictPart(f, strictQuery) },
+        )
+      }
+
       public toString(): String { href }
 
       @operator("==")
@@ -316,6 +340,19 @@ empty; not in a URL that can't have one.
           urlOf(record)
         } else {
           withOverride(port, portState)
+        }
+      }
+
+The same with a number, beside `portNumber`: null for none, and a
+number outside 0 to 65535 is ignored, as `withPort` ignores one.
+
+      public withPortNumber(port: Int?): Url {
+        if (port == null) {
+          withPort("")
+        } else if (port < 0 || port > 65535) {
+          this
+        } else {
+          withPort(port.toString())
         }
       }
 
@@ -1781,6 +1818,10 @@ The typed parts, origins, equality, and strings.
       assert(url.portNumber == 8080 && url.port == "8080");
       assert((parseUrl("https://example.com:443/") orelse panic()).portNumber == null);
       assert((parseUrl("foo://h:0/") orelse panic()).portNumber == 0);
+      assert(url.withPortNumber(9000).port == "9000" && url.withPortNumber(443).port == "");
+      assert(url.withPortNumber(null).href == "https://example.com/");
+      assert(url.withPortNumber(65536).port == "8080" && url.withPortNumber(-1).port == "8080");
+      assert((parseUrl("file:///a") orelse panic()).withPortNumber(80).port == "");
       let same(a: String, b: String): Boolean {
         (parseUrl(a) orelse panic()).sameOrigin(parseUrl(b) orelse panic())
       }

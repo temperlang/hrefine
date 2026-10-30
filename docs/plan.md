@@ -63,10 +63,13 @@ site that makes the point.
    parsing and 8 sorting cases of `urlencoded-parser.any.js` and
    `urlsearchparams-sort.any.js`, and hand ports of the other
    `urlsearchparams-*.any.js` and `url-searchparams.any.js` tests pass on
-   all seven backends. The tours show both. Not yet: a typed setter
-   beside `withPort` (such as a port number), a `UrlSearchParams` from
-   pairs, and `percent-encoding.json`, which tests encodings other than
-   UTF-8, which the `URL` API doesn't use.
+   all seven backends. The tours show both. Then (2026-10-30):
+   `withPortNumber`, beside `portNumber` (the only setter with an
+   obvious typed twin: `withProtocol` already takes a bare scheme), and
+   `UrlSearchParams.fromEntries`, from a list of `Pair`s, as `entries()`
+   gives them; and `percent-encoding.json`'s UTF-8 answers, ported by hand
+   (7 inputs). Its other answers are for legacy-encoded pages, whose
+   queries the `URL` API never encodes, so they're out of scope.
 4. **Tours in every language,** checked in CI, as in Ordable. Each also
    shows, in comments, the recommended pattern with that language's
    usual web clients and servers (such as `fetch`, `requests`,
@@ -93,6 +96,9 @@ site that makes the point.
    parsers reject or read differently (`|`, `^`, `{`, `}`, and the like)
    percent-encoded, for clients such as Java's `URI`, so prenormalized
    URLs are read alike there too.
+   *Strict form done* (2026-10-30): `url.strictHref`, a getter, as
+   `href` and `origin` are, since it's another serialization of the
+   same URL, with no options. See "The strict RFC 3986 form" below.
 6. **The site:** a disagreement explorer. Type a URL and see the parts
    this library reads, beside each language's built-in parser (Python's
    `urllib`, Java's `URI`, C#'s `Uri`, Go's `net/url`, and the
@@ -109,26 +115,34 @@ site that makes the point.
    13 gallery cards, the fix from the tours, the proof, and the tours.
    `site/record/record.py` records Python, Java (`URI` and `URL`), C#,
    Go, libcurl, and Node, and Hrefine's JS and Python builds, which must
-   agree. A table of 47 more disagreements (2026-10-30), by kind
+   agree. A table of 47 more disagreements (2026-10-30; 48 since), by kind
    (backslashes and controls, user info, IPv4, IPv6, escaped and
    international names, schemes and ports, and paths), from WPT's cases
    and published parser-differential research, brings the recorded
-   inputs from 14 to 61; path tricks compare paths, not hosts, and IPv6
+   inputs from 14 to 61 (62 since); path tricks compare paths, not hosts, and IPv6
    hosts compare as addresses. Each row's full answers load only when
    tried. Given Hrefine's `href`, every recorded parser reads every
    gallery URL's host as browsers do (Java's `URL` and curl refuse
    `javascript:`). A WPT scoreboard (2026-10-30) runs `urltestdata.json`
    live through the browser's `URL` and Hrefine, with the misses listed,
    and the build runs the same module in Node, failing unless Hrefine
-   passes all. Headless Chromium 153 passed 808 of 896, missing mostly
+   passes all. The proof (2026-10-30) gives each parser the input,
+   then Hrefine's `href`, then its `strictHref`, for the 51 of 62 URLs
+   Hrefine accepts. Given `strictHref`, all agree but Java's `URL` and
+   curl, which refuse `javascript:` (2 each), a scheme they don't
+   fetch. Given `href`, Java's `URI` (49 of 51) refuses `/%zz` and `|`
+   in a path, Go (49) refuses `/%zz` and escapes `|`, and C# (48)
+   decodes `%2E%2E%2F` and escapes `%zz` and `|`. The build fails unless
+   Node reads each strict form as it reads its `href` (the same host,
+   and a path with the same bytes once decoded).
+   Headless Chromium 153 passed 808 of 896, missing mostly
    `file:` and opaque-path cases, and Node 24.22.1 (Ada 4.0.0) all 896.
    An open gallery card spans its row, and narrow tables (each parser's
    answers and the more disagreements) stack each row, by container
    query, as checked in headless Chromium at phone and desktop widths.
    `site.yml` deploys from `main`, untested until it runs on GitHub. Not
    yet: PHP (no binary here), a minified bundle (Ordable uses esbuild,
-   which needs approval here), and the strict form, which waits on
-   step 5.
+   which needs approval here).
 7. **Refine the API,** before 1.0. The name, Hrefine, was picked
    2026-10-29, after checking package registries and a web search for
    companies and trademarks; check USPTO and EUIPO before 1.0.
@@ -175,10 +189,14 @@ people know, with JavaScript's names, revised after the tours
   ASCII and domain to Unicode (IDNA), as in Node's `url` module, for
   converting and showing a domain. Not checks; `parseHost` is.
 
-- Setters as `with` methods giving a new `Url` (step 3, below), and
+- `strictHref`, the strict RFC 3986 form (below).
+- Setters as `with` methods giving a new `Url` (step 3, below), with
+  `withPortNumber(port: Int?)` beside `withPort`, and
   `UrlSearchParams`, as JavaScript's `URLSearchParams`, not tied to a
   URL: `url.searchParams` gives a new one each time, and
-  `url.withSearchParams(params)` a URL with them.
+  `url.withSearchParams(params)` a URL with them;
+  `UrlSearchParams.fromEntries(pairs)` builds one from `Pair`s, as a
+  static factory, since a constructor can't be overloaded.
 
 Later, perhaps: the source view, display formatting, and comparison
 options (step 5). The canonical
@@ -273,6 +291,51 @@ the standard's update steps, made explicit.
 and Temper renamed it `delete_` in C++ and JavaScript, while `remove`
 is the usual name in Java, C#, Python, and Rust.
 
+## The strict RFC 3986 form
+
+Decided 2026-10-30, for step 5. `href` is ASCII, but WHATWG's encode
+sets leave some characters that [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986)'s
+grammar doesn't allow. RFC 3986 allows *unreserved* (letters, digits,
+`-`, `.`, `_`, and `~`), *sub-delims* (`!$&'()*+,;=`), and `%` with two
+hex digits everywhere, and more per part. What `href` can hold beyond
+that, which `strictHref` escapes:
+
+| Part | RFC 3986 also allows | `href` may still hold |
+|---|---|---|
+| User info | `:` | `%` without two hex digits |
+| Domain or IPv4 host | nothing | `"`, `` ` ``, `{`, and `}` (domains) |
+| Opaque host | nothing | `"`, `` ` ``, `{`, `}`, and lone `%` |
+| IPv6 host | `[…]` | nothing |
+| Path | `:`, `@`, and `/` | `[`, `\`, `]`, `\|`, and lone `%` |
+| Opaque path | `:`, `@`, and `/` | space, `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `\|`, `}`, and lone `%` |
+| Query | `:`, `@`, `/`, and `?` | `[`, `\`, `]`, `^`, `` ` ``, `{`, `\|`, `}`, and lone `%` |
+| Fragment | `:`, `@`, `/`, and `?` | `#`, `[`, `\`, `]`, `^`, `{`, `\|`, `}`, and lone `%` |
+
+A lone `%` is one without two hex digits after it. `\` reaches a path
+only in URLs that aren't special, which read it as `/`. Non-ASCII never
+needs it: every encode set escapes it, and hosts are in Punycode.
+
+So `strictHref` escapes, in each part, every ASCII character RFC 3986
+doesn't allow there, and a lone `%` as `%25`. It also normalizes
+escapes, as RFC 3986 section 6.2.2 says: hex digits uppercase, and
+escaped unreserved characters decoded (`%7e` is `~`, and `%2E%2E%2F` is
+`..%2F`, as C#'s `Uri` reads it). That can't make a dot segment, since
+WHATWG already resolved escaped dots in paths; opaque paths, which
+nothing resolves, keep `%2E`.
+
+It means the same URL: parsed back with Hrefine, every part decodes to
+the same bytes as the original's, and its `strictHref` is the same
+again. Each case in `urltestdata.json` and `setters_tests.json` checks
+this, and that the strict form is RFC 3986 by its grammar. Its `href`
+may differ from the original's (`%7C` where it had `|`), as WHATWG keeps
+escapes as they are. The site checks the other half: Node reads each
+recorded strict form as it reads its `href`, and the recorded parsers,
+Java's `URI` among them, read it as browsers do.
+
+A getter, not a method with options, since it's one more serialization
+of the same URL, as `href` and `origin` are; other forms (for display,
+or without the fragment) are for step 5's formatter.
+
 ## Design notes
 
 - **Code points, not code units:** Temper strings hold Unicode scalar
@@ -281,8 +344,9 @@ is the usual name in Java, C#, Python, and Rust.
   are code points too.
 - **Files:** the parser's state machine and the setters; hosts
   (domains, IPv4 with its odd number forms, IPv6, and opaque hosts);
-  percent-encoding and its encode sets; search parameters; and IDNA
-  (mapping, checks, and NFC), Punycode, and IDNA's generated tables.
+  percent-encoding and its encode sets; the strict RFC 3986 form; search
+  parameters; and IDNA (mapping, checks, and NFC), Punycode, and IDNA's
+  generated tables.
 - **Speed and size:** as small and fast as we can make them, in every
   language, without giving up exactness, measured with `bench/` (see the
   README). As of 2026-10-29, against the version before, timed in turns:

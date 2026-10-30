@@ -12,6 +12,7 @@
 
 using hrefine::HostKind;
 using hrefine::Url;
+using hrefine::UrlSearchParams;
 using hrefine::checkUrl;
 using hrefine::domainToAscii;
 using hrefine::domainToUnicode;
@@ -159,6 +160,10 @@ int main() {
   std::cout << "same URL: "
             << (parseUrl("HTTP://EXAMPLE.COM/a/./b/../c")->eq(parseUrl("http://example.com/a/c")) ? "true" : "false")
             << "\n";
+  // get_strictHref() also escapes what RFC 3986 parsers reject, for those
+  // that follow it strictly.
+  auto strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");
+  std::cout << "strict: " << strict->get_href() << " -> " << strict->get_strictHref() << "\n";
 
   section("6. Using it safely");
 
@@ -206,6 +211,7 @@ int main() {
   std::cout << "with pathname and hash: " << page->withPathname("/a b")->withHash("top")->get_href() << "\n";
   std::cout << "with protocol: " << page->withProtocol("http")->get_href() << "\n";
   std::cout << "port \"http\", ignored: " << page->withPort("http")->get_href() << "\n";
+  std::cout << "with port number: " << page->withPortNumber(8443)->get_href() << "\n";
   std::cout << "unchanged: " << page->get_href() << "\n";
   // Search parameters: a copy of the query, changed in place, then put back.
   auto params = page->get_searchParams();
@@ -226,4 +232,10 @@ int main() {
     std::cout << entry->key << " = " << entry->value << "\n";
   }
   std::cout << "with search params: " << page->withSearchParams(params)->get_href() << "\n";
+  // Or from pairs of names and values.
+  using StringPair = temper::core::Pair<std::string, std::string>;
+  auto pairs = std::make_shared<std::vector<std::shared_ptr<StringPair>>>();
+  pairs->push_back(std::make_shared<StringPair>("q", "a b"));
+  pairs->push_back(std::make_shared<StringPair>("page", "2"));
+  std::cout << "from pairs: " << UrlSearchParams::fromEntries(pairs)->toString() << "\n";
 }

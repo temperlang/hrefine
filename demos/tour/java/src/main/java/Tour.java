@@ -166,6 +166,10 @@ public final class Tour {
         System.out.println("as a string: " + url);
         // eq compares hrefs; equals, not overridden, compares objects.
         System.out.println("same URL: " + parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c")));
+        // getStrictHref() also escapes what RFC 3986 parsers reject, such as
+        // java.net.URI, which refuses the href below.
+        Url strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");
+        System.out.println("strict: " + strict.getHref() + " -> " + strict.getStrictHref());
 
         section("6. Using it safely");
 
@@ -219,6 +223,7 @@ public final class Tour {
         System.out.println("with pathname and hash: " + page.withPathname("/a b").withHash("top").getHref());
         System.out.println("with protocol: " + page.withProtocol("http").getHref());
         System.out.println("port \"http\", ignored: " + page.withPort("http").getHref());
+        System.out.println("with port number: " + page.withPortNumber(8443).getHref());
         System.out.println("unchanged: " + page.getHref());
         // Search parameters: a copy of the query, changed in place, then
         // put back.
@@ -233,5 +238,8 @@ public final class Tour {
             System.out.println(entry.getKey() + " = " + entry.getValue());
         }
         System.out.println("with search params: " + page.withSearchParams(params).getHref());
+        // Or from pairs of names and values.
+        UrlSearchParams fromPairs = UrlSearchParams.fromEntries(List.of(Map.entry("q", "a b"), Map.entry("page", "2")));
+        System.out.println("from pairs: " + fromPairs);
     }
 }

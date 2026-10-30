@@ -49,16 +49,21 @@ url.sameOrigin(base); // true
 (parseUrl("https://Bücher.example") orelse panic()).hostname; // "xn--bcher-kva.example"
 domainToUnicode("xn--bcher-kva.example"); // "bücher.example"
 
+// The strict RFC 3986 form, for parsers such as Java's URI.
+(parseUrl("https://example.com/a|b?q={x}") orelse panic()).strictHref; // "https://example.com/a%7Cb?q=%7Bx%7D"
+
 // Setters give a new URL; url itself never changes.
 let moved = url.withHost("example.org:8443").withPathname("/c d").withHash("");
 moved.href; // "https://user@example.org:8443/c%20d?q=1"
 url.withPort("x").port; // "" (as in JavaScript, a value that can't be set is ignored)
+url.withPortNumber(8443).port; // "8443"
 
 // Search parameters: a copy of the query, changed in place, then put back.
 let params = moved.searchParams;
 params.append("lang", "en US");
 params.set("q", "2");
 moved.withSearchParams(params).search; // "?q=2&lang=en+US"
+UrlSearchParams.fromEntries([new Pair("q", "a b")]).toString(); // "q=a+b"
 ```
 
 The [tour](demos/README.md) shows the same in each language, with
@@ -87,13 +92,20 @@ identical output.
     gives null instead.
   - `url.sameOrigin(other)`: whether the two have the same origin;
     opaque origins (as for `data:` URLs) never do.
+  - `strictHref`: `href` with what RFC 3986 doesn't allow escaped (such
+    as `|`, `^`, `{`, `}`, `[` and `]` outside IPv6 hosts, and a `%`
+    without two hex digits), and escapes of letters, digits, `-`, `.`,
+    `_`, and `~` decoded, as RFC 3986 normalizes them, for strict
+    parsers such as Java's `URI`. It means the same URL: Hrefine and
+    browsers read it back with every part the same once decoded.
   - `toString()` gives `href`, and `==` in Temper compares `href`s
     (`eq` in other languages).
   - The standard's setters, as methods that give a new `Url`:
     `withHref`, `withProtocol`, `withUsername`, `withPassword`,
     `withHost`, `withHostname`, `withPort`, `withPathname`,
     `withSearch`, and `withHash`, so `url.withHash("top")` is
-    JavaScript's `url.hash = "top"`. As there, a value that can't be
+    JavaScript's `url.hash = "top"`; and `withPortNumber`, beside
+    `portNumber`, taking a number or null. As there, a value that can't be
     set leaves the URL as it was (or as far as the standard got: a host
     with a bad port sets only the host), and only `withHref` bubbles.
   - `url.searchParams`: the query as a new `UrlSearchParams` each time,
@@ -101,7 +113,9 @@ identical output.
     (none, if they're empty).
 - `UrlSearchParams`: JavaScript's `URLSearchParams`, the standard's
   `application/x-www-form-urlencoded` list of names and values.
-  `new UrlSearchParams(init?)` parses a query, with or without `?`;
+  `new UrlSearchParams(init?)` parses a query, with or without `?`, and
+  `UrlSearchParams.fromEntries(pairs)` takes a list of Temper `Pair`s
+  (as JavaScript's constructor takes pairs);
   `append`, `remove(name, value?)` (JavaScript's `delete`: it removes
   every pair with the name, or with the name and value), `get` (null if
   missing), `getAll`, `has(name, value?)`, `set`, and `sort` (by UTF-16
@@ -162,6 +176,10 @@ tabs and newlines are gone, hosts are lowercased and in ASCII (`127.1`
 becomes `127.0.0.1`, international names become Punycode), and dot
 segments are resolved. Most of what makes parsers disagree is gone, so
 other parsers, browsers' and servers' alike, read it as Hrefine did.
+For clients that follow RFC 3986 strictly, such as Java's `URI`, hand on
+`strictHref`, which escapes the few characters `href` leaves that RFC
+3986 doesn't allow; on the site's recorded URLs, every parser reads it
+as browsers read the original.
 
 ## Tests
 
@@ -193,7 +211,14 @@ own URL cases, the ones browsers are checked against, vendored in
   [search-params](src/search-params.temper.md)'s tests, but for what
   tests JavaScript's own conversions (`null` and numbers as names). All
   pass on every backend.
-- `percent-encoding.json`, for later.
+- `percent-encoding.json`: 7 inputs and how a query and fragment must
+  escape them, ported by hand into [strict](src/strict.temper.md)'s
+  tests. Only the UTF-8 answers apply; the rest are for pages in legacy
+  encodings, which the `URL` API never uses.
+
+Each URL from `urltestdata.json` and `setters_tests.json` also checks
+`strictHref`: it must be RFC 3986, by the grammar, and parse back to the
+same parts once decoded.
 
 ## Site
 
@@ -202,20 +227,25 @@ other languages' parsers read as different hosts, a tester that parses
 whatever you type live with Hrefine's JavaScript build (beside your
 browser's own `URL`), a gallery of tricks (short and hex IPv4 forms,
 backslashes, `@` and `#@`, tabs, look-alike Unicode, `javascript:`, and
-protocol-relative URLs), a table of 47 more disagreements, by kind
+protocol-relative URLs), a table of 48 more disagreements, by kind
 (backslashes and controls, user info, IPv4 and IPv6 forms, escaped and
 international names, schemes and ports, and paths), and the fix in each
 language, taken from the tours.
 
-Other parsers can't run in a browser, so their answers for the 61
+Other parsers can't run in a browser, so their answers for the 62
 recorded URLs are recorded ahead of time, with their versions and the date:
 Python's `urllib.parse`, Java's `URI` and `URL`, .NET's `Uri`, Go's
 `net/url`, libcurl's URL API, and Node's `URL`, standing in for browsers.
 `site/record/record.py` runs each one that's installed on the inputs in
-`site/gallery.json`, then on Hrefine's `href` for each, and writes
-`site/recorded.json`, which is checked in. Each parser counts as agreeing
-with browsers if it reads the same host (IPv6 addresses compared as
-addresses), or for path tricks the same path. The table's inputs come
+`site/gallery.json`, then on Hrefine's `href` and `strictHref` for each,
+and writes `site/recorded.json`, which is checked in. Each parser counts
+as agreeing with browsers if it reads the same host (IPv6 addresses
+compared as addresses), or for path tricks the same path. Given
+`strictHref`, every recorded parser agrees on every URL Hrefine
+accepts, but for Java's `URL` and curl refusing `javascript:`; given
+`href`, Java's `URI`, Go, and C# still miss a few paths (see the
+[plan](docs/plan.md), step 6). The build fails unless browsers read
+each strict form as they read its `href`. The table's inputs come
 from web-platform-tests' cases and published research on parser
 differences; keep it curated, with a short note on each. Re-record after changing the
 gallery, or to update the versions:

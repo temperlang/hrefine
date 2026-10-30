@@ -66,7 +66,7 @@ Converts `domain` to Unicode, for showing it, as the URL Standard's
 domain to Unicode does: `xn--bcher-kva.example` becomes
 `bücher.example`. It never fails: as UTS #46's ToUnicode says, labels
 with errors are converted as far as they can be, and an `xn--` label
-that isn't Punycode stays as it is. An ASCII domain without `xn--`
+that isn't Punycode, or decodes to an invalid label, stays as it is. An ASCII domain without `xn--`
 labels is only lowercased, as processing would do, without needing the
 tables.
 
@@ -147,7 +147,11 @@ Then convert and check each label, with each code point's
 [properties](#lookups) beside it. An `xn--` label must be ASCII, must
 decode from Punycode, and must then be neither empty nor ASCII; it's
 checked as any other label, and must be valid code points in NFC too.
-Where one doesn't decode, it stays as it was.
+Where one doesn't decode, or decodes to something invalid, it stays as
+it was. UTS #46 is ambiguous here, but showing the decoded text of an
+invalid label is how spoofing works (`xn--u-ccb` is `u` and a combining
+diaeresis, which looks like `ü` but isn't in NFC), so ToUnicode keeps
+the `xn--` form, as Node and browsers do.
 
       var bidiDomain = false;
       for (var k = 0; k < labels.length && (ok || !forAscii); k += 1) {
@@ -163,11 +167,14 @@ Where one doesn't decode, it stays as it was.
           if (rest == null) {
             valid = false;
           } else {
-            label = rest;
-            labels[k] = rest;
-            props = propertiesOf(rest);
-            labelProperties[k] = props;
-            valid = !rest.isEmpty && !isAsciiLabel(rest) && isNfcValid(rest, props);
+            let restProps = propertiesOf(rest);
+            valid = !rest.isEmpty && !isAsciiLabel(rest) && isNfcValid(rest, restProps);
+            if (valid) {
+              label = rest;
+              labels[k] = rest;
+              props = restProps;
+              labelProperties[k] = props;
+            }
           }
         }
         if (!valid || !isValidLabel(label, props)) {
@@ -226,7 +233,11 @@ Punycode's are all ASCII.
         let normal = toNfc(label);
         var same = normal.length == label.length;
         for (var k = 0; k < label.length && same; k += 1) {
-          same = normal[k] == label[k];
+          // Locals, as Temper's Java backend compares `normal[k] ==
+          // label[k]` as boxed `Integer`s, by reference (2026-10-30).
+          let a = normal[k];
+          let b = label[k];
+          same = a == b;
         }
         same
       }
@@ -812,6 +823,9 @@ Whether a label starts with `xn--`. Mapping has lowercased it already.
       assert(domainToUnicode("xn--a!.example") == "xn--a!.example");
       assert(domainToUnicode("a\u{FFFD}b") == "a\u{FFFD}b");
       assert(domainToUnicode("A\u{30A}") == "\u{E5}");
+      // Decodes to u and a combining diaeresis, not NFC: kept as it was.
+      assert(domainToUnicode("xn--u-ccb") == "xn--u-ccb");
+      assert(domainToUnicode("a.xn--u-ccb.example") == "a.xn--u-ccb.example");
     }
 
     test("NFC") {

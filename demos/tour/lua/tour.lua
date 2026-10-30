@@ -5,6 +5,7 @@
 
 local hrefine = require("hrefine")
 local Url, HostKind, parseUrl, checkUrl = hrefine.Url, hrefine.HostKind, hrefine.parseUrl, hrefine.checkUrl
+local UrlSearchParams = hrefine.UrlSearchParams
 local parseHost, domainToAscii, domainToUnicode = hrefine.parseHost, hrefine.domainToAscii, hrefine.domainToUnicode
 -- Temper's runtime gives temper.null, not nil, for no value, so null_to_nil
 -- turns it into nil.
@@ -130,6 +131,10 @@ end
 print("as a string: " .. url:toString())
 -- eq compares hrefs; == compares tables.
 print("same URL: " .. tostring(parseUrl("HTTP://EXAMPLE.COM/a/./b/../c"):eq(parseUrl("http://example.com/a/c"))))
+-- strictHref also escapes what RFC 3986 parsers reject, for those that
+-- follow it strictly.
+local strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d")
+print("strict: " .. strict.href .. " -> " .. strict.strictHref)
 
 section("6. Using it safely")
 
@@ -201,6 +206,7 @@ print("with host: " .. page:withHost("example.org:8443").href)
 print("with pathname and hash: " .. page:withPathname("/a b"):withHash("top").href)
 print("with protocol: " .. page:withProtocol("http").href)
 print('port "http", ignored: ' .. page:withPort("http").href)
+print("with port number: " .. page:withPortNumber(8443).href)
 print("unchanged: " .. page.href)
 -- Search parameters: a copy of the query, changed in place, then put back.
 local params = page.searchParams
@@ -218,3 +224,6 @@ for _, entry in ipairs(params:entries()) do
   print(entry.key .. " = " .. entry.value)
 end
 print("with search params: " .. page:withSearchParams(params).href)
+-- Or from pairs of names and values, each a table with key and value.
+local pairs_ = { { key = "q", value = "a b" }, { key = "page", value = "2" } }
+print("from pairs: " .. UrlSearchParams.fromEntries(pairs_):toString())

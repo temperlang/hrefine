@@ -31,6 +31,7 @@ def hrefine(text, base):
         "host": None if kind is None else url.hostname,
         "path": url.pathname,
         "href": url.href,
+        "strictHref": url.strict_href,
         "hostKind": None if kind is None else kind.to_string(),
         "errors": errors,
     }

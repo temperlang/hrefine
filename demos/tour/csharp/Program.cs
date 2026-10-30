@@ -135,6 +135,10 @@ foreach (var input in new[] {
 Console.WriteLine($"as a string: {url.ToString()}");
 // Eq compares hrefs; == compares objects.
 Console.WriteLine($"same URL: {(ParseUrl("HTTP://EXAMPLE.COM/a/./b/../c").Eq(ParseUrl("http://example.com/a/c")) ? "true" : "false")}");
+// StrictHref also escapes what RFC 3986 parsers reject, for those that
+// follow it strictly.
+var strict = ParseUrl("https://example.com/a|b/%zz?q={x}#c^d");
+Console.WriteLine($"strict: {strict.Href} -> {strict.StrictHref}");
 
 Section("6. Using it safely");
 
@@ -215,6 +219,7 @@ Console.WriteLine($"with host: {page.WithHost("example.org:8443").Href}");
 Console.WriteLine($"with pathname and hash: {page.WithPathname("/a b").WithHash("top").Href}");
 Console.WriteLine($"with protocol: {page.WithProtocol("http").Href}");
 Console.WriteLine($"port \"http\", ignored: {page.WithPort("http").Href}");
+Console.WriteLine($"with port number: {page.WithPortNumber(8443).Href}");
 Console.WriteLine($"unchanged: {page.Href}");
 // Search parameters: a copy of the query, changed in place, then put back.
 var searchParams = page.SearchParams;
@@ -229,3 +234,6 @@ foreach (var entry in searchParams.Entries())
     Console.WriteLine($"{entry.Key} = {entry.Value}");
 }
 Console.WriteLine($"with search params: {page.WithSearchParams(searchParams).Href}");
+// Or from pairs of names and values.
+var fromPairs = UrlSearchParams.FromEntries(new List<KeyValuePair<string, string>> { new("q", "a b"), new("page", "2") });
+Console.WriteLine($"from pairs: {fromPairs}");

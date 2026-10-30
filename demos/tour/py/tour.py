@@ -4,9 +4,12 @@ The same tour exists for each language Hrefine supports, and they all print
 the same text. See demos/README.md for how to run them.
 """
 
+from temper_core import Pair
+
 from hrefine import (
     HostKind,
     Url,
+    UrlSearchParams,
     check_url,
     domain_to_ascii,
     domain_to_unicode,
@@ -121,6 +124,10 @@ for text in [
 print(f"as a string: {url.to_string()}")
 # eq compares hrefs; == compares objects.
 print(f"same URL: {str(parse_url('HTTP://EXAMPLE.COM/a/./b/../c').eq(parse_url('http://example.com/a/c'))).lower()}")
+# strict_href also escapes what RFC 3986 parsers reject, for those that
+# follow it strictly.
+strict = parse_url("https://example.com/a|b/%zz?q={x}#c^d")
+print(f"strict: {strict.href} -> {strict.strict_href}")
 
 section("6. Using it safely")
 
@@ -191,6 +198,7 @@ print(f"with host: {page.with_host('example.org:8443').href}")
 print(f"with pathname and hash: {page.with_pathname('/a b').with_hash('top').href}")
 print(f"with protocol: {page.with_protocol('http').href}")
 print(f'port "http", ignored: {page.with_port("http").href}')
+print(f"with port number: {page.with_port_number(8443).href}")
 print(f"unchanged: {page.href}")
 # Search parameters: a copy of the query, changed in place, then put back.
 params = page.search_params
@@ -203,3 +211,5 @@ print(f"lang: {', '.join(params.get_all('lang'))}")
 for entry in params.entries():
     print(f"{entry.key} = {entry.value}")
 print(f"with search params: {page.with_search_params(params).href}")
+# Or from pairs of names and values.
+print(f"from pairs: {UrlSearchParams.from_entries([Pair('q', 'a b'), Pair('page', '2')]).to_string()}")
