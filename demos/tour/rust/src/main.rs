@@ -5,7 +5,7 @@
 
 use hrefine::{
     check_url, domain_to_ascii, domain_to_unicode, parse_host, parse_url, HostKind, Url,
-    UrlSearchParams,
+    UrlPolicy, UrlSearchParams,
 };
 use std::sync::Arc;
 
@@ -259,4 +259,54 @@ fn main() {
         let got = url.map_or(String::new(), |url| url.href().to_string());  // snippet: scoreboard
         println!("{input} against {base}: {}", if got == href { "pass" } else { "fail" });  // snippet: scoreboard
     }  // snippet: scoreboard
+
+    section("9. Policies");
+
+    // A policy does the checks of section 6 in one call, on the parsed URL.
+    // Build it once, a rule at a time, and use it for every URL: https only,
+    // no credentials, no private, loopback, or other special addresses or
+    // names, and example.com or its subdomains.
+    let policy = UrlPolicy::any().with_schemes([Arc::new("https".to_string())]).with_credentials(false)  // snippet: policy
+        .with_special_hosts(false).with_hosts([Arc::new("example.com".to_string())], true);  // snippet: policy
+    let inputs = [
+        "https://api.example.com/v1/items",
+        "http://example.com/",
+        "https://example.com@evil.example/",
+        "https://127.1/",
+        "https://[::ffff:127.0.0.1]/",
+        "https://localhost./",
+        "https://ex\u{430}mple.com/",
+    ];
+    for input in inputs {  // snippet: policy
+        let result = policy.check(input);  // snippet: policy
+        match result.url() {  // snippet: policy
+            Some(url) => println!("{input}: fetch {}", url.href()),  // snippet: policy
+            None => println!("{input}: refuse, {}", result.to_string()),  // snippet: policy
+        }  // snippet: policy
+    }  // snippet: policy
+
+    // Strict mode refuses what the standard accepts but notes as an error,
+    // as cautious parsers do: backslashes, tabs, odd IPv4 forms, and the
+    // like. with_strict(true) adds it to a policy.
+    for input in ["https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/"] {
+        let check = check_url(input, NO_BASE).expect("no base to fail");
+        match check.strict_url() {
+            Some(strict) => println!("strict {}: {}", shown(input), strict.href()),
+            None => {
+                let errors: Vec<String> = check.strict_errors().iter().map(|error| error.to_string().to_string()).collect();
+                println!("strict {}: refuse, {}", shown(input), errors.join(", "));
+            }
+        }
+    }
+
+    // Redirect targets: with_path_only takes only a path, query, or fragment
+    // on the base, never another host, however it's written.
+    let redirects = UrlPolicy::any().with_base(site.clone()).with_path_only(true);
+    for target in ["/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"] {
+        let result = redirects.check(target);
+        match result.url() {
+            Some(url) => println!("next={}: redirect to {}", shown(target), url.href()),
+            None => println!("next={}: refuse, {}", shown(target), result.to_string()),
+        }
+    }
 }

@@ -4,7 +4,7 @@
 // the same text. See demos/README.md for how to run them.
 
 import { Pair } from "@temperlang/core";
-import { HostKind, Url, UrlSearchParams, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl } from "hrefine";
+import { HostKind, Url, UrlPolicy, UrlSearchParams, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl } from "hrefine";
 
 function section(title) {
   console.log();
@@ -224,3 +224,51 @@ for (const [input, base, href] of cases) {  // snippet: scoreboard
   const got = url === null ? "" : url.href;  // snippet: scoreboard
   console.log(`${input} against ${base}: ${got === href ? "pass" : "fail"}`);  // snippet: scoreboard
 }  // snippet: scoreboard
+
+section("9. Policies");
+
+// A policy does the checks of section 6 in one call, on the parsed URL. Build
+// it once, a rule at a time, and use it for every URL: https only, no
+// credentials, no private, loopback, or other special addresses or names,
+// and example.com or its subdomains.
+const policy = UrlPolicy.any.withSchemes(["https"]).withCredentials(false)  // snippet: policy
+  .withSpecialHosts(false).withHosts(["example.com"], true);  // snippet: policy
+const inputs = [
+  "https://api.example.com/v1/items",
+  "http://example.com/",
+  "https://example.com@evil.example/",
+  "https://127.1/",
+  "https://[::ffff:127.0.0.1]/",
+  "https://localhost./",
+  "https://ex\u0430mple.com/",
+];
+for (const input of inputs) {  // snippet: policy
+  const result = policy.check(input);  // snippet: policy
+  if (result.url !== null) {  // snippet: policy
+    console.log(`${input}: fetch ${result.url.href}`);  // snippet: policy
+  } else {  // snippet: policy
+    console.log(`${input}: refuse, ${result.toString()}`);  // snippet: policy
+  }  // snippet: policy
+}  // snippet: policy
+
+// Strict mode refuses what the standard accepts but notes as an error, as
+// cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
+// withStrict(true) adds it to a policy.
+for (const input of ["https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/"]) {
+  const check = checkUrl(input);
+  const strict = check.strictUrl;
+  if (strict !== null) {
+    console.log(`strict ${shown(input)}: ${strict.href}`);
+  } else {
+    const errors = check.strictErrors.map((error) => error.toString()).join(", ");
+    console.log(`strict ${shown(input)}: refuse, ${errors}`);
+  }
+}
+
+// Redirect targets: withPathOnly takes only a path, query, or fragment on
+// the base, never another host, however it's written.
+const redirects = UrlPolicy.any.withBase(site).withPathOnly(true);
+for (const target of ["/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"]) {
+  const result = redirects.check(target);
+  console.log(`next=${shown(target)}: ${result.url !== null ? `redirect to ${result.url.href}` : `refuse, ${result.toString()}`}`);
+}

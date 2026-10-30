@@ -9,6 +9,7 @@ from temper_core import Pair
 from hrefine import (
     HostKind,
     Url,
+    UrlPolicy,
     UrlSearchParams,
     check_url,
     domain_to_ascii,
@@ -229,3 +230,48 @@ for text, base, href in cases:  # snippet: scoreboard
     url = Url.parse(text, base)  # snippet: scoreboard
     got = "" if url is None else url.href  # snippet: scoreboard
     print(f"{text} against {base}: {'pass' if got == href else 'fail'}")  # snippet: scoreboard
+
+section("9. Policies")
+
+# A policy does the checks of section 6 in one call, on the parsed URL. Build
+# it once, a rule at a time, and use it for every URL: https only, no
+# credentials, no private, loopback, or other special addresses or names,
+# and example.com or its subdomains.
+policy = (  # snippet: policy
+    UrlPolicy.any.with_schemes(["https"]).with_credentials(False)  # snippet: policy
+    .with_special_hosts(False).with_hosts(["example.com"], True)  # snippet: policy
+)  # snippet: policy
+inputs = [
+    "https://api.example.com/v1/items",
+    "http://example.com/",
+    "https://example.com@evil.example/",
+    "https://127.1/",
+    "https://[::ffff:127.0.0.1]/",
+    "https://localhost./",
+    "https://ex\u0430mple.com/",
+]
+for text in inputs:  # snippet: policy
+    result = policy.check(text)  # snippet: policy
+    if result.url is not None:  # snippet: policy
+        print(f"{text}: fetch {result.url.href}")  # snippet: policy
+    else:  # snippet: policy
+        print(f"{text}: refuse, {result.to_string()}")  # snippet: policy
+
+# Strict mode refuses what the standard accepts but notes as an error, as
+# cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
+# with_strict(True) adds it to a policy.
+for text in ["https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/"]:
+    check = check_url(text)
+    strict = check.strict_url
+    if strict is not None:
+        print(f"strict {shown(text)}: {strict.href}")
+    else:
+        errors = ", ".join(error.to_string() for error in check.strict_errors)
+        print(f"strict {shown(text)}: refuse, {errors}")
+
+# Redirect targets: with_path_only takes only a path, query, or fragment on
+# the base, never another host, however it's written.
+redirects = UrlPolicy.any.with_base(site).with_path_only(True)
+for target in ["/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"]:
+    result = redirects.check(target)
+    print(f"next={shown(target)}: {'redirect to ' + result.url.href if result.url is not None else 'refuse, ' + result.to_string()}")

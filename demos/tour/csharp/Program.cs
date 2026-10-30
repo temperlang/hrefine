@@ -236,7 +236,7 @@ foreach (var entry in searchParams.Entries())
 Console.WriteLine($"with search params: {page.WithSearchParams(searchParams).Href}");
 // Or from pairs of names and values.
 var fromPairs = UrlSearchParams.FromEntries(new List<KeyValuePair<string, string>> { new("q", "a b"), new("page", "2") });
-Console.WriteLine($"from pairs: {fromPairs}");
+Console.WriteLine($"from pairs: {fromPairs.ToString()}");
 
 Section("8. Test cases");
 
@@ -255,3 +255,59 @@ foreach (var (input, baseUrl, href) in cases)  // snippet: scoreboard
     var got = parsed?.Href ?? "";  // snippet: scoreboard
     Console.WriteLine($"{input} against {baseUrl}: {(got == href ? "pass" : "fail")}");  // snippet: scoreboard
 }  // snippet: scoreboard
+
+Section("9. Policies");
+
+// A policy does the checks of section 6 in one call, on the parsed URL. Build
+// it once, a rule at a time, and use it for every URL: https only, no
+// credentials, no private, loopback, or other special addresses or names,
+// and example.com or its subdomains.
+var policy = UrlPolicy.Any.WithSchemes(new[] { "https" }).WithCredentials(false)  // snippet: policy
+    .WithSpecialHosts(false).WithHosts(new[] { "example.com" }, true);  // snippet: policy
+var inputs = new[] {
+    "https://api.example.com/v1/items",
+    "http://example.com/",
+    "https://example.com@evil.example/",
+    "https://127.1/",
+    "https://[::ffff:127.0.0.1]/",
+    "https://localhost./",
+    "https://exаmple.com/",
+};
+foreach (var input in inputs)  // snippet: policy
+{  // snippet: policy
+    var result = policy.Check(input);  // snippet: policy
+    if (result.Url is Url fetched)  // snippet: policy
+    {  // snippet: policy
+        Console.WriteLine($"{input}: fetch {fetched.Href}");  // snippet: policy
+    }  // snippet: policy
+    else  // snippet: policy
+    {  // snippet: policy
+        Console.WriteLine($"{input}: refuse, {result.ToString()}");  // snippet: policy
+    }  // snippet: policy
+}  // snippet: policy
+
+// Strict mode refuses what the standard accepts but notes as an error, as
+// cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
+// WithStrict(true) adds it to a policy.
+foreach (var input in new[] { "https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/" })
+{
+    var check = CheckUrl(input);
+    if (check.StrictUrl is Url strictUrl)
+    {
+        Console.WriteLine($"strict {Shown(input)}: {strictUrl.Href}");
+    }
+    else
+    {
+        var errors = string.Join(", ", check.StrictErrors.Select(error => error.ToString()));
+        Console.WriteLine($"strict {Shown(input)}: refuse, {errors}");
+    }
+}
+
+// Redirect targets: WithPathOnly takes only a path, query, or fragment on
+// the base, never another host, however it's written.
+var redirects = UrlPolicy.Any.WithBase(site).WithPathOnly(true);
+foreach (var target in new[] { "/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/" })
+{
+    var result = redirects.Check(target);
+    Console.WriteLine($"next={Shown(target)}: {(result.Url is Url next ? "redirect to " + next.Href : "refuse, " + result.ToString())}");
+}

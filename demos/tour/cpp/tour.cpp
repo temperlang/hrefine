@@ -7,11 +7,13 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "hrefine/init.hpp"
 
 using hrefine::HostKind;
 using hrefine::Url;
+using hrefine::UrlPolicy;
 using hrefine::UrlSearchParams;
 using hrefine::checkUrl;
 using hrefine::domainToAscii;
@@ -255,4 +257,50 @@ int main() {
     std::string got = url ? url->get_href() : "";  // snippet: scoreboard
     std::cout << input << " against " << base << ": " << (got == href ? "pass" : "fail") << "\n";  // snippet: scoreboard
   }  // snippet: scoreboard
+
+  section("9. Policies");
+
+  // A policy does the checks of section 6 in one call, on the parsed URL.
+  // Build it once, a rule at a time, and use it for every URL: https only, no
+  // credentials, no private, loopback, or other special addresses or names,
+  // and example.com or its subdomains.
+  using Strings = std::vector<std::string>;  // snippet: policy
+  auto policy = UrlPolicy::any->withSchemes(std::make_shared<Strings>(Strings{"https"}))->withCredentials(false)  // snippet: policy
+                    ->withSpecialHosts(false)->withHosts(std::make_shared<Strings>(Strings{"example.com"}), true);  // snippet: policy
+  std::vector<std::string> inputs = {"https://api.example.com/v1/items", "http://example.com/", "https://example.com@evil.example/",
+                                       "https://127.1/", "https://[::ffff:127.0.0.1]/", "https://localhost./",
+                                       "https://exаmple.com/"};
+  for (auto const &input : inputs) {  // snippet: policy
+    auto result = policy->check(input);  // snippet: policy
+    if (auto url = result->get_url()) {  // snippet: policy
+      std::cout << input << ": fetch " << url->get_href() << "\n";  // snippet: policy
+    } else {  // snippet: policy
+      std::cout << input << ": refuse, " << result->toString() << "\n";  // snippet: policy
+    }  // snippet: policy
+  }  // snippet: policy
+
+  // Strict mode refuses what the standard accepts but notes as an error, as
+  // cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
+  // withStrict(true) adds it to a policy.
+  for (std::string input : {"https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/"}) {
+    auto check = checkUrl(input);
+    if (auto strict = check->get_strictUrl()) {
+      std::cout << "strict " << shown(input) << ": " << strict->get_href() << "\n";
+    } else {
+      std::string errors;
+      for (auto const &error : *check->get_strictErrors()) {
+        errors += (errors.empty() ? "" : ", ") + error->toString();
+      }
+      std::cout << "strict " << shown(input) << ": refuse, " << errors << "\n";
+    }
+  }
+
+  // Redirect targets: withPathOnly takes only a path, query, or fragment on
+  // the base, never another host, however it's written.
+  auto redirects = UrlPolicy::any->withBase(site)->withPathOnly(true);
+  for (std::string target : {"/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"}) {
+    auto result = redirects->check(target);
+    auto url = result->get_url();
+    std::cout << "next=" << shown(target) << ": " << (url ? "redirect to " + url->get_href() : "refuse, " + result->toString()) << "\n";
+  }
 }

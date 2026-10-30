@@ -5,7 +5,7 @@
 
 local hrefine = require("hrefine")
 local Url, HostKind, parseUrl, checkUrl = hrefine.Url, hrefine.HostKind, hrefine.parseUrl, hrefine.checkUrl
-local UrlSearchParams = hrefine.UrlSearchParams
+local UrlSearchParams, UrlPolicy = hrefine.UrlSearchParams, hrefine.UrlPolicy
 local parseHost, domainToAscii, domainToUnicode = hrefine.parseHost, hrefine.domainToAscii, hrefine.domainToUnicode
 -- Temper's runtime gives temper.null, not nil, for no value, so null_to_nil
 -- turns it into nil.
@@ -245,3 +245,56 @@ for _, test in ipairs(cases) do  -- snippet: scoreboard
   local got = url and url.href or ""  -- snippet: scoreboard
   print(input .. " against " .. base .. ": " .. (got == href and "pass" or "fail"))  -- snippet: scoreboard
 end  -- snippet: scoreboard
+
+section("9. Policies")
+
+-- A policy does the checks of section 6 in one call, on the parsed URL. Build
+-- it once, a rule at a time, and use it for every URL: https only, no
+-- credentials, no private, loopback, or other special addresses or names,
+-- and example.com or its subdomains.
+local policy = UrlPolicy.any:withSchemes({ "https" }):withCredentials(false)  -- snippet: policy
+  :withSpecialHosts(false):withHosts({ "example.com" }, true)  -- snippet: policy
+local inputs = {
+  "https://api.example.com/v1/items",
+  "http://example.com/",
+  "https://example.com@evil.example/",
+  "https://127.1/",
+  "https://[::ffff:127.0.0.1]/",
+  "https://localhost./",
+  "https://ex\u{430}mple.com/",
+}
+for _, input in ipairs(inputs) do  -- snippet: policy
+  local result = policy:check(input)  -- snippet: policy
+  local fetched = null_to_nil(result.url)  -- snippet: policy
+  if fetched then  -- snippet: policy
+    print(input .. ": fetch " .. fetched.href)  -- snippet: policy
+  else  -- snippet: policy
+    print(input .. ": refuse, " .. result:toString())  -- snippet: policy
+  end  -- snippet: policy
+end  -- snippet: policy
+
+-- Strict mode refuses what the standard accepts but notes as an error, as
+-- cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
+-- withStrict(true) adds it to a policy.
+for _, input in ipairs({ "https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/" }) do
+  local check = checkUrl(input)
+  local strictUrl = null_to_nil(check.strictUrl)
+  if strictUrl then
+    print("strict " .. shown(input) .. ": " .. strictUrl.href)
+  else
+    local errors = {}
+    for _, error in ipairs(check.strictErrors) do
+      errors[#errors + 1] = error:toString()
+    end
+    print("strict " .. shown(input) .. ": refuse, " .. table.concat(errors, ", "))
+  end
+end
+
+-- Redirect targets: withPathOnly takes only a path, query, or fragment on
+-- the base, never another host, however it's written.
+local redirects = UrlPolicy.any:withBase(site):withPathOnly(true)
+for _, target in ipairs({ "/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/" }) do
+  local result = redirects:check(target)
+  local next = null_to_nil(result.url)
+  print("next=" .. shown(target) .. ": " .. (next and "redirect to " .. next.href or "refuse, " .. result:toString()))
+end

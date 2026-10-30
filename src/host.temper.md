@@ -111,7 +111,36 @@ validation errors in `log`, if given, at `at`, where the host starts.
       } else if (isOpaque) {
         parseOpaqueHost(input, log, at)
       } else {
-        parseDomain(input, log, at)
+        let host = parseDomain(input, log, at);
+        if (log != null) {
+          noteHostForm(log, input, host, at);
+        }
+        host
+      }
+    }
+
+Strict mode's own two errors, for hosts the standard reads without a
+validation error, but cautious parsers refuse or read otherwise: an
+IPv4 address written any way but as its serialization, as `127.1`,
+`0x7f.1`, `2130706433`, or full-width digits (`0x7f.1` and a trailing
+dot are the standard's errors too), and a domain with escapes in it, as
+`%65vil.example`.
+
+(The domain comes first: Temper's C# backend writes an `if` holding
+only an `if` without braces, so a following `else` would bind to the
+inner one.)
+
+    let noteHostForm(log: ErrorLog, input: String, host: String, at: Int): Void {
+      if (kindOfHost(host, true) != HostKind.ipv4) {
+        var escaped = false;
+        for (var i = String.begin; !escaped && input.hasIndex(i); i = input.next(i)) {
+          escaped = input[i] == char'%';
+        }
+        if (escaped) {
+          noteStrict(log, "domain-percent-encoded", at);
+        }
+      } else if (input != host) {
+        noteStrict(log, "IPv4-non-canonical", at);
       }
     }
 

@@ -154,6 +154,12 @@ site that makes the point.
    2026-10-29, after checking package registries and a web search for
    companies and trademarks; check USPTO and EUIPO before 1.0.
 
+8. **Strict mode and policies,** for the security pitch: check with
+   Hrefine, then hand on `href`. *Done* (2026-10-30): strict mode on
+   `UrlCheck`, and `UrlPolicy` for the usual checks, in one call. See
+   "Strict mode" and "Policies" below. The tours gained a section, and
+   the site's fix a step with a dev-mode badge.
+
 **Order** (2026-10-29): after the API review below, the next milestone
 is the site (step 6), ahead of setters and search parameters (step 3),
 even if the site needs refining later.
@@ -197,6 +203,8 @@ people know, with JavaScript's names, revised after the tours
   converting and showing a domain. Not checks; `parseHost` is.
 
 - `strictHref`, the strict RFC 3986 form (below).
+- `UrlCheck.strictErrors` and `strictUrl`, for strict mode, and
+  `UrlPolicy`, `PolicyCheck`, and `PolicyRule` (below).
 - Setters as `with` methods giving a new `Url` (step 3, below), with
   `withPortNumber(port: Int?)` beside `withPort`, and
   `UrlSearchParams`, as JavaScript's `URLSearchParams`, not tied to a
@@ -342,6 +350,104 @@ Java's `URI` among them, read it as browsers do.
 A getter, not a method with options, since it's one more serialization
 of the same URL, as `href` and `origin` are; other forms (for display,
 or without the fragment) are for step 5's formatter.
+
+## Strict mode
+
+Decided 2026-10-30. The standard accepts much that it calls a
+[validation error](https://url.spec.whatwg.org/#validation-error), and
+cautious parsers refuse, so strict mode refuses it too, while the
+standard parse stays the default. It's on `UrlCheck`, which already
+has the errors: `strictErrors` are those strict mode counts, and
+`strictUrl` is the URL only if there are none; a policy's
+`withStrict(true)` does the same in one call. Not a separate parse
+function, which would double `parseUrl`, `Url.parse`, and
+`Url.canParse`.
+
+Every error counts but one kind, which is too benign:
+`invalid-URL-unit` for a code point that a path, query, fragment, or
+opaque host keeps or percent-encodes, such as a space, `"`, `<`, `|`,
+`[`, `{`, or a `%` without hex digits. They're common in real links
+(`?a[]=1`, `?q=a b`), `href` holds them unambiguously, and `strictHref`
+escapes the rest, so they can't change where a URL leads.
+`invalid-URL-unit` for what the standard strips (leading and trailing C0
+controls and spaces, tabs, and newlines) does count. So these count:
+
+- `invalid-URL-unit`, for stripped code points only
+- `special-scheme-missing-following-solidus` (`https:example.com`,
+  `https:\\host`)
+- `invalid-reverse-solidus` (backslashes in special URLs)
+- `invalid-credentials` (any `@` before the host)
+- `missing-scheme-non-relative-URL`, `host-missing`, `port-invalid`,
+  `port-out-of-range`, and the other failures, though a failed parse
+  fails anyway
+- `IPv4-empty-part` (`1.2.3.4.`), `IPv4-non-decimal-part` (hex and
+  octal), and `IPv4-out-of-range-part` (`2130706433`)
+- `file-invalid-Windows-drive-letter` and
+  `file-invalid-Windows-drive-letter-host`
+- `domain-to-ASCII`, `domain-invalid-code-point`,
+  `host-invalid-code-point`, and the IPv6 errors, which all fail
+
+The standard notes nothing for some forms that cautious parsers refuse
+or read otherwise, and that filters miss, so Hrefine adds two of its
+own, only to `strictErrors`, never to `errors`:
+
+- `IPv4-non-canonical`: an IPv4 address written any way but as its four
+  decimal numbers, as `127.1`, `127.0.1`, `0x7f.1`, `2130706433`,
+  `%31%32%37.1`, or full-width digits. The standard notes no error at all
+  for `127.1`.
+- `domain-percent-encoded`: escapes in a domain, as `%65vil.example`
+  or `evil%2Eexample`.
+
+Not counted, as the standard doesn't: case in schemes and hosts, a
+default port written out, dot segments, and hosts that IDNA maps
+(`ｅｖｉｌ.example`, `bücher.example`), which have one reading, in
+`href`, everywhere.
+
+## Policies
+
+Decided 2026-10-30. The checks people get wrong by hand, on the parsed
+URL: schemes, credentials, IP hosts, special addresses (against SSRF),
+host allowlists, the same origin, redirect targets (path only), a
+maximum length, and strict mode. One immutable `UrlPolicy`, built once,
+from `UrlPolicy.any` (no rules), by `with` methods, each giving a new
+policy with one more rule, and `policy.check(input)` giving a
+`PolicyCheck`: the URL, or the first `PolicyRule` failed and a reason.
+
+- **One object, not separate functions:** a check usually needs
+  several rules at once, built from configuration once and applied to
+  every request. Separate functions would each parse again, or take a
+  `Url` and leave strict mode and length (which need the input) out.
+  One `check` says which rule failed first, in one documented order.
+- **`with` methods, not an object literal or a builder:** Temper has no
+  named arguments outside constructors, and an object literal of eleven
+  optional properties would be positional arguments in JavaScript, Lua,
+  and C++. `with` methods translate plainly to all seven languages, as
+  `Url`'s setters do, read well chained, and keep the policy immutable,
+  so it can be shared between threads, and a check can't change after
+  it's built. Booleans say what's allowed (`withCredentials(false)`),
+  but for `withStrict(true)` and `withPathOnly(true)`, which ask for
+  more. `UrlPolicy.any` is the start, since the constructor stays
+  private, as `Url`'s does.
+- **Results say which rule failed:** `PolicyRule` is a class with one
+  instance per rule, as `HostKind` is, so every language compares and
+  prints them alike; `reason` is for logs.
+- **Hosts as parsed:** opaque hosts, in URLs that aren't special, are
+  read as a special URL's host would be (`gopher://0x7f.1/`), since
+  other clients may. Allowlist entries are parsed with `parseHost`, so
+  they're lowercased, in Punycode, and canonical, and compared ignoring
+  a trailing dot. An entry that isn't a host matches nothing.
+- **Special addresses** come from IANA's IPv4 and IPv6 special-purpose
+  registries (blocks not globally reachable), multicast and everything
+  outside IPv6 global unicast from the address-space registries, NAT64
+  and 6to4 (which embed any IPv4 address), and the names `localhost`,
+  `local`, `home.arpa`, and `internal`, in one table in
+  `src/policy.temper.md`, with each block's RFC. IPv4-mapped addresses
+  are refused whole. A policy can't see DNS, so SSRF defenses still
+  need to check the address connected to.
+- **Path only** resolves the input against the base, and against the
+  base with another host: a path, query, or fragment keeps both hosts,
+  while `//evil.example`, `/\evil.example`, `\\evil.example`, and any
+  absolute URL don't, all decided on the parsed result.
 
 ## Design notes
 

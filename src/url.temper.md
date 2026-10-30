@@ -43,20 +43,36 @@ that doesn't parse still bubbles, since it's the caller's own.
       let log = new ErrorLog();
       let record: UrlRecord? = parseRecord(input, baseRecord, base != null, log) orelse null;
       let url: Url? = if (record == null) { null } else { urlOf(record) };
-      new UrlCheck(url, log.errors.toList())
+      new UrlCheck(url, log.errors.toList(), log.strict.toList())
     }
 
 What `checkUrl` found: the URL, or null, and the validation errors, in
 the order the parser noted them.
 
+`strictErrors` are the ones strict mode counts, in the same order: every
+validation error but `invalid-URL-unit` for a code point that a path,
+query, fragment, or opaque host keeps or escapes, as `a b`, `a|b`, or
+`?a[]=1`, which `href` holds unambiguously; and two of Hrefine's own,
+for hosts the standard reads without a validation error:
+`IPv4-non-canonical`, for an IPv4 address written any way but as its
+four decimal numbers (`127.1`, `0x7f.1`, `2130706433`, `%31%32%37.1`,
+or full-width digits), and `domain-percent-encoded`, for escapes in a
+domain (`%65vil.example`). `strictUrl` is the URL if there are none, or
+else null, for input as cautious parsers would take it. See the
+[plan](../docs/plan.md), "Strict mode", for why.
+
     export class UrlCheck {
       public url: Url?;
       public errors: List<ValidationError>;
+      public strictErrors: List<ValidationError>;
 
-      private constructor(url: Url?, errors: List<ValidationError>) {
+      private constructor(url: Url?, errors: List<ValidationError>, strictErrors: List<ValidationError>) {
         this.url = url;
         this.errors = errors;
+        this.strictErrors = strictErrors;
       }
+
+      public get strictUrl(): Url? { if (strictErrors.isEmpty) { url } else { null } }
     }
 
 A [validation error](https://url.spec.whatwg.org/#validation-error):
@@ -493,20 +509,42 @@ counted in the input after its tabs and newlines and leading controls
 are removed, then moved back past those, so they point into the input
 as given.
 
+Strict mode's errors go in `strict` too: all the standard's, but for
+code points a path, query, fragment, or opaque host keeps or escapes
+(`noteLenient`), and Hrefine's own few (`noteStrict`), which only it
+counts.
+
     class ErrorLog {
       public errors: ListBuilder<ValidationError> = new ListBuilder<ValidationError>();
+      public strict: ListBuilder<ValidationError> = new ListBuilder<ValidationError>();
       public removed: ListBuilder<Int> = new ListBuilder<Int>();
     }
 
     let noteAt(log: ErrorLog?, name: String, at: Int): Void {
       if (log != null) {
-        var position = at;
-        let removed = log.removed;
-        for (var k = 0; k < removed.length && removed[k] <= position; k += 1) {
-          position += 1;
-        }
-        log.errors.add(new ValidationError(name, position));
+        let error = new ValidationError(name, positionIn(log, at));
+        log.errors.add(error);
+        log.strict.add(error);
       }
+    }
+
+    let noteLenient(log: ErrorLog, name: String, at: Int): Void {
+      log.errors.add(new ValidationError(name, positionIn(log, at)));
+    }
+
+    let noteStrict(log: ErrorLog?, name: String, at: Int): Void {
+      if (log != null) {
+        log.strict.add(new ValidationError(name, positionIn(log, at)));
+      }
+    }
+
+    let positionIn(log: ErrorLog, at: Int): Int {
+      var position = at;
+      let removed = log.removed;
+      for (var k = 0; k < removed.length && removed[k] <= position; k += 1) {
+        position += 1;
+      }
+      position
     }
 
     let note(log: ErrorLog?, name: String, input: String, at: StringIndex): Void {
@@ -539,9 +577,9 @@ removed code point was, but for trailing ones, which nothing follows.
         end = input.prev(end);
       }
       if (count > 0) {
-        log.errors.add(new ValidationError("invalid-URL-unit", 0));
+        noteCleaned(log, 0);
       } else if (end < input.end) {
-        log.errors.add(new ValidationError("invalid-URL-unit", input.countBetween(String.begin, end)));
+        noteCleaned(log, input.countBetween(String.begin, end));
       }
       var tabAt = -1;
       for (var i = start; i < end; i = input.next(i)) {
@@ -555,8 +593,14 @@ removed code point was, but for trailing ones, which nothing follows.
         count += 1;
       }
       if (tabAt >= 0) {
-        log.errors.add(new ValidationError("invalid-URL-unit", tabAt));
+        noteCleaned(log, tabAt);
       }
+    }
+
+    let noteCleaned(log: ErrorLog, at: Int): Void {
+      let error = new ValidationError("invalid-URL-unit", at);
+      log.errors.add(error);
+      log.strict.add(error);
     }
 
 Code points that may be in a URL as they are, the standard's [URL code
@@ -596,10 +640,10 @@ code point they read. Only for a log.
         if (
           !input.hasIndex(second) || hexValue(input[first]) < 0 || hexValue(input[second]) < 0
         ) {
-          noteAt(log, "invalid-URL-unit", at);
+          noteLenient(log, "invalid-URL-unit", at);
         }
       } else if (!isUrlCode(c)) {
-        noteAt(log, "invalid-URL-unit", at);
+        noteLenient(log, "invalid-URL-unit", at);
       }
     }
 

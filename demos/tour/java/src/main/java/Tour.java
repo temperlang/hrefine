@@ -12,6 +12,8 @@ import static hrefine.HrefineGlobal.parseUrl;
 import hrefine.Host;
 import hrefine.HostKind;
 import hrefine.Url;
+import hrefine.UrlPolicy;
+import hrefine.PolicyCheck;
 import hrefine.UrlSearchParams;
 import hrefine.UrlCheck;
 import hrefine.ValidationError;
@@ -261,5 +263,53 @@ public final class Tour {
             String got = parsed == null ? "" : parsed.getHref();  // snippet: scoreboard
             System.out.println(input + " against " + base + ": " + (got.equals(href) ? "pass" : "fail"));  // snippet: scoreboard
         }  // snippet: scoreboard
+
+        section("9. Policies");
+
+        // A policy does the checks of section 6 in one call, on the parsed
+        // URL. Build it once, a rule at a time, and use it for every URL:
+        // https only, no credentials, no private, loopback, or other special
+        // addresses or names, and example.com or its subdomains.
+        UrlPolicy policy = UrlPolicy.any.withSchemes(List.of("https")).withCredentials(false)  // snippet: policy
+            .withSpecialHosts(false).withHosts(List.of("example.com"), true);  // snippet: policy
+        List<String> inputs = List.of(
+            "https://api.example.com/v1/items",
+            "http://example.com/",
+            "https://example.com@evil.example/",
+            "https://127.1/",
+            "https://[::ffff:127.0.0.1]/",
+            "https://localhost./",
+            "https://exаmple.com/"
+        );
+        for (String input : inputs) {  // snippet: policy
+            PolicyCheck result = policy.check(input);  // snippet: policy
+            if (result.getUrl() != null) {  // snippet: policy
+                System.out.println(input + ": fetch " + result.getUrl().getHref());  // snippet: policy
+            } else {  // snippet: policy
+                System.out.println(input + ": refuse, " + result.toString());  // snippet: policy
+            }  // snippet: policy
+        }  // snippet: policy
+
+        // Strict mode refuses what the standard accepts but notes as an
+        // error, as cautious parsers do: backslashes, tabs, odd IPv4 forms,
+        // and the like. withStrict(true) adds it to a policy.
+        for (String input : List.of("https://example.com/a b", "http://0x7f.1/", "https://example.com\\a", " https://example.com/")) {
+            UrlCheck check = checkUrl(input);
+            Url strictUrl = check.getStrictUrl();
+            if (strictUrl != null) {
+                System.out.println("strict " + shown(input) + ": " + strictUrl.getHref());
+            } else {
+                String errors = check.getStrictErrors().stream().map(ValidationError::toString).collect(Collectors.joining(", "));
+                System.out.println("strict " + shown(input) + ": refuse, " + errors);
+            }
+        }
+
+        // Redirect targets: withPathOnly takes only a path, query, or
+        // fragment on the base, never another host, however it's written.
+        UrlPolicy redirects = UrlPolicy.any.withBase(site).withPathOnly(true);
+        for (String target : List.of("/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/")) {
+            PolicyCheck result = redirects.check(target);
+            System.out.println("next=" + shown(target) + ": " + (result.getUrl() != null ? "redirect to " + result.getUrl().getHref() : "refuse, " + result.toString()));
+        }
     }
 }

@@ -96,3 +96,21 @@ http:\\foo.com\ against http://example.org/foo/bar: pass
 ../aaa/test.txt against http://www.example.com/test: pass
 http://999999999 against http://other.com/: pass
 http://192.168.0.257 against http://other.com/: pass
+
+## 9. Policies
+https://api.example.com/v1/items: fetch https://api.example.com/v1/items
+http://example.com/: refuse, scheme: http
+https://example.com@evil.example/: refuse, credentials: user example.com
+https://127.1/: refuse, specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8
+https://[::ffff:127.0.0.1]/: refuse, specialHost: [::ffff:7f00:1] is IPv4-mapped (RFC 4291), in ::ffff:0:0/96
+https://localhost./: refuse, specialHost: localhost. is loopback (RFC 6761)
+https://exаmple.com/: refuse, host: xn--exmple-4nf.com
+strict https://example.com/a b: https://example.com/a%20b
+strict http://0x7f.1/: refuse, IPv4-non-decimal-part at 7, IPv4-non-canonical at 7
+strict https://example.com\a: refuse, invalid-reverse-solidus at 19
+strict  https://example.com/: refuse, invalid-URL-unit at 0
+next=/account?tab=2: redirect to https://example.com/account?tab=2
+next=//evil.example/: refuse, pathOnly: not just a path, query, or fragment
+next=/\evil.example: refuse, pathOnly: not just a path, query, or fragment
+next=/\t/evil.example: refuse, pathOnly: not just a path, query, or fragment
+next=https://example.com/: refuse, pathOnly: not just a path, query, or fragment

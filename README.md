@@ -14,7 +14,10 @@ browsers' own test cases.
 
 Parsing and serializing work on every backend, international domain
 names included, and so do the standard's setters and search parameters
-(`URLSearchParams`). See the [plan](docs/plan.md) for what's next.
+(`URLSearchParams`), a strict mode, and policies: the usual security
+checks (schemes, credentials, private and loopback addresses, host
+allowlists, and redirect targets) in one call, on the parsed URL. See
+the [plan](docs/plan.md) for what's next.
 
 ## Examples
 
@@ -64,6 +67,15 @@ params.append("lang", "en US");
 params.set("q", "2");
 moved.withSearchParams(params).search; // "?q=2&lang=en+US"
 UrlSearchParams.fromEntries([new Pair("q", "a b")]).toString(); // "q=a+b"
+
+// Strict mode: no validation errors, as cautious parsers take URLs.
+(checkUrl("http://0x7f.1/") orelse panic()).strictUrl; // null: IPv4-non-decimal-part, IPv4-non-canonical
+
+// Policies: built once, a rule at a time, then checked against many URLs.
+let policy = UrlPolicy.any.withSchemes(["https"]).withCredentials(false)
+  .withSpecialHosts(false).withHosts(["example.com"], true);
+policy.check("https://api.example.com/").url;  // the URL
+policy.check("https://127.1/").toString(); // "specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8"
 ```
 
 The [tour](demos/README.md) shows the same in each language, with
@@ -81,6 +93,13 @@ identical output.
   code points. Where parsing fails, the last error says why. Most
   errors don't stop a URL from parsing, as browsers accept it. Parsing
   notes errors only when asked, so `parseUrl` is no slower for them.
+  For strict mode, `strictErrors` are the ones it counts, and
+  `strictUrl` is the URL only if there are none: every error but
+  `invalid-URL-unit` for a code point a path, query, fragment, or opaque
+  host keeps or escapes (such as a space, `|`, or `[`), and two of
+  Hrefine's own, `IPv4-non-canonical` (`127.1`, `0x7f.1`, `2130706433`)
+  and `domain-percent-encoded` (`%65vil.example`), which the standard
+  doesn't count as errors (see the [plan](docs/plan.md), "Strict mode").
 - `Url`: the standard's getters, each a string, as in JavaScript:
   `href`, `origin`, `protocol`, `username`, `password`, `host`,
   `hostname`, `port`, `pathname`, `search`, and `hash`. Typed parts
@@ -123,6 +142,22 @@ identical output.
   `entries()` (Temper `Pair`s, as each language's own pairs), `keys()`,
   and `values()` list it; and `toString()` gives the query, as
   `q=a+b&page=2`.
+- `UrlPolicy`: a policy, built once and checked against many URLs,
+  starting from `UrlPolicy.any` (no rules), each `with` method giving a
+  new policy with one more rule: `withStrict(true)`,
+  `withMaxLength(n)` (of the input and `href`), `withBase(url)` (for
+  relative input), `withSchemes(list)`, `withCredentials(false)`,
+  `withIpHosts(false)`, `withSpecialHosts(false)` (no private, loopback,
+  link-local, multicast, IPv4-mapped, or other special addresses, by
+  IANA's registries, nor `localhost` and the like, or an empty host),
+  `withHosts(list, subdomains)` (an allowlist, compared on the parsed
+  host), `withSameOrigin(url)`, and `withPathOnly(true)` (only a path,
+  query, or fragment on the base, for redirect targets).
+  `policy.check(input)` gives a `PolicyCheck`, with the `url` if it
+  passed, or the first `rule` it failed (a `PolicyRule`, such as
+  `PolicyRule.specialHost`) and a `reason`; it never bubbles. See
+  [policy](src/policy.temper.md) for each rule and the table of special
+  addresses.
 - `parseHost(input)`: checks a host, as in `https://input/`, giving a
   `Host` with its `kind` and `serialized` form, or bubbles.
 - `domainToAscii(domain)` and `domainToUnicode(domain)`: the standard's
@@ -171,6 +206,23 @@ let next = site.tryResolve(param);
 if (next != null && next.sameOrigin(site)) { redirectTo(next.href) }
 ```
 
+Or let a policy do it all in one call, built once, with the rules
+people tend to miss by hand: no credentials (`good.example@evil.example`),
+and no private or loopback addresses however they're written (`127.1`,
+`[::ffff:127.0.0.1]`, `localhost.`):
+
+```temper
+let fetchPolicy = UrlPolicy.any.withSchemes(["https"]).withCredentials(false)
+  .withSpecialHosts(false).withHosts(["example.com"], true);
+let checked = fetchPolicy.check(input);
+if (checked.url != null) { fetchUrl(checked.url.href) } else { log(checked.toString()) }
+
+let redirects = UrlPolicy.any.withBase(site).withPathOnly(true);
+```
+
+A policy can't see where DNS sends a name, so against SSRF, also check
+the address your client connects to, and check or turn off redirects.
+
 `href` is the standard's canonical form: backslashes become slashes,
 tabs and newlines are gone, hosts are lowercased and in ASCII (`127.1`
 becomes `127.0.0.1`, international names become Punycode), and dot
@@ -215,6 +267,11 @@ own URL cases, the ones browsers are checked against, vendored in
   escape them, ported by hand into [strict](src/strict.temper.md)'s
   tests. Only the UTF-8 answers apply; the rest are for pages in legacy
   encodings, which the `URL` API never uses.
+
+[Policy](src/policy.temper.md)'s tests try every rule and strict mode
+on the classic bypasses (`127.1`, `0x7f.1`, `[::ffff:127.0.0.1]`,
+`2130706433`, `localhost.`, user info, backslashes and tabs, and IDNA
+look-alikes), and on the site's recorded inputs.
 
 Each URL from `urltestdata.json` and `setters_tests.json` also checks
 `strictHref`: it must be RFC 3986, by the grammar, and parse back to the
@@ -343,8 +400,8 @@ overrides; they aren't measured yet.
 See the [plan](docs/plan.md) for details.
 
 - **Done:** parsing and serializing, international domain names (IDNA),
-  setters and search parameters, the strict RFC 3986 form, the tours,
-  and the site.
+  setters and search parameters, the strict RFC 3986 form, strict mode
+  and policies, the tours, and the site.
 - **Next:** the rest of the plan's step 5: display formatting,
   comparison, and the lossless source view.
 - **Before 1.0:** trademark checks, dropping the `orelse` workaround

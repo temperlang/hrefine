@@ -59,6 +59,12 @@ const SPOTS = [
     target: () => find(".cards .card"),
   },
   {
+    id: "policy",
+    title: "A policy, in one call",
+    about: "Build a `UrlPolicy` once from `UrlPolicy.any`, adding a rule per `with` method, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are loopback too.",
+    target: () => find(".fix .policy-step"),
+  },
+  {
     id: "proof",
     title: "href and strictHref",
     about: "`href` is the standard's canonical form, which other parsers read alike. `strictHref` also escapes what RFC 3986 doesn't allow, for strict parsers such as Java's URI.",
@@ -73,7 +79,7 @@ const SPOTS = [
 ];
 
 // Properties, which some languages read with getters.
-const PROPERTIES = new Set(["href", "strictHref", "hostname", "scheme", "portNumber", "hostKind"]);
+const PROPERTIES = new Set(["href", "strictHref", "hostname", "scheme", "portNumber", "hostKind", "url"]);
 
 /**
  * A Hrefine name, like `Url.parse` or `hostKind`, as `file`'s language

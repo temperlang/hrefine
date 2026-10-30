@@ -173,6 +173,7 @@
         <ul class="steps">
           <li><strong>Parse once,</strong> with <code>Url.parse</code>, which gives null for anything that isn't a URL.</li>
           <li><strong>Check the parsed parts:</strong> <code>scheme</code>, <code>hostKind</code> (a name, or an address however it's written), and <code>hostname</code>.</li>
+          <li class="policy-step"><strong>Or use a policy,</strong> built once: <code>UrlPolicy</code>'s one <code>check</code> covers the scheme, credentials, private and loopback addresses however they're written, a host allowlist, redirect targets, and strict parsing, and says which rule failed.</li>
           <li><strong>Hand on <code>href</code>,</strong> the standard's canonical form: no backslashes, tabs, or odd address forms left to disagree on. For clients that follow RFC 3986 strictly, such as Java's <code>URI</code>, hand on <code>strictHref</code>.</li>
           <li><strong>Check redirects too,</strong> or turn them off. For a <code>next</code> parameter, resolve it against your own site and check <code>sameOrigin</code>.</li>
         </ul>
