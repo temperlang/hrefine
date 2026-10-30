@@ -1,0 +1,90 @@
+{
+  "_comment": "The page's opening URL and trick gallery. site/record/record.py records other parsers' answers for these inputs into site/recorded.json; site/build.py renders them. The explanations are HTML.",
+  "hero": [
+    {
+      "input": "https://example.com\\@evil.example/"
+    }
+  ],
+  "cards": [
+    {
+      "id": "short-ipv4",
+      "title": "Short addresses",
+      "input": "http://127.1/",
+      "explain": "Browsers read IPv4 addresses with missing parts, as the old <code>inet_aton</code> did, so <code>127.1</code> is <code>127.0.0.1</code>. A parser that keeps the text lets it past a blocklist of <code>127.0.0.1</code>, and the system's resolver usually connects to loopback anyway."
+    },
+    {
+      "id": "hex-ipv4",
+      "title": "Hex addresses",
+      "input": "http://0x7f.1/",
+      "explain": "Parts in hex (or octal, with a leading 0) are numbers too. A check that looks for internal addresses as text misses them; Hrefine says the host is an IPv4 address, whatever it looks like."
+    },
+    {
+      "id": "decimal-ipv4",
+      "title": "One big number",
+      "input": "http://2130706433/",
+      "explain": "A whole address as one decimal number, 127 × 2²⁴ + 1. Python, Java, and Go keep it as text, and the browser reads loopback."
+    },
+    {
+      "id": "backslashes",
+      "title": "Backslashes",
+      "input": "https:\\\\evil.example\\path",
+      "explain": "Browsers treat <code>\\</code> as <code>/</code> in http and https URLs. Python and Go find no host here at all, so a host check has nothing to stop, and the browser goes to <code>evil.example</code>."
+    },
+    {
+      "id": "slash-backslash",
+      "title": "Open redirects",
+      "input": "/\\evil.example",
+      "base": "https://good.example/",
+      "explain": "A server checks that a <code>next</code> parameter is a path on its own site, and Python, Java's <code>URL</code>, C#, Go, and curl all say it is. The browser, resolving it against the page, goes to <code>evil.example</code>."
+    },
+    {
+      "id": "at-sign",
+      "title": "Who's the host?",
+      "input": "https://good.example@evil.example/",
+      "explain": "Everything before <code>@</code> is a user name, so the host is <code>evil.example</code>. Parsers agree; the trap is people, and checks like <code>startsWith(\"https://good.example\")</code>."
+    },
+    {
+      "id": "hash-at",
+      "title": "Fragments with @",
+      "input": "https://evil.example#@good.example/",
+      "explain": "Everything after <code>#</code> is the fragment, so the host is <code>evil.example</code>. Parsers agree; a check that takes the text after the last <code>@</code> reads <code>good.example</code>."
+    },
+    {
+      "id": "tab-host",
+      "title": "Tabs and newlines",
+      "input": "https://good.example\t.evil.example/",
+      "explain": "Browsers drop tabs and newlines anywhere in a URL, so this host ends in <code>.evil.example</code>. Strict parsers refuse it, which is safe only if nothing downstream reads it the browser's way."
+    },
+    {
+      "id": "javascript",
+      "title": "javascript:, hidden",
+      "input": "java\tscript:alert(1)",
+      "explain": "A filter looking for <code>javascript:</code> misses it, but browsers drop the tab and run the script. Check the parsed scheme, never the text."
+    },
+    {
+      "id": "look-alike",
+      "title": "Look-alike letters",
+      "input": "https://аpple.com/",
+      "explain": "The first letter is Cyrillic <code>а</code>, so browsers send <code>xn--pple-43d.com</code>, which isn't <code>apple.com</code>. Some parsers keep the Unicode, so a check and a request can see different names. This is the long-known IDN homograph trick."
+    },
+    {
+      "id": "ideographic-dot",
+      "title": "Dots that aren't dots",
+      "input": "https://good.example。evil.example/",
+      "explain": "Browsers read the ideographic full stop <code>。</code> as a dot, so this is a name under <code>evil.example</code>. Parsers without IDNA see one odd label, and a check for names ending in <code>.evil.example</code> misses it."
+    },
+    {
+      "id": "protocol-relative",
+      "title": "Protocol-relative",
+      "input": "//evil.example/",
+      "base": "https://good.example/",
+      "explain": "It starts with <code>/</code>, so it looks like a path on your own site, but <code>//</code> starts a host. Every parser agrees; the trap is checks like <code>startsWith(\"/\")</code>."
+    },
+    {
+      "id": "extra-slashes",
+      "title": "Too many slashes",
+      "input": "https:///evil.example/",
+      "explain": "Browsers and curl skip extra slashes and find <code>evil.example</code>. Python, Java, and Go see no host, and C# refuses it."
+    }
+  ]
+}

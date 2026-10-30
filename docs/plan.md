@@ -90,6 +90,16 @@ site that makes the point.
    strict form) fed to the same parsers agrees. Visit counts by
    cookieless GoatCounter, site code `hrefine`, as on Chromarite's and
    Ordable's sites.
+   *Started* (2026-10-30): `site/`, led by the security angle (the user,
+   2026-10-29): one URL and each parser's host, then the live tester,
+   13 gallery cards, the fix from the tours, the proof, and the tours.
+   `site/record/record.py` records Python, Java (`URI` and `URL`), C#,
+   Go, libcurl, and Node, and Hrefine's JS and Python builds, which must
+   agree. Given Hrefine's `href`, every recorded parser reads every
+   gallery URL's host as browsers do (Java's `URL` and curl refuse
+   `javascript:`). Not yet: PHP (no binary here), a minified bundle
+   (Ordable uses esbuild, which needs approval here), deployment, and
+   the strict form, which waits on step 5.
 7. **Refine the API,** before 1.0. The name, Hrefine, was picked
    2026-10-29, after checking package registries and a web search for
    companies and trademarks; check USPTO and EUIPO before 1.0.

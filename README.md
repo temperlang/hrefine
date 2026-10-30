@@ -144,6 +144,40 @@ own URL cases, the ones browsers are checked against, vendored in
   out. The tests and the IDNA tables are both for Unicode 18.0.
 - `setters_tests.json` and `percent-encoding.json`, for later steps.
 
+## Site
+
+[The site](site/) shows the problem and the fix in one page: one URL that
+other languages' parsers read as different hosts, a tester that parses
+whatever you type live with Hrefine's JavaScript build (beside your
+browser's own `URL`), a gallery of tricks (short and hex IPv4 forms,
+backslashes, `@` and `#@`, tabs, look-alike Unicode, `javascript:`, and
+protocol-relative URLs), and the fix in each language, taken from the
+tours.
+
+Other parsers can't run in a browser, so their answers for the gallery's
+URLs are recorded ahead of time, with their versions and the date:
+Python's `urllib.parse`, Java's `URI` and `URL`, .NET's `Uri`, Go's
+`net/url`, libcurl's URL API, and Node's `URL`, standing in for browsers.
+`site/record/record.py` runs each one that's installed on the inputs in
+`site/gallery.json`, then on Hrefine's `href` for each, and writes
+`site/recorded.json`, which is checked in. Re-record after changing the
+gallery, or to update the versions:
+
+    temper build -b js -b py
+    uv run site/record/record.py
+
+Build the site, with no tools beyond Temper and Python, and preview it:
+
+    temper build -b js
+    uv run site/build.py
+    python3 -m http.server --bind 127.0.0.1 -d site/build
+
+The build copies the JS library and Temper's runtime as plain ES modules
+(no bundler, so about 55 KB gzipped), renders the opening and the gallery
+from the recorded answers, and takes the fix's code from each tour's
+"Using it safely" section, failing if it can't find it. Visits are counted
+by cookieless GoatCounter, site code `hrefine`.
+
 ## Languages
 
 Made in Temper, it will support these languages, and its tests run on

@@ -1,0 +1,1587 @@
+{
+ "date": "2026-10-30",
+ "platform": "Linux x86_64",
+ "parsers": [
+  {
+   "id": "browser",
+   "name": "Browsers (Node's URL)",
+   "calls": "new URL(input, base)",
+   "version": "Node v24.22.1"
+  },
+  {
+   "id": "python",
+   "name": "Python urllib",
+   "calls": "urllib.parse.urlsplit",
+   "version": "Python 3.12.3"
+  },
+  {
+   "id": "java-uri",
+   "name": "Java URI",
+   "calls": "java.net.URI",
+   "version": "Eclipse Adoptium 21.0.4+7-LTS"
+  },
+  {
+   "id": "java-url",
+   "name": "Java URL",
+   "calls": "java.net.URL",
+   "version": "Eclipse Adoptium 21.0.4+7-LTS"
+  },
+  {
+   "id": "csharp",
+   "name": "C# Uri",
+   "calls": "System.Uri",
+   "version": ".NET 6.0.10"
+  },
+  {
+   "id": "go",
+   "name": "Go net/url",
+   "calls": "url.Parse",
+   "version": "go1.21.0"
+  },
+  {
+   "id": "curl",
+   "name": "curl",
+   "calls": "libcurl curl_url",
+   "version": "libcurl 8.5.0"
+  }
+ ],
+ "missing": [],
+ "hrefine": "Hrefine's JavaScript build, in Node v24.22.1, and its Python build, which agrees",
+ "results": [
+  {
+   "input": "https://example.com\\@evil.example/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://example.com\\@evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://example.com\\@evil.example/"
+    },
+    "java-uri": {
+     "ok": false,
+     "error": "URISyntaxException: Illegal character in authority at index 19: https://example.com\\@evil.example/"
+    },
+    "java-url": {
+     "ok": false,
+     "error": "MalformedURLException: Illegal character found in user-info: '\\'"
+    },
+    "csharp": {
+     "ok": false,
+     "error": "UriFormatException: Invalid URI: The hostname could not be parsed."
+    },
+    "go": {
+     "ok": false,
+     "error": "parse \"https://example.com\\\\@evil.example/\": net/url: invalid userinfo"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/",
+     "hostKind": "domain",
+     "errors": [
+      "invalid-reverse-solidus at 19"
+     ]
+    }
+   }
+  },
+  {
+   "input": "http://127.1/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.1",
+     "href": "http://127.1/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "http",
+     "host": null,
+     "href": "http://127.1/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.1",
+     "href": "http://127.1/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.1",
+     "href": "http://127.1/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/",
+     "hostKind": "ipv4",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "http://0x7f.1/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "http",
+     "host": "0x7f.1",
+     "href": "http://0x7f.1/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "http",
+     "host": null,
+     "href": "http://0x7f.1/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "http",
+     "host": "0x7f.1",
+     "href": "http://0x7f.1/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "http",
+     "host": "0x7f.1",
+     "href": "http://0x7f.1/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/",
+     "hostKind": "ipv4",
+     "errors": [
+      "IPv4-non-decimal-part at 7"
+     ]
+    }
+   }
+  },
+  {
+   "input": "http://2130706433/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "http",
+     "host": "2130706433",
+     "href": "http://2130706433/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "http",
+     "host": "2130706433",
+     "href": "http://2130706433/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "http",
+     "host": "2130706433",
+     "href": "http://2130706433/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "http",
+     "host": "2130706433",
+     "href": "http://2130706433/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/",
+     "hostKind": "ipv4",
+     "errors": [
+      "IPv4-out-of-range-part at 7"
+     ]
+    }
+   }
+  },
+  {
+   "input": "https:\\\\evil.example\\path",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": null,
+     "href": "https:///\\\\evil.example\\path"
+    },
+    "curl": {
+     "ok": false,
+     "error": "Unsupported number of slashes following scheme"
+    },
+    "java-uri": {
+     "ok": false,
+     "error": "URISyntaxException: Illegal character in opaque part at index 6: https:\\\\evil.example\\path"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "",
+     "href": "https:\\\\evil.example\\path"
+    },
+    "csharp": {
+     "ok": false,
+     "error": "UriFormatException: Invalid URI: The hostname could not be parsed."
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "href": "https:\\\\evil.example\\path"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path",
+     "hostKind": "domain",
+     "errors": [
+      "special-scheme-missing-following-solidus at 6",
+      "special-scheme-missing-following-solidus at 6",
+      "special-scheme-missing-following-solidus at 7",
+      "invalid-reverse-solidus at 20"
+     ]
+    }
+   }
+  },
+  {
+   "input": "/\\evil.example",
+   "base": "https://good.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example",
+     "href": "https://good.example/\\evil.example"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example",
+     "href": "https://good.example/\\evil.example"
+    },
+    "java-uri": {
+     "ok": false,
+     "error": "URISyntaxException: Illegal character in path at index 1: /\\evil.example"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example",
+     "href": "https://good.example/\\evil.example"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example",
+     "href": "https://good.example//evil.example"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example",
+     "href": "https://good.example/%5Cevil.example"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/",
+     "hostKind": "domain",
+     "errors": [
+      "invalid-reverse-solidus at 1"
+     ]
+    }
+   }
+  },
+  {
+   "input": "https://good.example@evil.example/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/",
+     "hostKind": "domain",
+     "errors": [
+      "invalid-credentials at 20"
+     ]
+    }
+   }
+  },
+  {
+   "input": "https://evil.example#@good.example/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example#@good.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example#@good.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example#@good.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example#@good.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://good.example\t.evil.example/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "curl": {
+     "ok": false,
+     "error": "Malformed input to a URL function"
+    },
+    "java-uri": {
+     "ok": false,
+     "error": "URISyntaxException: Illegal character in authority at index 20: https://good.example\t.evil.example/"
+    },
+    "java-url": {
+     "ok": false,
+     "error": "MalformedURLException: Illegal character found in host: control char (code=9)"
+    },
+    "csharp": {
+     "ok": false,
+     "error": "UriFormatException: Invalid URI: The hostname could not be parsed."
+    },
+    "go": {
+     "ok": false,
+     "error": "parse \"https://good.example\\t.evil.example/\": net/url: invalid control character in URL"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/",
+     "hostKind": "domain",
+     "errors": [
+      "invalid-URL-unit at 20"
+     ]
+    }
+   }
+  },
+  {
+   "input": "java\tscript:alert(1)",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)"
+    },
+    "curl": {
+     "ok": false,
+     "error": "Malformed input to a URL function"
+    },
+    "java-uri": {
+     "ok": false,
+     "error": "URISyntaxException: Illegal character in scheme name at index 4: java\tscript:alert(1)"
+    },
+    "java-url": {
+     "ok": false,
+     "error": "MalformedURLException: no protocol: java\tscript:alert(1)"
+    },
+    "csharp": {
+     "ok": false,
+     "error": "UriFormatException: Invalid URI: The URI scheme is not valid."
+    },
+    "go": {
+     "ok": false,
+     "error": "parse \"java\\tscript:alert(1)\": net/url: invalid control character in URL"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)",
+     "hostKind": null,
+     "errors": [
+      "invalid-URL-unit at 4"
+     ]
+    }
+   }
+  },
+  {
+   "input": "https://аpple.com/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "аpple.com",
+     "href": "https://аpple.com/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "аpple.com",
+     "href": "https://аpple.com/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": null,
+     "href": "https://аpple.com/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "аpple.com",
+     "href": "https://аpple.com/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://аpple.com/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "аpple.com",
+     "href": "https://%D0%B0pple.com/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://good.example。evil.example/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example。evil.example",
+     "href": "https://good.example。evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example。evil.example",
+     "href": "https://good.example。evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": null,
+     "href": "https://good.example。evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example。evil.example",
+     "href": "https://good.example。evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example。evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example。evil.example",
+     "href": "https://good.example%E3%80%82evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "//evil.example/",
+   "base": "https://good.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https:///evil.example/",
+   "base": null,
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": null,
+     "href": "https:///evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": null,
+     "href": "https:///evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "",
+     "href": "https:/evil.example/"
+    },
+    "csharp": {
+     "ok": false,
+     "error": "UriFormatException: Invalid URI: The hostname could not be parsed."
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "",
+     "href": "https:///evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/",
+     "hostKind": "domain",
+     "errors": [
+      "special-scheme-missing-following-solidus at 8"
+     ]
+    }
+   }
+  }
+ ],
+ "hrefs": [
+  {
+   "input": "https://example.com/@evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "example.com",
+     "href": "https://example.com/@evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "http://127.0.0.1/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/",
+     "hostKind": "ipv4",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "http://127.0.0.1/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/",
+     "hostKind": "ipv4",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "http://127.0.0.1/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "http",
+     "host": "127.0.0.1",
+     "href": "http://127.0.0.1/",
+     "hostKind": "ipv4",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://evil.example/path",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/path",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://good.example@evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://good.example@evil.example/",
+     "hostKind": "domain",
+     "errors": [
+      "invalid-credentials at 20"
+     ]
+    }
+   }
+  },
+  {
+   "input": "https://evil.example/#@good.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/#@good.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://good.example.evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "javascript:alert(1)",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)"
+    },
+    "curl": {
+     "ok": false,
+     "error": "Unsupported number of slashes following scheme"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)"
+    },
+    "java-url": {
+     "ok": false,
+     "error": "MalformedURLException: unknown protocol: javascript"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "javascript",
+     "href": "javascript:alert(1)"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "javascript",
+     "host": null,
+     "href": "javascript:alert(1)",
+     "hostKind": null,
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://xn--pple-43d.com/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "xn--pple-43d.com",
+     "href": "https://xn--pple-43d.com/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://good.example.evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "good.example.evil.example",
+     "href": "https://good.example.evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  },
+  {
+   "input": "https://evil.example/",
+   "answers": {
+    "python": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "curl": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-uri": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "java-url": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "csharp": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "go": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "browser": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/"
+    },
+    "hrefine": {
+     "ok": true,
+     "scheme": "https",
+     "host": "evil.example",
+     "href": "https://evil.example/",
+     "hostKind": "domain",
+     "errors": []
+    }
+   }
+  }
+ ]
+}

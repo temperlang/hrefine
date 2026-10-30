@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hrefine: one URL, one host, every language</title>
+  <meta name="description" content="Parses URLs exactly as browsers do, by the WHATWG URL Standard, with the same answers in C++, C#, Java, JavaScript, Lua, Python, and Rust. Every web-platform-tests case passes in all seven.">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "hrefine": "./lib/hrefine/index.js",
+        "@temperlang/core": "./lib/temper-core/index.js"
+      }
+    }
+  </script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#try">Skip to the URL tester</a>
+  <header class="top">
+    <div class="wrap bar">
+      <p class="brand"><a href="#">Hrefine</a></p>
+      <nav aria-label="Sections">
+        <a href="#try">Try it</a>
+        <a href="#tricks">Tricks</a>
+        <a href="#fix">The fix</a>
+        <a href="#proof">Proof</a>
+        <a href="https://github.com/temperlang/hrefine">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="opening" aria-labelledby="question">
+    <div class="wrap">
+      <p class="slogan">
+        <strong>Muscle memory for AI.</strong>
+        <span>Solve it once in Temper, and every language remembers.</span>
+      </p>
+      <h1 id="question">What host is this URL for?</h1>
+      <!--HERO-->
+      <p class="punch">If your server checks one answer and fetches another, an attacker picks which one.</p>
+      <p class="lead">
+        Hrefine reads URLs exactly as browsers do, by the
+        <a href="https://url.spec.whatwg.org/">WHATWG URL Standard</a>, with
+        the same answers in C++, C#, Java, JavaScript, Lua, Python, and Rust.
+        <span class="proof-point">Every
+        <a href="#proof">web-platform-tests case passes in all seven</a>.</span>
+      </p>
+    </div>
+  </section>
+
+  <main>
+    <section id="try" class="try-it" aria-labelledby="try-title">
+      <div class="wrap">
+        <h2 id="try-title">Try to break it</h2>
+        <p>
+          Type any URL. Hrefine parses it live in this page, with the same
+          JavaScript build its tests run on, and your browser's own
+          <code>URL</code> parses it beside it.
+        </p>
+        <div class="examples" id="examples" role="group" aria-label="Tricky examples"></div>
+        <div class="fields">
+          <div class="field">
+            <label for="url-input">URL</label>
+            <input id="url-input" type="text" spellcheck="false" autocapitalize="off" autocomplete="off"
+                   inputmode="url" value="https://example.com\@evil.example/">
+          </div>
+          <div class="field base-field">
+            <label for="base-input">Base, for relative URLs <span class="optional">(optional)</span></label>
+            <input id="base-input" type="text" spellcheck="false" autocapitalize="off" autocomplete="off"
+                   inputmode="url" placeholder="https://good.example/">
+          </div>
+        </div>
+        <p class="insert">
+          <button type="button" class="small" data-insert="&#9;">Insert a tab <span aria-hidden="true">␉</span></button>
+          <button type="button" class="small" data-insert="&#10;">Insert a newline <span aria-hidden="true">␊</span></button>
+          <span class="hint">These fields can't hold tabs or newlines, so <code>␉</code> and <code>␊</code> stand in for them; elsewhere they show as <span class="ctl">\t</span> and <span class="ctl">\n</span>.</span>
+        </p>
+
+        <div class="verdicts" aria-live="polite">
+          <div class="verdict-box" id="hrefine-verdict">
+            <p class="who">Hrefine <span class="live">live</span></p>
+            <p class="what" id="hrefine-what"></p>
+          </div>
+          <div class="verdict-box" id="browser-verdict">
+            <p class="who">Your browser's <code>URL</code> <span class="live">live</span></p>
+            <p class="what" id="browser-what"></p>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <h3>Parts</h3>
+            <div class="table-scroll" tabindex="0">
+              <table class="parts" id="parts">
+                <thead><tr><th scope="col">Part</th><th scope="col">Hrefine</th><th scope="col">Your browser</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3>What's wrong with it</h3>
+            <p class="small-note">
+              <code>checkUrl</code> gives the standard's validation errors,
+              each with where it is, in code points. Browsers accept most
+              of these URLs anyway; the last error, if parsing fails, says
+              why.
+            </p>
+            <p class="marked" id="marked"></p>
+            <ol class="errors" id="errors"></ol>
+          </div>
+        </div>
+
+        <div class="recorded" id="recorded">
+          <h3>Other parsers</h3>
+          <p class="limit" id="recorded-note">
+            Other languages' parsers can't run in your browser. For the
+            gallery's URLs below, this page shows their answers, recorded
+            ahead of time. For anything else, only Hrefine and your browser
+            run live.
+          </p>
+          <div id="recorded-table"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tricks" class="tricks" aria-labelledby="tricks-title">
+      <div class="wrap">
+        <h2 id="tricks-title">The trick gallery</h2>
+        <p>
+          Each of these reads one way to a browser and another to some
+          parser on a server. Differences like these are a known source of
+          server-side request forgery (SSRF), open redirects, and allowlist
+          bypasses, shown at length in Orange Tsai's well-known 2017 talk,
+          “A New Era of SSRF,” on URL parsers in popular languages. Answers recorded <!--RECORDED_DATE-->; see
+          <a href="#versions">versions</a>.
+        </p>
+        <p class="legend">
+          <span class="key same"><span aria-hidden="true">✓</span> same as the browser</span>
+          <span class="key differs"><span aria-hidden="true">✗</span> differs from the browser</span>
+          <span class="key rejects"><span aria-hidden="true">–</span> rejects it</span>
+        </p>
+        <div class="cards">
+<!--CARDS-->
+        </div>
+      </div>
+    </section>
+
+    <section id="fix" class="fix" aria-labelledby="fix-title">
+      <div class="wrap">
+        <h2 id="fix-title">The fix: decide with Hrefine, hand on <code>href</code></h2>
+        <p>
+          Hrefine doesn't change how your HTTP client reads URLs. So check
+          the URL Hrefine parsed, then pass on its <code>href</code>, never
+          the original string:
+        </p>
+        <ul class="steps">
+          <li><strong>Parse once,</strong> with <code>Url.parse</code>, which gives null for anything that isn't a URL.</li>
+          <li><strong>Check the parsed parts:</strong> <code>scheme</code>, <code>hostKind</code> (a name, or an address however it's written), and <code>hostname</code>.</li>
+          <li><strong>Hand on <code>href</code>,</strong> the standard's canonical form: no backslashes, tabs, or odd address forms left to disagree on.</li>
+          <li><strong>Check redirects too,</strong> or turn them off. For a <code>next</code> parameter, resolve it against your own site and check <code>sameOrigin</code>.</li>
+        </ul>
+        <div class="tabs" role="tablist" aria-label="Language" data-tabs="fix"></div>
+        <p class="code-from">From the <span class="lang-name">Python</span> tour's “Using it safely” section, which CI runs in every language.</p>
+<!--FIXES-->
+        <h3>Given <code>href</code>, the parsers agree</h3>
+        <p>
+          The same parsers, given each gallery URL as typed and then given
+          Hrefine's <code>href</code> for it: how often each reads the same
+          host as the browser.
+        </p>
+<!--HREF_PROOF-->
+        <p class="small-note">
+          Java's <code>URL</code> and curl refuse <code>javascript:</code>,
+          a scheme they don't fetch, which is fine. Java's <code>URI</code>
+          follows RFC 3986, which rejects a few characters <code>href</code>
+          leaves as they are (such as <code>|</code> and <code>^</code>);
+          none of the gallery's URLs has one.
+        </p>
+      </div>
+    </section>
+
+    <section id="proof" class="proof" aria-labelledby="proof-title">
+      <div class="wrap">
+        <h2 id="proof-title">Same tests. Same answers. Every language.</h2>
+        <p>
+          Hrefine is written once, in <a href="https://temperlang.dev/">Temper</a>,
+          which turns it into a natural library for C++, C#, Java,
+          JavaScript, Lua, Python, and Rust. Its tests are the ones browsers
+          are checked against,
+          <a href="https://github.com/web-platform-tests/wpt/tree/master/url">web-platform-tests</a>,
+          and every case passes in all seven languages, in CI on every change:
+        </p>
+        <ul class="numbers">
+          <li><strong>896</strong> URLs, with and without bases, each with every part it must parse to, or a failure (<code>urltestdata.json</code>).</li>
+          <li><strong>2,760</strong> of 2,762 international domain names (<code>toascii.json</code> and <code>IdnaTestV2.json</code>). The other 2 need unpaired surrogates, which Temper strings can't hold, so they're left out.</li>
+        </ul>
+        <p>
+          <a href="https://github.com/temperlang/hrefine/tree/main/tests/wpt">The vendored tests</a>,
+          and <a href="https://github.com/temperlang/hrefine/blob/main/NOTICE">where they come from</a>.
+        </p>
+
+        <h3>The tour, in seven languages</h3>
+        <p>
+          One program through the whole API, written in each language. Every
+          version prints exactly the same text, and CI checks that they do.
+        </p>
+        <div class="tabs" role="tablist" aria-label="Language" data-tabs="tour"></div>
+        <p class="run">Run it: <code id="run-command"></code></p>
+        <pre class="source tour-source" tabindex="0" aria-label="Tour source"><code id="tour-source"></code></pre>
+        <p class="tour-run">
+          <button type="button" id="tour-run" class="primary">Run in your browser</button>
+          <span id="tour-run-note"></span>
+        </p>
+        <pre id="tour-output" class="output" aria-live="polite" hidden></pre>
+
+        <h3 id="versions">The recorded parsers</h3>
+        <p>
+          Recorded <!--RECORDED_DATE--> on <!--PLATFORM-->, by
+          <a href="https://github.com/temperlang/hrefine/blob/main/site/record/record.py"><code>site/record/record.py</code></a>.
+          Browsers follow the same standard as Node's <code>URL</code>, which
+          stands in for them. Answers change between versions.
+        </p>
+        <ul class="versions"><!--VERSIONS--></ul>
+        <p class="small-note">
+          The raw answers, with each parser's own errors:
+          <a href="recorded.json"><code>recorded.json</code></a>.
+          <span id="sizes"></span>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>
+        Hrefine is open source:
+        <a href="https://github.com/temperlang/hrefine">github.com/temperlang/hrefine</a>.
+        Its tests come from web-platform-tests, under the 3-Clause BSD License; see
+        <a href="https://github.com/temperlang/hrefine/blob/main/NOTICE">NOTICE</a>.
+      </p>
+      <p class="small-note">
+        This site counts visits with <a href="https://www.goatcounter.com/">GoatCounter</a>,
+        without cookies or personal data.
+      </p>
+    </div>
+  </footer>
+  <script data-goatcounter="https://hrefine.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>
