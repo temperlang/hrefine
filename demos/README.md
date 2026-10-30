@@ -5,10 +5,12 @@
 `tour/` shows Hrefine in each supported language: parsing and reading a
 URL's parts, typed ones too, resolving against a parsed base, failures
 and why (`checkUrl`'s validation errors), international domain names,
-serializing with `href`, and using it safely (deciding with Hrefine, by
+serializing with `href`, using it safely (deciding with Hrefine, by
 scheme, host kind, and origin, then handing on `href`, with that
-language's usual HTTP clients and servers shown in comments). Every version prints the same text,
-`tour/expected.txt`, so the tours double as a cross-language test.
+language's usual HTTP clients and servers shown in comments), and
+changing parts with the setters and search parameters. Every version
+prints the same text, `tour/expected.txt`, so the tours double as a
+cross-language test.
 
 First build the libraries from the repo's top, with
 [Temper](https://temperlang.dev/):

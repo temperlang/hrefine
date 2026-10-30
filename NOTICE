@@ -8,7 +8,11 @@ This software includes test data copied from web-platform-tests
 (https://github.com/web-platform-tests/wpt), from its url/resources
 directory at commit 13748c36fdf9dd77cd0b34dd6b244256b365ea60: URL parsing,
 setter, IDNA, and percent-encoding test cases, in tests/wpt/ and in the
-tests generated from them in src/. The URL parsing it tests follows the
+tests generated from them in src/. From its url directory at the same
+commit: the search parameter tests (urlencoded-parser.any.js,
+url-searchparams.any.js, and urlsearchparams-*.any.js), in tests/wpt/,
+in the tests generated from them in src/, and ported by hand in
+src/search-params.temper.md. The URL parsing it tests follows the
 WHATWG URL Standard (https://url.spec.whatwg.org/).
 
 # The 3-Clause BSD License

@@ -81,7 +81,10 @@ newlines, are each noted at the first such code point.
 
 A parsed URL, with the standard's [`URL`
 getters](https://url.spec.whatwg.org/#urlutils-members), each a string,
-as in JavaScript, and typed parts beside them. It's immutable for now.
+as in JavaScript, and typed parts beside them. It's immutable: the
+standard's setters are methods here that give a new URL, such as
+`url.withHost("example.com")` for JavaScript's `url.host =
+"example.com"`, so a URL that passed a check stays as it was checked.
 
     export class Url {
       private schemeValue: String;
@@ -247,6 +250,153 @@ base. It bubbles where that fails; `tryResolve` gives null instead.
 
       public tryResolve(ref: String): Url? { resolve(ref) orelse null }
 
+## Setters
+
+The standard's [setters](https://url.spec.whatwg.org/#urlutils-members),
+as methods that give a new URL, each named for the getter it sets:
+`url.withPathname("/b")` is JavaScript's `url.pathname = "/b"`. As in
+JavaScript, they don't fail: a value that can't be set leaves the URL
+as it was, or as far as the standard got, as `withHost("example.com:x")`
+changes the host but not the port. Only `withHref` bubbles, as setting
+`href` throws, since it parses a whole new URL.
+
+      public withHref(href: String): Url throws Bubble { parseUrl(href) }
+
+The scheme, as `https` or `https:`; anything after the colon is
+ignored.
+
+      public withProtocol(protocol: String): Url {
+        withOverride("${protocol}:", schemeStartState)
+      }
+
+The username and password, percent-encoded with the userinfo set, but
+only in a URL that can have them: one with a host that isn't empty, and
+not a `file` URL.
+
+      public withUsername(username: String): Url {
+        if (cannotHaveCredentialsOrPort) {
+          this
+        } else {
+          let record = toRecord();
+          record.username = percentEncodeString(username, userinfoSet);
+          urlOf(record)
+        }
+      }
+
+      public withPassword(password: String): Url {
+        if (cannotHaveCredentialsOrPort) {
+          this
+        } else {
+          let record = toRecord();
+          record.password = percentEncodeString(password, userinfoSet);
+          urlOf(record)
+        }
+      }
+
+The host, with a port if it has one, and the hostname, without, parsed
+as in a URL. Not for a URL with an opaque path, such as `mailto:`.
+
+      public withHost(host: String): Url {
+        if (opaquePath) { this } else { withOverride(host, hostState) }
+      }
+
+      public withHostname(hostname: String): Url {
+        if (opaquePath) { this } else { withOverride(hostname, hostnameState) }
+      }
+
+The port, from the digits at the start of `port`, or none if it's
+empty; not in a URL that can't have one.
+
+      public withPort(port: String): Url {
+        if (cannotHaveCredentialsOrPort) {
+          this
+        } else if (port == "") {
+          let record = toRecord();
+          record.port = -1;
+          urlOf(record)
+        } else {
+          withOverride(port, portState)
+        }
+      }
+
+The path, parsed as a path, with dot segments resolved, and `?` and `#`
+percent-encoded; not for a URL with an opaque path.
+
+      public withPathname(pathname: String): Url {
+        if (opaquePath) {
+          this
+        } else {
+          let record = toRecord();
+          record.path.clear();
+          applyOverride(record, pathname, pathStartState)
+        }
+      }
+
+The query and fragment, from `search` without a leading `?` and `hash`
+without a leading `#`, percent-encoded. An empty string removes them.
+
+      public withSearch(search: String): Url {
+        if (search == "") {
+          new Url(
+            schemeValue, usernameValue, passwordValue, hostValue, portValue, pathValue, null,
+            fragment, opaquePath,
+          )
+        } else {
+          let record = toRecord();
+          record.query = "";
+          applyOverride(record, withoutLeading(search, char'?'), queryState)
+        }
+      }
+
+      public withHash(hash: String): Url {
+        if (hash == "") {
+          new Url(
+            schemeValue, usernameValue, passwordValue, hostValue, portValue, pathValue, query,
+            null, opaquePath,
+          )
+        } else {
+          let record = toRecord();
+          record.fragment = "";
+          applyOverride(record, withoutLeading(hash, char'#'), fragmentState)
+        }
+      }
+
+The query as [search parameters](search-params.temper.md), a new list
+each time, which changing doesn't change this URL; `withSearchParams`
+gives a URL with them as its query, which, as the standard updates a
+URL's query from its `searchParams`, is removed if they're empty.
+
+      public get searchParams(): UrlSearchParams {
+        // The constructor drops one leading `?`, so the query keeps any of
+        // its own.
+        let q = query;
+        new UrlSearchParams(if (q == null) { "" } else { "?${q}" })
+      }
+
+      public withSearchParams(params: UrlSearchParams): Url {
+        let serialized = params.toString();
+        new Url(
+          schemeValue, usernameValue, passwordValue, hostValue, portValue, pathValue,
+          if (serialized == "") { null } else { serialized }, fragment, opaquePath,
+        )
+      }
+
+A URL [can't have a username, password, or
+port](https://url.spec.whatwg.org/#cannot-have-a-username-password-port)
+without a host, or with an empty one, or as a `file` URL.
+
+      private get cannotHaveCredentialsOrPort(): Boolean {
+        let h = hostValue;
+        h == null || h.isEmpty || schemeValue == "file"
+      }
+
+Runs the basic URL parser on `input`, from state `override`, to change
+a copy of this URL.
+
+      private withOverride(input: String, override: Int): Url {
+        applyOverride(toRecord(), input, override)
+      }
+
 This URL as a record again, to be a base. Path segments can't hold `/`,
 which the path set escapes, so splitting the serialized path gives them
 back.
@@ -271,6 +421,21 @@ back.
         record.fragment = fragment;
         record
       }
+    }
+
+Changes `record` by parsing `input` from state `override`, keeping
+whatever the parser changed, even where it then fails, as the standard's
+setters do, and gives the URL.
+
+    let applyOverride(record: UrlRecord, input: String, override: Int): Url {
+      let ignored: UrlRecord? = basicUrlParse(input, noBase, false, null, record, override) orelse null;
+      urlOf(record)
+    }
+
+`s` without one leading `c`, if it starts with one.
+
+    let withoutLeading(s: String, c: Int): String {
+      if (s.hasIndex(String.begin) && s[String.begin] == c) { s.slice(s.next(String.begin), s.end) } else { s }
     }
 
 A `Url` from a parsed record.
@@ -526,8 +691,8 @@ segments, with dots possibly written as `%2e`, in either case.
 
 The [basic URL parser](https://url.spec.whatwg.org/#concept-basic-url-parser)
 first trims C0 controls and spaces from both ends, and drops every tab
-and newline, wherever it is. (State overrides, which the standard's
-setters use, wait for step 3.)
+and newline, wherever it is. Given a URL to change, as the
+setters (`withHost` and the rest) do, it only drops tabs and newlines.
 
     let cleanInput(input: String): String {
       if (isClean(input)) { input } else { cleanAll(input) }
@@ -552,6 +717,21 @@ setters use, wait for step 3.)
       out.toString()
     }
 
+    let removeTabs(input: String): String {
+      if (hasNoTabs(input)) {
+        input
+      } else {
+        let out = new StringBuilder();
+        for (var i = String.begin; input.hasIndex(i); i = input.next(i)) {
+          let c = input[i];
+          if (c != 0x9 && c != 0xA && c != 0xD) {
+            appendCode(out, c);
+          }
+        }
+        out.toString()
+      }
+    }
+
 Most input has nothing to remove, which is quick to see. Splitting
 checks for tabs and newlines in each language's own code, much faster
 than a loop here in some, while `indexOf` isn't safe for this in C#,
@@ -562,10 +742,13 @@ control characters (as of 2026-10-29).
       if (!input.hasIndex(String.begin)) {
         true
       } else {
-        input[String.begin] > 0x20 && input[input.prev(input.end)] > 0x20 &&
-          input.split("\t").length == 1 && input.split("\n").length == 1 &&
-          input.split("\r").length == 1
+        input[String.begin] > 0x20 && input[input.prev(input.end)] > 0x20 && hasNoTabs(input)
       }
+    }
+
+    let hasNoTabs(input: String): Boolean {
+      input.split("\t").length == 1 && input.split("\n").length == 1 &&
+        input.split("\r").length == 1
     }
 
 Then it runs a state machine over the input's code points, one at a
@@ -593,6 +776,13 @@ time, with the end of input as one more, the standard's EOF code point
     let queryState = 18;
     let fragmentState = 19;
 
+The hostname state is the host state but for one step, so the parser
+runs the host state for both, and checks the override for that step.
+No override is -1.
+
+    let hostnameState = 20;
+    let noOverride = -1;
+
     let eof = -1;
     let backslash = 0x5C;
 
@@ -602,13 +792,34 @@ in `log`, if given.
     let parseRecord(
       rawInput: String, base: UrlRecord, hasBase: Boolean, log: ErrorLog?,
     ): UrlRecord throws Bubble {
+      basicUrlParse(rawInput, base, hasBase, log, null, noOverride)
+    }
+
+The standard's parser takes a URL to change, `target`, and a state
+`override` to start in, for the setters. Then it changes `target` in
+place, and where the standard says to return early, it returns it, or
+bubbles where it says to return failure. Either way, what it changed
+before stays changed, as the standard has it. Without an override,
+`target` is null, and the parser makes a new URL.
+
+    let basicUrlParse(
+      rawInput: String, base: UrlRecord, hasBase: Boolean, log: ErrorLog?, target: UrlRecord?,
+      override: Int,
+    ): UrlRecord throws Bubble {
       if (log != null) {
         noteCleaning(log, rawInput);
       }
-      let input = cleanInput(rawInput);
-      let url = new UrlRecord();
-      var special = false;
-      var state = schemeStartState;
+      let input = if (target == null) { cleanInput(rawInput) } else { removeTabs(rawInput) };
+      let url = if (target == null) { new UrlRecord() } else { target };
+      let overridden = override != noOverride;
+      var special = isSpecialScheme(url.scheme);
+      var state = if (override == hostnameState) {
+        hostState
+      } else if (overridden) {
+        override
+      } else {
+        schemeStartState
+      };
 
 The standard's buffer, with a count of its code points, so checking
 whether it's empty doesn't need a string.
@@ -633,10 +844,10 @@ end. (Strings, not builders, since the query and fragment are each read
 at once, and builders cost much in some languages.)
 
       var queryText = "";
-      var inQuery = false;
+      var inQuery = override == queryState;
       var fragmentText = "";
-      var inFragment = false;
-      var opaqueText = "";
+      var inFragment = override == fragmentState;
+      var opaqueText = url.opaquePath;
 
 The pointer, and whether the state just run asked to see the same code
 point again. The standard says "decrease pointer by 1" and then always
@@ -653,9 +864,11 @@ increases it, which here is `again`.
           if (isAsciiAlpha(c)) {
             appendCode(buffer, c | 0x20);
             state = schemeState;
-          } else {
+          } else if (!overridden) {
             state = noSchemeState;
             again = true;
+          } else {
+            bubble();
           }
 
 ### Scheme State
@@ -676,7 +889,28 @@ time, since most URLs are made of such runs.)
             buffer.append(asciiLowercase(input.slice(pointer, end)));
             pointer = input.prev(end);
           } else if (c == char':') {
-            url.scheme = buffer.toString();
+            let scheme = buffer.toString();
+
+With an override, as for the `protocol` setter, the scheme changes only
+between special schemes, or between schemes that aren't, and not to
+`file` with credentials or a port, nor from `file` with an empty host.
+A port that's the new scheme's default goes.
+
+            if (overridden) {
+              let host = url.host;
+              if (
+                isSpecialScheme(url.scheme) == isSpecialScheme(scheme) &&
+                  !(scheme == "file" && (hasCredentials(url) || url.port >= 0)) &&
+                  !(url.scheme == "file" && host != null && host.isEmpty)
+              ) {
+                url.scheme = scheme;
+                if (url.port == defaultPort(scheme)) {
+                  url.port = -1;
+                }
+              }
+              return url;
+            }
+            url.scheme = scheme;
             special = isSpecialScheme(url.scheme);
             buffer.clear();
             if (url.scheme == "file") {
@@ -695,11 +929,13 @@ time, since most URLs are made of such runs.)
               url.hasOpaquePath = true;
               state = opaquePathState;
             }
-          } else {
+          } else if (!overridden) {
             buffer.clear();
             state = noSchemeState;
             pointer = String.begin;
             again = true;
+          } else {
+            bubble();
           }
 
 ### No Scheme State
@@ -884,13 +1120,21 @@ as `%40`. Then the parser goes back to read the host and port.
 ### Host State and Hostname State
 
 The host ends at a `:` outside brackets, which starts the port, or at
-the path, query, or fragment. Special URLs need a host. (The hostname
-state differs only with a state override.)
+the path, query, or fragment. Special URLs need a host. With an
+override, a `file` URL's host goes to the file host state, the hostname
+state stops at a port, and the parser stops after the host (or the
+port). A URL with credentials or a port can't lose its host.
 
         } else if (state == hostState) {
-          if (c == char':' && !insideBrackets) {
+          if (overridden && url.scheme == "file") {
+            state = fileHostState;
+            again = true;
+          } else if (c == char':' && !insideBrackets) {
             if (bufferCount == 0) {
               note(log, "host-missing", input, pointer);
+              bubble();
+            }
+            if (override == hostnameState) {
               bubble();
             }
             url.host = runHostParser(
@@ -904,9 +1148,15 @@ state differs only with a state override.)
               note(log, "host-missing", input, pointer);
               bubble();
             }
+            if (overridden && bufferCount == 0 && (hasCredentials(url) || url.port >= 0)) {
+              bubble();
+            }
             url.host = runHostParser(
               buffer.toString(), !special, log, startOf(log, input, pointer, bufferCount),
             );
+            if (overridden) {
+              return url;
+            }
             buffer.clear();
             bufferCount = 0;
             state = pathStartState;
@@ -937,7 +1187,8 @@ state differs only with a state override.)
 ### Port State
 
 A port is decimal digits, at most 65535, and none at all if it's the
-scheme's default.
+scheme's default. With an override, as for the `port` setter, the port
+ends at anything else, and must have a digit.
 
         } else if (state == portState) {
           if (isDigit(c)) {
@@ -949,15 +1200,21 @@ scheme's default.
               portValue = 65536;
             }
             bufferCount += 1;
-          } else if (c == eof || isAuthorityEnd(c, special)) {
+          } else if (c == eof || isAuthorityEnd(c, special) || overridden) {
             if (bufferCount != 0) {
               if (portValue > 65535) {
                 noteAt(log, "port-out-of-range", startOf(log, input, pointer, bufferCount));
                 bubble();
               }
               url.port = if (portValue == defaultPort(url.scheme)) { -1 } else { portValue };
+              if (overridden) {
+                return url;
+              }
               portValue = 0;
               bufferCount = 0;
+            }
+            if (overridden) {
+              bubble();
             }
             state = pathStartState;
             again = true;
@@ -1032,23 +1289,30 @@ since their host may be empty, as in `file:///etc`.
 ### File Host State
 
 A drive letter where the host would be, as in `file://C:/x`, is the
-start of the path instead, and `localhost` is the same as no host.
+start of the path instead (but for an override), and `localhost` is the
+same as no host.
 
         } else if (state == fileHostState) {
           if (c == eof || c == char'/' || c == backslash || c == char'?' || c == char'#') {
             again = true;
             let text = buffer.toString();
-            if (isWindowsDriveLetter(text, false)) {
+            if (!overridden && isWindowsDriveLetter(text, false)) {
               noteAt(log, "file-invalid-Windows-drive-letter-host", startOf(log, input, pointer, bufferCount));
               state = pathState;
             } else if (bufferCount == 0) {
               url.host = "";
+              if (overridden) {
+                return url;
+              }
               state = pathStartState;
             } else {
               let host = runHostParser(
                 text, !special, log, startOf(log, input, pointer, bufferCount),
               );
               url.host = if (host == "localhost") { "" } else { host };
+              if (overridden) {
+                return url;
+              }
               buffer.clear();
               bufferCount = 0;
               state = pathStartState;
@@ -1060,6 +1324,10 @@ start of the path instead, and `localhost` is the same as no host.
 
 ### Path Start State
 
+With an override, as for the `pathname` setter, `?` and `#` are part of
+the path, and a URL without a host gets an empty path segment, so that
+its path is `/`.
+
         } else if (state == pathStartState) {
           if (special) {
             if (c == backslash) {
@@ -1069,10 +1337,10 @@ start of the path instead, and `localhost` is the same as no host.
             if (c != char'/' && c != backslash) {
               again = true;
             }
-          } else if (c == char'?') {
+          } else if (c == char'?' && !overridden) {
             inQuery = true;
             state = queryState;
-          } else if (c == char'#') {
+          } else if (c == char'#' && !overridden) {
             inFragment = true;
             state = fragmentState;
           } else if (c != eof) {
@@ -1080,17 +1348,20 @@ start of the path instead, and `localhost` is the same as no host.
             if (c != char'/') {
               again = true;
             }
+          } else if (overridden && url.host == null) {
+            url.path.add("");
           }
 
 ### Path State
 
 Each segment is percent-encoded with the path set. At its end, `..`
 removes the segment before, `.` is dropped, and a `file` URL's first
-segment, if a drive letter, is normalized to use `:`.
+segment, if a drive letter, is normalized to use `:`. With an override,
+`?` and `#` don't end the path, and are percent-encoded.
 
         } else if (state == pathState) {
           let slash = c == char'/' || (special && c == backslash);
-          if (slash || c == eof || c == char'?' || c == char'#') {
+          if (slash || c == eof || (!overridden && (c == char'?' || c == char'#'))) {
             if (special && c == backslash) {
               note(log, "invalid-reverse-solidus", input, pointer);
             }
@@ -1132,7 +1403,7 @@ so a following `else` attaches to it.)
             var more = true;
             while (more && input.hasIndex(end)) {
               let d = input[end];
-              more = !isAuthorityEnd(d, special);
+              more = !isAuthorityEnd(d, special) || (overridden && (d == char'?' || d == char'#'));
               if (more) {
                 clean = clean && !inEncodeSet(d, pathSet);
                 end = input.next(end);
@@ -1178,10 +1449,11 @@ later can't leave a trailing space.
 
 A query is percent-encoded with the query set, or the special-query set
 for special URLs, which also escapes `'`. (Only UTF-8 is supported, as
-the standard's `URL` API uses.)
+the standard's `URL` API uses.) With an override, as for the `search`
+setter, `#` is part of the query, and percent-encoded.
 
         } else if (state == queryState) {
-          if (c == char'#') {
+          if (c == char'#' && !overridden) {
             inFragment = true;
             state = fragmentState;
           } else if (c != eof) {
@@ -1191,7 +1463,7 @@ the standard's `URL` API uses.)
             var more = true;
             while (more && input.hasIndex(end)) {
               let d = input[end];
-              more = d != char'#';
+              more = d != char'#' || overridden;
               if (more) {
                 clean = clean && !inEncodeSet(d, set);
                 end = input.next(end);
@@ -1250,6 +1522,13 @@ with" checks.
     let peek(input: String, i: StringIndex): Int {
       let next = input.next(i);
       if (input.hasIndex(i) && input.hasIndex(next)) { input[next] } else { eof }
+    }
+
+Whether a URL [includes
+credentials](https://url.spec.whatwg.org/#include-credentials).
+
+    let hasCredentials(url: UrlRecord): Boolean {
+      !url.username.isEmpty || !url.password.isEmpty
     }
 
 Code points a scheme can hold, and those that end an authority, a host,
@@ -1419,6 +1698,14 @@ The README's examples.
       let international = parseUrl("https://Bücher.example") orelse panic();
       assert(international.hostname == "xn--bcher-kva.example");
       assert(domainToUnicode("xn--bcher-kva.example") == "bücher.example");
+      let moved = url.withHost("example.org:8443").withPathname("/c d").withHash("");
+      assert(moved.href == "https://user@example.org:8443/c%20d?q=1");
+      assert(url.href == "https://user@example.com/b?q=1#top");
+      let params = moved.searchParams;
+      params.append("lang", "en US");
+      params.set("q", "2");
+      assert(moved.withSearchParams(params).search == "?q=2&lang=en+US");
+      assert(url.withPort("x").port == "" && url.withProtocol("mailto").scheme == "https");
     }
 
 Parsing, nullable parsing, and checking agree; a base that doesn't

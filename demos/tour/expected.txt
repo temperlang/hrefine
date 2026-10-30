@@ -73,3 +73,17 @@ next=/account: redirect to https://example.com/account
 next=//evil.example/: refuse, https://evil.example
 next=/\evil.example: refuse, https://evil.example
 next=//[::1: refuse, not a URL
+
+## 7. Changing parts
+page: https://example.com/docs?lang=en&q=a+b
+with host: https://example.org:8443/docs?lang=en&q=a+b
+with pathname and hash: https://example.com/a%20b?lang=en&q=a+b#top
+with protocol: http://example.com/docs?lang=en&q=a+b
+port "http", ignored: https://example.com/docs?lang=en&q=a+b
+unchanged: https://example.com/docs?lang=en&q=a+b
+q: a b
+lang: en, fr
+lang = en
+lang = fr
+q = café & more
+with search params: https://example.com/docs?lang=en&lang=fr&q=caf%C3%A9+%26+more

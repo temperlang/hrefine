@@ -189,3 +189,32 @@ for _, target in ipairs({ "/account", "//evil.example/", "/\\evil.example", "//[
     print("next=" .. target .. ": refuse, " .. (next and next.origin or "not a URL"))
   end
 end
+
+section("7. Changing parts")
+
+-- The standard's setters, as methods that give a new URL, so a URL that
+-- passed a check can't change after. A value that can't be set is ignored,
+-- as in JavaScript.
+local page = parseUrl("https://example.com/docs?lang=en&q=a+b")
+print("page: " .. page.href)
+print("with host: " .. page:withHost("example.org:8443").href)
+print("with pathname and hash: " .. page:withPathname("/a b"):withHash("top").href)
+print("with protocol: " .. page:withProtocol("http").href)
+print('port "http", ignored: ' .. page:withPort("http").href)
+print("unchanged: " .. page.href)
+-- Search parameters: a copy of the query, changed in place, then put back.
+local params = page.searchParams
+print("q: " .. params:get("q"))
+params:append("lang", "fr")
+params:set("q", "café & more")
+params:delete("missing")
+params:sort()
+local langs = {}
+for _, lang in ipairs(params:getAll("lang")) do
+  langs[#langs + 1] = lang
+end
+print("lang: " .. table.concat(langs, ", "))
+for _, entry in ipairs(params:entries()) do
+  print(entry.key .. " = " .. entry.value)
+end
+print("with search params: " .. page:withSearchParams(params).href)

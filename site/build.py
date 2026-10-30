@@ -12,9 +12,12 @@ modules, which the page's import map names, so the page parses URLs live
 with the same library as every other language. No bundler, so nothing to
 install; the cost is size (see `sizes.json`).
 
-Renders the opening and the trick gallery into the page from
-`site/gallery.json` and `site/recorded.json` (other parsers' answers, which
-`site/record/record.py` records), so they show before any script runs. The
+Renders the opening, the trick gallery, and the table of more
+disagreements into the page from `site/gallery.json` and
+`site/recorded.json` (other parsers' answers, which `site/record/record.py`
+records), so they show before any script runs. Each of the table's rows
+has its full answers in `tables.json`, which the tester fetches only when
+one is tried. The
 fix's code comes from each tour's "Using it safely" section, which CI runs
 in every language, and the tours themselves go in `tour/`.
 
@@ -28,6 +31,7 @@ beside the visitor's, and the build fails unless Hrefine passes every case.
 import gzip
 import hashlib
 import html
+import ipaddress
 import json
 import re
 import shutil
@@ -63,28 +67,53 @@ def esc(text):
 
 
 def shown(text):
-    """Text as HTML, with tabs and newlines shown as symbols."""
+    """Text as HTML, with tabs, newlines, and other controls shown as symbols."""
     out = esc(text)
     out = out.replace("\t", '<span class="ctl" title="tab">\\t</span>')
-    return out.replace("\n", '<span class="ctl" title="newline">\\n</span>')
+    out = out.replace("\n", '<span class="ctl" title="newline">\\n</span>')
+    return re.sub(
+        r"[\x00-\x08\x0b-\x1f\x7f\u00ad\u200b]",
+        lambda m: f'<span class="ctl" title="invisible">\\u{ord(m[0]):04x}</span>',
+        out,
+    )
 
 
-def status(answer, browser):
-    """How an answer compares with the browser's: same, differs, or rejects."""
+def host_key(host):
+    """A host as compared: case and IPv6 brackets aside, and an IPv6 address
+    however it's written, so only another host counts as different."""
+    if host is None:
+        return None
+    host = host.lower()
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    try:
+        return str(ipaddress.IPv6Address(host))
+    except ValueError:
+        return host
+
+
+def status(answer, browser, compare="host"):
+    """How an answer compares with the browser's, by host or by path: same,
+    differs, or rejects."""
     if not answer["ok"]:
         return "same" if not browser["ok"] else "rejects"
     if not browser["ok"]:
         return "differs"
-    return "same" if answer.get("host") == browser.get("host") else "differs"
+    if compare == "path":
+        return "same" if answer.get("path") == browser.get("path") else "differs"
+    return "same" if host_key(answer.get("host")) == host_key(browser.get("host")) else "differs"
 
 
 STATUS_TEXT = {"same": "same as the browser", "differs": "differs from the browser", "rejects": "rejects it"}
 STATUS_ICON = {"same": "✓", "differs": "✗", "rejects": "–"}
 
 
-def host_html(answer):
+def host_html(answer, compare="host"):
     if not answer["ok"]:
         return '<span class="none">error</span>'
+    if compare == "path":
+        path = answer.get("path")
+        return '<span class="none">no path</span>' if path is None else f"<code>{shown(path) or '&nbsp;'}</code>"
     host = answer.get("host")
     if host is None:
         return '<span class="none">no host</span>'
@@ -132,7 +161,7 @@ def hero(gallery, recorded):
     )
 
 
-def card_table(row, recorded):
+def card_table(row, recorded, compare="host"):
     answers = row["answers"]
     browser = answers["browser"]
     label = names(recorded)
@@ -140,7 +169,7 @@ def card_table(row, recorded):
     rows = []
     for id in ids:
         answer = answers[id]
-        st = "browser" if id == "browser" else status(answer, browser)
+        st = "browser" if id == "browser" else status(answer, browser, compare)
         verdict = "" if id == "browser" else f'<span class="icon" aria-hidden="true">{STATUS_ICON[st]}</span> {STATUS_TEXT[st]}'
         reads = (
             f"<code>{shown(answer['href'])}</code>"
@@ -149,12 +178,12 @@ def card_table(row, recorded):
         )
         rows.append(
             f'<tr class="{st}" data-parser="{id}"><th scope="row">{esc(label[id])}</th>'
-            f'<td class="host">{host_html(answer)}</td><td class="verdict">{verdict}</td>'
+            f'<td class="host">{host_html(answer, compare)}</td><td class="verdict">{verdict}</td>'
             f'<td class="reads">{reads}</td></tr>'
         )
     return (
         '<div class="table-scroll" tabindex="0"><table class="compare">'
-        '<thead><tr><th scope="col">Parser</th><th scope="col">Host</th><th scope="col">Compared</th>'
+        f'<thead><tr><th scope="col">Parser</th><th scope="col">{compare.capitalize()}</th><th scope="col">Compared</th>'
         '<th scope="col">Reads the URL as</th></tr></thead>'
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
@@ -199,23 +228,24 @@ def cards(gallery, recorded):
     return "\n".join(out)
 
 
-def href_proof(recorded):
-    """How many inputs each parser reads as the browser does, as typed and as Hrefine's href."""
+def href_proof(recorded, compares):
+    """How many inputs each parser reads as the browser does, as typed and as
+    Hrefine's href (for those Hrefine accepts), by host or by path."""
     ids = [p["id"] for p in recorded["parsers"] if p["id"] not in HERO_FIRST]
     label = names(recorded)
     total = len(recorded["results"])
     hrefs = {r["input"]: r for r in recorded["hrefs"]}
+    accepted = [r for r in recorded["results"] if r["answers"]["hrefine"]["ok"]]
     lines = []
     for id in ids:
-        raw = sum(status(r["answers"][id], r["answers"]["browser"]) == "same" for r in recorded["results"])
+        raw = sum(
+            status(r["answers"][id], r["answers"]["browser"], compares[row_key(r)]) == "same" for r in recorded["results"]
+        )
         fixed = 0
         refused = 0
-        for r in recorded["results"]:
-            h = r["answers"]["hrefine"]
-            if not h["ok"]:
-                continue
-            got = hrefs[h["href"]]["answers"]
-            st = status(got[id], got["browser"])
+        for r in accepted:
+            got = hrefs[r["answers"]["hrefine"]["href"]]["answers"]
+            st = status(got[id], got["browser"], compares[row_key(r)])
             fixed += st == "same"
             # Refusing a scheme it doesn't fetch, such as javascript:, isn't
             # reading another host.
@@ -223,7 +253,7 @@ def href_proof(recorded):
         note = f", and refuses {refused}" if refused else ""
         lines.append(
             f'<tr><th scope="row">{esc(label[id])}</th><td>{raw} of {total}</td>'
-            f"<td>{fixed} of {total}{note}</td></tr>"
+            f"<td>{fixed} of {len(accepted)}{note}</td></tr>"
         )
     return (
         '<div class="table-scroll" tabindex="0"><table class="proof-table">'
@@ -231,6 +261,61 @@ def href_proof(recorded):
         "<th scope=\"col\">Given Hrefine's href</th></tr></thead>"
         f"<tbody>{''.join(lines)}</tbody></table></div>"
     )
+
+
+def row_key(row):
+    return (row["input"], row.get("base"))
+
+
+STATUS_SHORT = {"same": "✓", "differs": "✗", "rejects": "–", "browser": ""}
+
+
+def corpus(gallery, recorded):
+    """The table of more disagreements: each input, what browsers read, and
+    whether each other parser agrees, by group. Each row's full answers go
+    in `tables.json`, by row id, for the tester."""
+    rows = {row_key(r): r for r in recorded["results"]}
+    label = names(recorded)
+    ids = [p["id"] for p in recorded["parsers"] if p["id"] not in HERO_FIRST]
+    head = "".join(f'<th scope="col" class="who-col">{esc(label[id])}</th>' for id in ids)
+    body = []
+    tables = {}
+    n = 0
+    for group in gallery["corpus"]:
+        body.append(
+            f'<tbody id="more-{group["id"]}"><tr class="group"><th scope="rowgroup" colspan="{len(ids) + 2}">'
+            f'{group["title"]}</th></tr>'
+        )
+        for item in group["items"]:
+            n += 1
+            row = rows[row_key(item)]
+            compare = item.get("compare", "host")
+            answers = row["answers"]
+            browser = answers["browser"]
+            cells = []
+            for id in ids:
+                st = status(answers[id], browser, compare)
+                cells.append(f'<td class="mark {st}" title="{esc(label[id])}: {STATUS_TEXT[st]}">{STATUS_SHORT[st]}</td>')
+            base = f'<span class="base">against <code>{shown(item["base"])}</code></span>' if item.get("base") else ""
+            base_attr = f' data-base="{esc(item["base"])}"' if item.get("base") else ""
+            reads = f'{"path" if compare == "path" else "host"} {host_html(browser, compare)}' if browser["ok"] else host_html(browser)
+            row_id = f"m{n}"
+            tables[row_id] = card_table(row, recorded, compare)
+            body.append(
+                f'<tr class="more-row" data-row="{row_id}" data-input="{esc(item["input"])}"{base_attr}'
+                f' data-title="{esc(item["input"])}">'
+                f'<th scope="row"><button type="button" class="more-try" title="Try it in the tester">'
+                f"<code>{shown(item['input'])}</code></button>{base}"
+                f'<span class="more-note">{item["note"]}</span></th>'
+                f'<td class="browser-reads">{reads}</td>{"".join(cells)}</tr>'
+            )
+        body.append("</tbody>")
+    table = (
+        '<div class="table-scroll" tabindex="0"><table class="more-table">'
+        f'<thead><tr><th scope="col">Input</th><th scope="col">Browsers read</th>{head}</tr></thead>'
+        f"{''.join(body)}</table></div>"
+    )
+    return table, tables, n
 
 
 def versions(recorded):
@@ -319,8 +404,8 @@ def main():
         raise SystemExit("Build the JS library first: temper build -b js")
     gallery = json.loads((SITE / "gallery.json").read_text(encoding="utf-8"))
     recorded = json.loads((SITE / "recorded.json").read_text(encoding="utf-8"))
-    inputs = [(i["input"], i.get("base")) for i in gallery["hero"] + gallery["cards"]]
-    if [(r["input"], r.get("base")) for r in recorded["results"]] != inputs:
+    items = gallery["hero"] + gallery["cards"] + [i for group in gallery["corpus"] for i in group["items"]]
+    if [row_key(r) for r in recorded["results"]] != [row_key(i) for i in items]:
         raise SystemExit("recorded.json is for other inputs; run: uv run site/record/record.py")
 
     shutil.rmtree(OUT, ignore_errors=True)
@@ -343,6 +428,10 @@ def main():
     copy(SITE / "scoreboard.js", OUT / "scoreboard.js")
     scores = node_scores()
 
+    more, tables, more_count = corpus(gallery, recorded)
+    (OUT / "tables.json").write_text(json.dumps(tables, ensure_ascii=False) + "\n", encoding="utf-8")
+    compares = {row_key(i): i.get("compare", "host") for i in items}
+
     sources = {ext: (TOUR / path).read_text(encoding="utf-8") for ext, path in TOURS.items()}
     for ext, text in sources.items():
         copy(TOUR / TOURS[ext], OUT / "tour" / f"tour.{ext}")
@@ -357,7 +446,9 @@ def main():
         "HERO": hero(gallery, recorded),
         "CARDS": cards(gallery, recorded),
         "FIXES": fixes,
-        "HREF_PROOF": href_proof(recorded),
+        "MORE": more,
+        "MORE_COUNT": str(more_count),
+        "HREF_PROOF": href_proof(recorded, compares),
         "VERSIONS": versions(recorded),
         "RECORDED_DATE": esc(recorded["date"]),
         "PLATFORM": esc(recorded["platform"]),
@@ -374,7 +465,7 @@ def main():
         raise SystemExit(f"Unfilled in index.html: {', '.join(left)}")
     # Each reference gets its file's hash, so browsers fetch changed files
     # instead of reusing cached ones.
-    for ref in ["style.css", "app.js", "scoreboard.js", "wpt/urltestdata.json"]:
+    for ref in ["style.css", "app.js", "scoreboard.js", "tables.json", "wpt/urltestdata.json"]:
         digest = hashlib.sha256((OUT / ref).read_bytes()).hexdigest()[:10]
         page = page.replace(f'"{ref}"', f'"{ref}?v={digest}"')
     (OUT / "index.html").write_text(page, encoding="utf-8")

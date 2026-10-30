@@ -32,8 +32,9 @@ public final class Probe {
         return out.append('"').toString();
     }
 
-    static String ok(String scheme, String host, String href) {
-        return "{\"ok\":true,\"scheme\":" + json(scheme) + ",\"host\":" + json(host) + ",\"href\":" + json(href) + "}";
+    static String ok(String scheme, String host, String path, String href) {
+        return "{\"ok\":true,\"scheme\":" + json(scheme) + ",\"host\":" + json(host) + ",\"path\":" + json(path)
+            + ",\"href\":" + json(href) + "}";
     }
 
     static String error(Exception e) {
@@ -43,7 +44,7 @@ public final class Probe {
     static String uri(String input, String base) {
         try {
             URI uri = base == null ? new URI(input) : new URI(base).resolve(new URI(input));
-            return ok(uri.getScheme(), uri.getHost(), uri.toString());
+            return ok(uri.getScheme(), uri.getHost(), uri.getRawPath(), uri.toString());
         } catch (Exception e) {
             return error(e);
         }
@@ -53,7 +54,7 @@ public final class Probe {
     static String url(String input, String base) {
         try {
             URL url = base == null ? new URL(input) : new URL(new URL(base), input);
-            return ok(url.getProtocol(), url.getHost(), url.toExternalForm());
+            return ok(url.getProtocol(), url.getHost(), url.getPath(), url.toExternalForm());
         } catch (Exception e) {
             return error(e);
         }

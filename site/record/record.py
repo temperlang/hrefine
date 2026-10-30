@@ -86,7 +86,7 @@ def python_urllib(text, base):
         host = parts.hostname
         if host is None and parts.netloc != "":
             host = ""
-        return {"ok": True, "scheme": parts.scheme, "host": host, "href": parts.geturl()}
+        return {"ok": True, "scheme": parts.scheme, "host": host, "path": parts.path, "href": parts.geturl()}
     except ValueError as error:
         return {"ok": False, "error": f"ValueError: {error}"}
 
@@ -94,7 +94,7 @@ def python_urllib(text, base):
 class Curl:
     """libcurl's URL API, as curl's own tools parse URLs."""
 
-    URL, SCHEME, HOST = 0, 1, 5
+    URL, SCHEME, HOST, PATH = 0, 1, 5, 7
     # Parse schemes curl doesn't support, such as javascript:, too.
     NON_SUPPORT_SCHEME = 1 << 3
 
@@ -132,6 +132,7 @@ class Curl:
                 "ok": True,
                 "scheme": self.get(handle, self.SCHEME),
                 "host": self.get(handle, self.HOST),
+                "path": self.get(handle, self.PATH),
                 "href": self.get(handle, self.URL),
             }
         finally:
@@ -201,7 +202,8 @@ def main():
     if not (ROOT / "temper.out" / "js" / "hrefine").exists():
         raise SystemExit("Build Hrefine's JS first: temper build -b js")
     gallery = json.loads(GALLERY.read_text(encoding="utf-8"))
-    inputs = [{"input": i["input"], "base": i.get("base")} for i in gallery["hero"] + gallery["cards"]]
+    corpus = [item for group in gallery["corpus"] for item in group["items"]]
+    inputs = [{"input": i["input"], "base": i.get("base")} for i in gallery["hero"] + gallery["cards"] + corpus]
     results, versions, missing = record(inputs)
 
     # The fix, checked: each parser given Hrefine's href instead of the

@@ -1,5 +1,5 @@
 {
-  "_comment": "The page's opening URL and trick gallery. site/record/record.py records other parsers' answers for these inputs into site/recorded.json; site/build.py renders them. The explanations are HTML.",
+  "_comment": "The page's opening URL, trick gallery, and table of more disagreements (corpus: groups of inputs, each with a short HTML note, and compare: \"path\" for path tricks, else hosts are compared). site/record/record.py records other parsers' answers for these inputs into site/recorded.json; site/build.py renders them. The explanations are HTML.",
   "hero": [
     {
       "input": "https://example.com\\@evil.example/"
@@ -85,6 +85,252 @@
       "title": "Too many slashes",
       "input": "https:///evil.example/",
       "explain": "Browsers and curl skip extra slashes and find <code>evil.example</code>. Python, Java, and Go see no host, and C# refuses it."
+    }
+  ],
+  "corpus": [
+    {
+      "id": "controls",
+      "title": "Backslashes, whitespace, and controls",
+      "items": [
+        {
+          "input": "https://good.example\\.evil.example/",
+          "note": "Browsers end the host at <code>\\</code>; Python keeps it in the host."
+        },
+        {
+          "input": "\\\\evil.example\\path",
+          "base": "https://good.example/",
+          "note": "Two backslashes start a host, as <code>//</code> does."
+        },
+        {
+          "input": "/\t/evil.example",
+          "base": "https://good.example/",
+          "note": "The tab goes, leaving <code>//evil.example</code>: an open redirect past a check for <code>//</code>."
+        },
+        {
+          "input": "https:/\\evil.example/",
+          "note": "One slash and one backslash still start the host."
+        },
+        {
+          "input": "\u0001javascript:alert(1)",
+          "note": "Browsers trim leading control characters, so this runs as <code>javascript:</code>."
+        },
+        {
+          "input": "https://good.example%09.evil.example/",
+          "note": "An escaped tab in a host is an error to browsers; Python and Java keep it as text."
+        },
+        {
+          "input": "https://good.example\u0000.evil.example/",
+          "note": "A NUL in the host: curl stops reading at it, and finds <code>good.example</code>."
+        },
+        {
+          "input": "https://good.example/a/..\t/b",
+          "compare": "path",
+          "note": "The tab goes, so <code>..\\t</code> is <code>..</code>, and the path is <code>/b</code>."
+        }
+      ]
+    },
+    {
+      "id": "userinfo",
+      "title": "User info: <code>@</code> and <code>:</code>",
+      "items": [
+        {
+          "input": "https://user@good.example@evil.example/",
+          "note": "The last <code>@</code> ends the user info, so the host is <code>evil.example</code>."
+        },
+        {
+          "input": "https://good.example%40evil.example/",
+          "note": "An escaped <code>@</code> decodes into the host, where it's forbidden."
+        },
+        {
+          "input": "http://1.1.1.1 &@2.2.2.2# @3.3.3.3/",
+          "note": "From Orange Tsai's talk: three hosts to pick from. Browsers pick <code>2.2.2.2</code>."
+        },
+        {
+          "input": "https://good.example:443@evil.example/",
+          "note": "Looks like a host and port, but it's a user and password. Parsers agree; people don't."
+        }
+      ]
+    },
+    {
+      "id": "ipv4",
+      "title": "IPv4 addresses",
+      "items": [
+        {
+          "input": "http://0177.0.0.1/",
+          "note": "A leading 0 means octal: <code>0177</code> is 127."
+        },
+        {
+          "input": "http://0x7f000001/",
+          "note": "The whole address as one hex number."
+        },
+        {
+          "input": "http://127.000.000.001/",
+          "note": "Padded with zeros, so octal, and still loopback."
+        },
+        {
+          "input": "http://0/",
+          "note": "<code>0.0.0.0</code>, which reaches the local machine on many systems."
+        },
+        {
+          "input": "http://127.0.0.1./",
+          "note": "Browsers drop an address's trailing dot; others keep it, past a blocklist."
+        },
+        {
+          "input": "http://%31%32%37.1/",
+          "note": "An escaped <code>127.1</code>. curl decodes it but keeps the short form."
+        },
+        {
+          "input": "http://4294967296/",
+          "note": "One past the largest address: browsers refuse it, and every other parser takes it as a name."
+        },
+        {
+          "input": "http://1.2.3.4.5/",
+          "note": "Five numbers, which browsers refuse, since it ends in a number but isn't an address."
+        }
+      ]
+    },
+    {
+      "id": "ipv6",
+      "title": "IPv6 addresses",
+      "items": [
+        {
+          "input": "http://[fe80::1%25eth0]/",
+          "note": "Zone IDs aren't in the standard, so browsers refuse them; curl drops the zone."
+        },
+        {
+          "input": "http://[::1]./",
+          "note": "A dot after the brackets: only C# accepts it."
+        },
+        {
+          "input": "http://[::ffff:127.0.0.1]/",
+          "note": "Loopback, as an IPv4-mapped IPv6 address. Parsers agree; a blocklist of IPv4 text misses it."
+        }
+      ]
+    },
+    {
+      "id": "names",
+      "title": "International and escaped names",
+      "items": [
+        {
+          "input": "https://%65vil.example/",
+          "note": "Browsers decode escapes in a host: this is <code>evil.example</code>."
+        },
+        {
+          "input": "https://evil%2Eexample/",
+          "note": "An escaped dot, decoded, splits the label."
+        },
+        {
+          "input": "https://evil.example%2F.good.example/",
+          "note": "An escaped slash decodes into the host, where it's forbidden."
+        },
+        {
+          "input": "https://ｅｖｉｌ.example/",
+          "note": "Full-width letters map to ASCII, by IDNA."
+        },
+        {
+          "input": "https://ⓔⓥⓘⓛ.example/",
+          "note": "So do circled letters."
+        },
+        {
+          "input": "https://ev­il.example/",
+          "note": "An invisible soft hyphen, which IDNA drops."
+        },
+        {
+          "input": "https://faß.example/",
+          "note": "Today's IDNA keeps <code>ß</code> (<code>xn--fa-hia</code>), where the older IDNA 2003 made it <code>fass.example</code>, another name."
+        },
+        {
+          "input": "https://evil.example./",
+          "note": "A trailing dot: the same name to DNS, but not to an allowlist that compares text."
+        }
+      ]
+    },
+    {
+      "id": "schemes",
+      "title": "Schemes, slashes, and ports",
+      "items": [
+        {
+          "input": "///evil.example/",
+          "base": "https://good.example/",
+          "note": "Three slashes, and browsers still find a host."
+        },
+        {
+          "input": "\\/evil.example/",
+          "base": "https://good.example/",
+          "note": "A backslash and a slash start a host too."
+        },
+        {
+          "input": "https:evil.example/",
+          "note": "No slashes at all, and browsers still find a host."
+        },
+        {
+          "input": "http:evil.example/",
+          "base": "https://good.example/",
+          "note": "Against an <code>https</code> page, a new scheme without slashes still names a host."
+        },
+        {
+          "input": "https:evil.example/",
+          "base": "https://good.example/",
+          "note": "But with the page's own scheme, it's a path on the page's host."
+        },
+        {
+          "input": "https:/evil.example/",
+          "note": "One slash is enough for browsers."
+        },
+        {
+          "input": "http://evil.example:65536/",
+          "note": "Ports stop at 65535; Python, Java, and Go take it."
+        },
+        {
+          "input": "http://evil.example:0x50/",
+          "note": "Browsers refuse a hex port; Python and Java's <code>URI</code> don't."
+        },
+        {
+          "input": "http://evil.example: 80/",
+          "note": "A space before the port: Python ignores it."
+        }
+      ]
+    },
+    {
+      "id": "paths",
+      "title": "Paths and percent-encoding",
+      "items": [
+        {
+          "input": "https://good.example/public/%2e%2e/admin",
+          "compare": "path",
+          "note": "Browsers read <code>%2e%2e</code> as <code>..</code>, so the path is <code>/admin</code>, past a check for <code>/public/</code>."
+        },
+        {
+          "input": "https://good.example/public\\..\\admin",
+          "compare": "path",
+          "note": "Backslashes are slashes in browsers, so this is <code>/admin</code> too."
+        },
+        {
+          "input": "https://good.example/a/./b/../../../c",
+          "compare": "path",
+          "note": "Dot segments resolve, and can't climb above the root."
+        },
+        {
+          "input": "https://good.example/public/%2E%2E%2Fadmin",
+          "compare": "path",
+          "note": "An escaped slash isn't a slash to browsers, but C# decodes the dots."
+        },
+        {
+          "input": "https://good.example/a b",
+          "compare": "path",
+          "note": "Spaces are escaped as <code>%20</code>, not refused."
+        },
+        {
+          "input": "https://good.example/ä",
+          "compare": "path",
+          "note": "Non-ASCII is escaped as UTF-8."
+        },
+        {
+          "input": "https://good.example/%zz",
+          "compare": "path",
+          "note": "A <code>%</code> without hex digits stays as it is; C# escapes it again."
+        }
+      ]
     }
   ]
 }

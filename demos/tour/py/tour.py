@@ -179,3 +179,27 @@ for target in ["/account", "//evil.example/", "/\\evil.example", "//[::1"]:
         print(f"next={target}: redirect to {url.href}")
     else:
         print(f"next={target}: refuse, {url.origin if url else 'not a URL'}")
+
+section("7. Changing parts")
+
+# The standard's setters, as methods that give a new URL, so a URL that
+# passed a check can't change after. A value that can't be set is ignored,
+# as in JavaScript.
+page = parse_url("https://example.com/docs?lang=en&q=a+b")
+print(f"page: {page.href}")
+print(f"with host: {page.with_host('example.org:8443').href}")
+print(f"with pathname and hash: {page.with_pathname('/a b').with_hash('top').href}")
+print(f"with protocol: {page.with_protocol('http').href}")
+print(f'port "http", ignored: {page.with_port("http").href}')
+print(f"unchanged: {page.href}")
+# Search parameters: a copy of the query, changed in place, then put back.
+params = page.search_params
+print(f"q: {params.get('q')}")
+params.append("lang", "fr")
+params.set("q", "café & more")
+params.delete("missing")
+params.sort()
+print(f"lang: {', '.join(params.get_all('lang'))}")
+for entry in params.entries():
+    print(f"{entry.key} = {entry.value}")
+print(f"with search params: {page.with_search_params(params).href}")

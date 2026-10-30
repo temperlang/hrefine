@@ -25,6 +25,12 @@ The standard defines each set by adding to the one before, and so does
   `{`, and `}`.
 - The **userinfo percent-encode set:** the path set, `/`, `:`, `;`, `=`,
   `@`, `[` to `^`, and `|`.
+- The **component percent-encode set:** the userinfo set, `$`, `%`, `&`,
+  `+`, and `,`, as JavaScript's `encodeURIComponent` escapes.
+- The **`application/x-www-form-urlencoded` percent-encode set:** the
+  component set, `!`, `'`, `(`, `)`, and `~`, for [search
+  parameters](search-params.temper.md): all but ASCII letters, digits,
+  `*`, `-`, `.`, and `_`.
 
 <!-- -->
 
@@ -34,6 +40,8 @@ The standard defines each set by adding to the one before, and so does
     let specialQuerySet = 3;
     let pathSet = 4;
     let userinfoSet = 5;
+    let componentSet = 6;
+    let formSet = 7;
 
 Whether code point `c` is in encode set `set`. Most code points in most
 URLs are letters and digits, which no set holds, so those are checked
@@ -63,11 +71,23 @@ each becomes a raised exception, as of 2026-10-29.)
         true
       } else if (set == pathSet) {
         false
-      } else {
+      } else if (
         // The userinfo set: `[`, `\`, and `]` are U+005B to U+005D; `^` is
         // already in.
         c == char'/' || c == char':' || c == char';' || c == char'=' || c == char'@' ||
           (c >= 0x5B && c <= 0x5D) || c == char'|'
+      ) {
+        true
+      } else if (set == userinfoSet) {
+        false
+      } else if (
+        c == char'$' || c == char'%' || c == char'&' || c == char'+' || c == char','
+      ) {
+        true
+      } else if (set == componentSet) {
+        false
+      } else {
+        c == char'!' || c == char'\'' || c == char'(' || c == char')' || c == char'~'
       }
     }
 

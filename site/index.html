@@ -24,6 +24,7 @@
       <nav aria-label="Sections">
         <a href="#try">Try it</a>
         <a href="#tricks">Tricks</a>
+        <a href="#more">More</a>
         <a href="#fix">The fix</a>
         <a href="#proof">Proof</a>
         <a href="https://github.com/temperlang/hrefine">GitHub</a>
@@ -116,7 +117,8 @@
           <h3>Other parsers</h3>
           <p class="limit" id="recorded-note">
             Other languages' parsers can't run in your browser. For the
-            gallery's URLs below, this page shows their answers, recorded
+            gallery's URLs and the more disagreements below, this page
+            shows their answers, recorded
             ahead of time. For anything else, only Hrefine and your browser
             run live.
           </p>
@@ -146,6 +148,19 @@
         </div>
       </div>
     </section>
+    <section id="more" class="more" aria-labelledby="more-title" data-tables="tables.json">
+      <div class="wrap">
+        <h2 id="more-title"><!--MORE_COUNT--> more disagreements</h2>
+        <p>
+          Smaller tricks, by kind, many from web-platform-tests' cases and
+          from published research on parser differences. Each mark says
+          whether that parser reads the same host as browsers, or for
+          paths, the same path. Pick an input to try it, with every
+          parser's full answer.
+        </p>
+<!--MORE-->
+      </div>
+    </section>
 
     <section id="fix" class="fix" aria-labelledby="fix-title">
       <div class="wrap">
@@ -166,17 +181,23 @@
 <!--FIXES-->
         <h3>Given <code>href</code>, the parsers agree</h3>
         <p>
-          The same parsers, given each gallery URL as typed and then given
-          Hrefine's <code>href</code> for it: how often each reads the same
-          host as the browser.
+          The same parsers, given each of the <!--TRICK_COUNT--> recorded URLs as
+          typed, and then given Hrefine's <code>href</code> for each URL
+          Hrefine accepts: how often each reads the same host (or path, for
+          path tricks) as the browser.
         </p>
 <!--HREF_PROOF-->
         <p class="small-note">
           Java's <code>URL</code> and curl refuse <code>javascript:</code>,
-          a scheme they don't fetch, which is fine. Java's <code>URI</code>
-          follows RFC 3986, which rejects a few characters <code>href</code>
-          leaves as they are (such as <code>|</code> and <code>^</code>);
-          none of the gallery's URLs has one.
+          a scheme they don't fetch, which is fine. The rest are paths:
+          C# decodes escaped dots (<code>%2E%2E%2F</code>), and a
+          <code>%</code> without hex digits, which <code>href</code> keeps
+          as it is (<code>/%zz</code>), is refused by Java's
+          <code>URI</code> and Go, and escaped again by C#. Java's
+          <code>URI</code> follows RFC 3986, which also rejects a few
+          characters <code>href</code> leaves as they are (such as
+          <code>|</code> and <code>^</code>); a strict form of
+          <code>href</code> for such parsers is planned.
         </p>
       </div>
     </section>

@@ -672,6 +672,77 @@ tbody th {
   font-weight: 700;
 }
 
+/* The table of more disagreements. */
+
+.more-table {
+  font-size: 0.85rem;
+}
+
+.more-table .group th {
+  padding-top: 1rem;
+  font-size: 1rem;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+}
+
+.more-table th[scope="row"] {
+  font-weight: 400;
+  text-align: left;
+  min-width: 16rem;
+  max-width: 28rem;
+}
+
+.more-try {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.more-try code {
+  overflow-wrap: anywhere;
+}
+
+.more-try:hover code,
+.more-try:focus-visible code {
+  text-decoration: underline;
+}
+
+.more-table .base {
+  display: block;
+}
+
+.more-note {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+}
+
+.more-table .browser-reads {
+  background: var(--browser-bg);
+  overflow-wrap: anywhere;
+  min-width: 8rem;
+}
+
+.more-table .who-col {
+  font-size: 0.78rem;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.more-table .mark {
+  text-align: center;
+  font-weight: 700;
+  color: var(--tone, var(--muted));
+  background: var(--tone-bg, transparent);
+}
+
 /* The fix and the proof. */
 
 .steps {

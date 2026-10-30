@@ -174,3 +174,29 @@ for (const target of ["/account", "//evil.example/", "/\\evil.example", "//[::1"
     console.log(`next=${target}: refuse, ${url ? url.origin : "not a URL"}`);
   }
 }
+
+section("7. Changing parts");
+
+// The standard's setters, as methods that give a new URL, so a URL that
+// passed a check can't change after. A value that can't be set is ignored,
+// as when assigning to JavaScript's URL.
+const page = parseUrl("https://example.com/docs?lang=en&q=a+b");
+console.log(`page: ${page.href}`);
+console.log(`with host: ${page.withHost("example.org:8443").href}`);
+console.log(`with pathname and hash: ${page.withPathname("/a b").withHash("top").href}`);
+console.log(`with protocol: ${page.withProtocol("http").href}`);
+console.log(`port "http", ignored: ${page.withPort("http").href}`);
+console.log(`unchanged: ${page.href}`);
+// Search parameters: a copy of the query, changed in place, then put back.
+const params = page.searchParams;
+console.log(`q: ${params.get("q")}`);
+params.append("lang", "fr");
+params.set("q", "café & more");
+// Temper's JS backend names delete delete_, though JS allows delete.
+params.delete_("missing");
+params.sort();
+console.log(`lang: ${params.getAll("lang").join(", ")}`);
+for (const entry of params.entries()) {
+  console.log(`${entry.key} = ${entry.value}`);
+}
+console.log(`with search params: ${page.withSearchParams(params).href}`);

@@ -12,9 +12,11 @@ import static hrefine.HrefineGlobal.parseUrl;
 import hrefine.Host;
 import hrefine.HostKind;
 import hrefine.Url;
+import hrefine.UrlSearchParams;
 import hrefine.UrlCheck;
 import hrefine.ValidationError;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -205,5 +207,31 @@ public final class Tour {
                 System.out.println("next=" + target + ": refuse, " + (next != null ? next.getOrigin() : "not a URL"));
             }
         }
+
+        section("7. Changing parts");
+
+        // The standard's setters, as methods that give a new URL, so a URL
+        // that passed a check can't change after. A value that can't be
+        // set is ignored, as in JavaScript.
+        Url page = parseUrl("https://example.com/docs?lang=en&q=a+b");
+        System.out.println("page: " + page.getHref());
+        System.out.println("with host: " + page.withHost("example.org:8443").getHref());
+        System.out.println("with pathname and hash: " + page.withPathname("/a b").withHash("top").getHref());
+        System.out.println("with protocol: " + page.withProtocol("http").getHref());
+        System.out.println("port \"http\", ignored: " + page.withPort("http").getHref());
+        System.out.println("unchanged: " + page.getHref());
+        // Search parameters: a copy of the query, changed in place, then
+        // put back.
+        UrlSearchParams params = page.getSearchParams();
+        System.out.println("q: " + params.get("q"));
+        params.append("lang", "fr");
+        params.set("q", "café & more");
+        params.delete("missing");
+        params.sort();
+        System.out.println("lang: " + String.join(", ", params.getAll("lang")));
+        for (Map.Entry<String, String> entry : params.entries()) {
+            System.out.println(entry.getKey() + " = " + entry.getValue());
+        }
+        System.out.println("with search params: " + page.withSearchParams(params).getHref());
     }
 }

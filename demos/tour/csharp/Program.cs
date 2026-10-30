@@ -203,3 +203,29 @@ foreach (var target in new[] { "/account", "//evil.example/", "/\\evil.example",
         Console.WriteLine($"next={target}: refuse, {next?.Origin ?? "not a URL"}");
     }
 }
+
+Section("7. Changing parts");
+
+// The standard's setters, as methods that give a new URL, so a URL that
+// passed a check can't change after. A value that can't be set is ignored,
+// as in JavaScript.
+var page = ParseUrl("https://example.com/docs?lang=en&q=a+b");
+Console.WriteLine($"page: {page.Href}");
+Console.WriteLine($"with host: {page.WithHost("example.org:8443").Href}");
+Console.WriteLine($"with pathname and hash: {page.WithPathname("/a b").WithHash("top").Href}");
+Console.WriteLine($"with protocol: {page.WithProtocol("http").Href}");
+Console.WriteLine($"port \"http\", ignored: {page.WithPort("http").Href}");
+Console.WriteLine($"unchanged: {page.Href}");
+// Search parameters: a copy of the query, changed in place, then put back.
+var searchParams = page.SearchParams;
+Console.WriteLine($"q: {searchParams.Get("q")}");
+searchParams.Append("lang", "fr");
+searchParams.Set("q", "café & more");
+searchParams.Delete("missing");
+searchParams.Sort();
+Console.WriteLine($"lang: {string.Join(", ", searchParams.GetAll("lang"))}");
+foreach (var entry in searchParams.Entries())
+{
+    Console.WriteLine($"{entry.Key} = {entry.Value}");
+}
+Console.WriteLine($"with search params: {page.WithSearchParams(searchParams).Href}");

@@ -29,6 +29,7 @@ def hrefine(text, base):
         "ok": True,
         "scheme": url.scheme,
         "host": None if kind is None else url.hostname,
+        "path": url.pathname,
         "href": url.href,
         "hostKind": None if kind is None else kind.to_string(),
         "errors": errors,

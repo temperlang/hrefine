@@ -204,4 +204,31 @@ fn main() {
             None => println!("next={target}: refuse, not a URL"),
         }
     }
+
+    section("7. Changing parts");
+
+    // The standard's setters, as methods that give a new URL, so a URL that
+    // passed a check can't change after. A value that can't be set is
+    // ignored, as in JavaScript.
+    let page = parse_url("https://example.com/docs?lang=en&q=a+b", NO_BASE).expect("a URL");
+    println!("page: {}", page.href());
+    println!("with host: {}", page.with_host("example.org:8443").href());
+    println!("with pathname and hash: {}", page.with_pathname("/a b").with_hash("top").href());
+    println!("with protocol: {}", page.with_protocol("http").href());
+    println!("port \"http\", ignored: {}", page.with_port("http").href());
+    println!("unchanged: {}", page.href());
+    // Search parameters: a copy of the query, changed in place, then put
+    // back. Its methods take &self, as Temper's Rust classes do.
+    let params = page.search_params();
+    println!("q: {}", params.get("q").expect("a value"));
+    params.append("lang", "fr");
+    params.set("q", "café & more");
+    params.delete("missing", NO_BASE);
+    params.sort();
+    let langs: Vec<String> = params.get_all("lang").iter().map(|lang| lang.to_string()).collect();
+    println!("lang: {}", langs.join(", "));
+    for (name, value) in params.entries().iter() {
+        println!("{name} = {value}");
+    }
+    println!("with search params: {}", page.with_search_params(params.clone()).href());
 }

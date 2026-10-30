@@ -13,8 +13,8 @@ browser does, in every language it supports, checked against the
 browsers' own test cases.
 
 Parsing and serializing work on every backend, international domain
-names included. Setters and search parameters come in step 3 of the
-[plan](docs/plan.md).
+names included, and so do the standard's setters and search parameters
+(`URLSearchParams`). See the [plan](docs/plan.md) for what's next.
 
 ## Examples
 
@@ -48,6 +48,17 @@ url.sameOrigin(base); // true
 // International domain names, as browsers read them.
 (parseUrl("https://Bücher.example") orelse panic()).hostname; // "xn--bcher-kva.example"
 domainToUnicode("xn--bcher-kva.example"); // "bücher.example"
+
+// Setters give a new URL; url itself never changes.
+let moved = url.withHost("example.org:8443").withPathname("/c d").withHash("");
+moved.href; // "https://user@example.org:8443/c%20d?q=1"
+url.withPort("x").port; // "" (as in JavaScript, a value that can't be set is ignored)
+
+// Search parameters: a copy of the query, changed in place, then put back.
+let params = moved.searchParams;
+params.append("lang", "en US");
+params.set("q", "2");
+moved.withSearchParams(params).search; // "?q=2&lang=en+US"
 ```
 
 The [tour](demos/README.md) shows the same in each language, with
@@ -78,6 +89,24 @@ identical output.
     opaque origins (as for `data:` URLs) never do.
   - `toString()` gives `href`, and `==` in Temper compares `href`s
     (`eq` in other languages).
+  - The standard's setters, as methods that give a new `Url`:
+    `withHref`, `withProtocol`, `withUsername`, `withPassword`,
+    `withHost`, `withHostname`, `withPort`, `withPathname`,
+    `withSearch`, and `withHash`, so `url.withHash("top")` is
+    JavaScript's `url.hash = "top"`. As there, a value that can't be
+    set leaves the URL as it was (or as far as the standard got: a host
+    with a bad port sets only the host), and only `withHref` bubbles.
+  - `url.searchParams`: the query as a new `UrlSearchParams` each time,
+    and `url.withSearchParams(params)`: a `Url` with them as its query
+    (none, if they're empty).
+- `UrlSearchParams`: JavaScript's `URLSearchParams`, the standard's
+  `application/x-www-form-urlencoded` list of names and values.
+  `new UrlSearchParams(init?)` parses a query, with or without `?`;
+  `append`, `delete(name, value?)`, `get` (null if missing), `getAll`,
+  `has(name, value?)`, `set`, and `sort` (by UTF-16 code units, as in
+  JavaScript) read and change it in place; `size`, `entries()` (Temper
+  `Pair`s, as each language's own pairs), `keys()`, and `values()` list
+  it; and `toString()` gives the query, as `q=a+b&page=2`.
 - `parseHost(input)`: checks a host, as in `https://input/`, giving a
   `Host` with its `kind` and `serialized` form, or bubbles.
 - `domainToAscii(domain)` and `domainToUnicode(domain)`: the standard's
@@ -85,6 +114,13 @@ identical output.
   converting and showing names. They aren't checks: domain to ASCII
   passes `exa mple.com`, `0x7f.1`, and `[::1]` as they are, as the
   standard says. Use `parseHost` to check a host.
+
+`Url` is immutable, unlike JavaScript's `URL`, so a URL that passed a
+check can't change after, it compares and hashes by value safely, and
+threads can share it. So the setters give a new `Url`, and the search
+parameters aren't tied to a URL: JavaScript's `url.searchParams.append(…)`
+is two steps here, reading `searchParams` and handing them back with
+`withSearchParams`.
 
 Every language gets these names in its own style (`parse_url` and
 `url.host_kind` in Python and Rust, `ParseUrl` and `url.HostKind` in C#,
@@ -142,7 +178,20 @@ own URL cases, the ones browsers are checked against, vendored in
   host, as web-platform-tests does. All pass on every backend, but for 2
   that Temper strings can't hold (unpaired surrogates), which are left
   out. The tests and the IDNA tables are both for Unicode 18.0.
-- `setters_tests.json` and `percent-encoding.json`, for later steps.
+- `setters_tests.json`: 278 URLs, each with one part set, and the parts
+  that must follow. `scripts/wpt_setter_tests.py` turns them into [a
+  Temper test](src/wpt-setter-tests.temper.md), calling the matching
+  `with` method. All pass on every backend.
+- `urlencoded-parser.any.js` and `urlsearchparams-sort.any.js`: 35
+  queries and the names and values they must give, and 8 to sort, which
+  `scripts/wpt_search_params_tests.py` turns into [a Temper
+  test](src/wpt-search-params-tests.temper.md) (with Node, since they're
+  JavaScript). The other `urlsearchparams-*.any.js` files and
+  `url-searchparams.any.js` are ported by hand into
+  [search-params](src/search-params.temper.md)'s tests, but for what
+  tests JavaScript's own conversions (`null` and numbers as names). All
+  pass on every backend.
+- `percent-encoding.json`, for later.
 
 ## Site
 
@@ -151,16 +200,22 @@ other languages' parsers read as different hosts, a tester that parses
 whatever you type live with Hrefine's JavaScript build (beside your
 browser's own `URL`), a gallery of tricks (short and hex IPv4 forms,
 backslashes, `@` and `#@`, tabs, look-alike Unicode, `javascript:`, and
-protocol-relative URLs), and the fix in each language, taken from the
-tours.
+protocol-relative URLs), a table of 47 more disagreements, by kind
+(backslashes and controls, user info, IPv4 and IPv6 forms, escaped and
+international names, schemes and ports, and paths), and the fix in each
+language, taken from the tours.
 
-Other parsers can't run in a browser, so their answers for the gallery's
-URLs are recorded ahead of time, with their versions and the date:
+Other parsers can't run in a browser, so their answers for the 61
+recorded URLs are recorded ahead of time, with their versions and the date:
 Python's `urllib.parse`, Java's `URI` and `URL`, .NET's `Uri`, Go's
 `net/url`, libcurl's URL API, and Node's `URL`, standing in for browsers.
 `site/record/record.py` runs each one that's installed on the inputs in
 `site/gallery.json`, then on Hrefine's `href` for each, and writes
-`site/recorded.json`, which is checked in. Re-record after changing the
+`site/recorded.json`, which is checked in. Each parser counts as agreeing
+with browsers if it reads the same host (IPv6 addresses compared as
+addresses), or for path tricks the same path. The table's inputs come
+from web-platform-tests' cases and published research on parser
+differences; keep it curated, with a short note on each. Re-record after changing the
 gallery, or to update the versions:
 
     temper build -b js -b py
@@ -184,8 +239,9 @@ it:
     python3 -m http.server --bind 127.0.0.1 -d site/build
 
 The build copies the JS library and Temper's runtime as plain ES modules
-(no bundler, so about 55 KB gzipped), renders the opening and the gallery
-from the recorded answers, and takes the fix's code from each tour's
+(no bundler, so about 60 KB gzipped), renders the opening, the gallery,
+and the table from the recorded answers (each table row's full answers go
+in `tables.json`, which the tester fetches only when one is tried), and takes the fix's code from each tour's
 "Using it safely" section, failing if it can't find it. Visits are counted
 by cookieless GoatCounter, site code `hrefine`. CI
 (`.github/workflows/site.yml`) builds the site on every change and
@@ -235,6 +291,9 @@ Load is after Temper's own runtime, which takes another 30–40 ms to
 import in Python. The API revision after the tours (`checkUrl`, typed
 parts, and `parseHost`) left parsing as fast, timed in turns, and added
 about 21–23 KB (4 KB gzipped) in Python and JavaScript. The [plan](docs/plan.md) has what changed these.
+The table predates the setters and search parameters (2026-10-30),
+which add code, and a few checks to the parser for the setters' state
+overrides; they aren't measured yet.
 
 ## Development
 
@@ -262,4 +321,6 @@ from Unicode's (which `scripts/unicode_data.py` downloads and checks):
 
     uv run scripts/wpt_tests.py
     uv run scripts/wpt_idna_tests.py
+    uv run scripts/wpt_setter_tests.py
+    uv run scripts/wpt_search_params_tests.py
     uv run scripts/idna_tables.py

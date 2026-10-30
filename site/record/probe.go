@@ -20,6 +20,7 @@ type result struct {
 	Ok     bool    `json:"ok"`
 	Scheme *string `json:"scheme,omitempty"`
 	Host   *string `json:"host,omitempty"`
+	Path   *string `json:"path,omitempty"`
 	Href   *string `json:"href,omitempty"`
 	Error  string  `json:"error,omitempty"`
 }
@@ -47,8 +48,8 @@ func parse(input string, base *string) result {
 	if err != nil {
 		return result{Error: err.Error()}
 	}
-	scheme, host, href := u.Scheme, u.Hostname(), u.String()
-	r := result{Ok: true, Scheme: &scheme, Href: &href}
+	scheme, host, path, href := u.Scheme, u.Hostname(), u.EscapedPath(), u.String()
+	r := result{Ok: true, Scheme: &scheme, Path: &path, Href: &href}
 	// No authority at all, as for javascript:alert(1), is no host.
 	if u.Host != "" || strings.HasPrefix(u.String(), u.Scheme+"://") {
 		r.Host = &host

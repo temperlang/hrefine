@@ -25,7 +25,7 @@ Dictionary<string, object?> Parse(string input, string? baseText)
         // IdnHost is the host an HTTP client connects to: international
         // names in ASCII.
         string? host = uri.HostNameType == UriHostNameType.Unknown && uri.IdnHost == "" ? null : uri.IdnHost;
-        return new() { ["ok"] = true, ["scheme"] = uri.Scheme, ["host"] = host, ["href"] = uri.AbsoluteUri };
+        return new() { ["ok"] = true, ["scheme"] = uri.Scheme, ["host"] = host, ["path"] = uri.AbsolutePath, ["href"] = uri.AbsoluteUri };
     }
     catch (Exception e)
     {

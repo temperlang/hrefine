@@ -194,4 +194,37 @@ int main() {
       std::cout << "next=" << target << ": refuse, " << (next ? next->get_origin() : "not a URL") << "\n";
     }
   }
+
+  section("7. Changing parts");
+
+  // The standard's setters, as methods that give a new URL, so a URL that
+  // passed a check can't change after. A value that can't be set is ignored,
+  // as in JavaScript.
+  auto page = parseUrl("https://example.com/docs?lang=en&q=a+b");
+  std::cout << "page: " << page->get_href() << "\n";
+  std::cout << "with host: " << page->withHost("example.org:8443")->get_href() << "\n";
+  std::cout << "with pathname and hash: " << page->withPathname("/a b")->withHash("top")->get_href() << "\n";
+  std::cout << "with protocol: " << page->withProtocol("http")->get_href() << "\n";
+  std::cout << "port \"http\", ignored: " << page->withPort("http")->get_href() << "\n";
+  std::cout << "unchanged: " << page->get_href() << "\n";
+  // Search parameters: a copy of the query, changed in place, then put back.
+  // Temper's C++ backend names delete delete_, since delete is C++'s.
+  auto params = page->get_searchParams();
+  std::cout << "q: " << params->get("q").value << "\n";
+  params->append("lang", "fr");
+  params->set("q", "café & more");
+  params->delete_("missing");
+  params->sort();
+  // Lists come as shared pointers; keep each alive while looping over it.
+  auto langList = params->getAll("lang");
+  std::string langs;
+  for (auto const &lang : *langList) {
+    langs += (langs.empty() ? "" : ", ") + lang;
+  }
+  std::cout << "lang: " << langs << "\n";
+  auto entries = params->entries();
+  for (auto const &entry : *entries) {
+    std::cout << entry->key << " = " << entry->value << "\n";
+  }
+  std::cout << "with search params: " << page->withSearchParams(params)->get_href() << "\n";
 }

@@ -1,5 +1,5 @@
 // Hrefine's site: the live URL tester, the gallery's live Hrefine answers,
-// the language tabs, and the tour. Hrefine comes from Temper's JS output,
+// the table of more disagreements, the language tabs, and the tour. Hrefine comes from Temper's JS output,
 // as plain ES modules named by the page's import map.
 
 import * as hrefine from "hrefine";
@@ -22,7 +22,9 @@ const NEWLINE = "␊";
 function shown(s) {
   return escapeHtml(s)
     .replaceAll("\t", '<span class="ctl" title="tab">\\t</span>')
-    .replaceAll("\n", '<span class="ctl" title="newline">\\n</span>');
+    .replaceAll("\n", '<span class="ctl" title="newline">\\n</span>')
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F\u00AD\u200B]/g, (c) =>
+      `<span class="ctl" title="invisible">\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}</span>`);
 }
 
 /** A field's text with its stand-ins turned back into tabs and newlines. @param {string} s */
@@ -109,7 +111,8 @@ for (const row of document.querySelectorAll("[data-parser=hrefine]")) {
 const urlInput = /** @type {HTMLInputElement} */ ($("url-input"));
 const baseInput = /** @type {HTMLInputElement} */ ($("base-input"));
 const cards = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".card"))];
-// The opening's URL and the gallery's, which have recorded answers.
+// The opening's URL, the gallery's, and the table's, which have recorded
+// answers.
 const recordedInputs = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll("[data-title]"))];
 
 const PARTS = ["href", "origin", "protocol", "username", "password", "host", "hostname", "port", "pathname", "search", "hash"];
@@ -181,14 +184,45 @@ function update() {
     ? h.errors.map((e) => `<li><code>${escapeHtml(e.name)}</code> at ${e.position}</li>`).join("")
     : `<li class="none">${h.baseFailed ? "The base isn't a URL." : "None: a clean URL."}</li>`;
 
-  // Other parsers, where this input is one of the gallery's.
+  // Other parsers, where this input is one of the recorded ones. The
+  // table's rows have their answers in tables.json, fetched when needed.
   const known = recordedInputs.find((c) => c.dataset.input === input && (c.dataset.base ?? null) === base);
-  const table = known?.querySelector(".table-scroll");
+  /** @type {Element | null | undefined} */
+  let table = known?.querySelector(".table-scroll");
+  const row = known?.dataset.row;
+  if (row) {
+    if (moreTables) {
+      const holder = document.createElement("template");
+      holder.innerHTML = moreTables[row] ?? "";
+      table = holder.content.firstElementChild;
+    } else {
+      loadMoreTables();
+    }
+  }
   $("recorded-table").replaceChildren(...(table ? [table.cloneNode(true)] : []));
-  const which = known?.dataset.title === "opening" ? "the opening's URL" : `the gallery's “${known?.dataset.title}” URL`;
+  const which = known?.dataset.title === "opening"
+    ? "the opening's URL"
+    : row
+      ? "one of the more disagreements below"
+      : `the gallery's “${known?.dataset.title}” URL`;
   $("recorded-note").textContent = table
     ? `This is ${which}, so here are other parsers' answers, recorded ahead of time. The browser row is Node's URL, standing in for browsers.`
-    : "Other languages' parsers can't run in your browser. For the gallery's URLs, this page shows their answers, recorded ahead of time; pick one above. For anything else, only Hrefine and your browser run live.";
+    : "Other languages' parsers can't run in your browser. For the gallery's URLs and the more disagreements below, this page shows their answers, recorded ahead of time; pick one. For anything else, only Hrefine and your browser run live.";
+}
+
+/** @type {Record<string, string> | null} */
+let moreTables = null;
+/** @type {Promise<void> | null} */
+let moreLoading = null;
+
+function loadMoreTables() {
+  moreLoading ??= fetch($("more").dataset.tables ?? "")
+    .then((response) => response.json())
+    .then((tables) => {
+      moreTables = tables;
+      update();
+    })
+    .catch(() => {});
 }
 
 /**
@@ -210,6 +244,14 @@ for (const card of cards) {
   $("examples").append(button);
   card.querySelector(".try")?.addEventListener("click", () => {
     load(card.dataset.input ?? "", card.dataset.base ?? null);
+    $("try").scrollIntoView({ behavior: "smooth" });
+    urlInput.focus({ preventScroll: true });
+  });
+}
+
+for (const row of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".more-row"))) {
+  row.querySelector(".more-try")?.addEventListener("click", () => {
+    load(row.dataset.input ?? "", row.dataset.base ?? null);
     $("try").scrollIntoView({ behavior: "smooth" });
     urlInput.focus({ preventScroll: true });
   });

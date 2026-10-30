@@ -53,6 +53,20 @@ site that makes the point.
    standard's setters do (`setters_tests.json`), and
    `application/x-www-form-urlencoded` parsing and serializing
    (`URLSearchParams`).
+   *Done* (2026-10-30): the basic URL parser takes the standard's URL
+   and state override, so each setter is the standard's own steps, and
+   `Url` gets `withHref` through `withHash`, giving a new URL (see
+   "Setters on an immutable URL" below). `UrlSearchParams` has
+   JavaScript's methods, `url.searchParams` and `url.withSearchParams`
+   keep it and the query in step, and its sort compares UTF-16 code
+   units, as JavaScript's does. All 278 of `setters_tests.json`, the 35
+   parsing and 8 sorting cases of `urlencoded-parser.any.js` and
+   `urlsearchparams-sort.any.js`, and hand ports of the other
+   `urlsearchparams-*.any.js` and `url-searchparams.any.js` tests pass on
+   all seven backends. The tours show both. Not yet: a typed setter
+   beside `withPort` (such as a port number), a `UrlSearchParams` from
+   pairs, and `percent-encoding.json`, which tests encodings other than
+   UTF-8, which the `URL` API doesn't use.
 4. **Tours in every language,** checked in CI, as in Ordable. Each also
    shows, in comments, the recommended pattern with that language's
    usual web clients and servers (such as `fetch`, `requests`,
@@ -95,7 +109,13 @@ site that makes the point.
    13 gallery cards, the fix from the tours, the proof, and the tours.
    `site/record/record.py` records Python, Java (`URI` and `URL`), C#,
    Go, libcurl, and Node, and Hrefine's JS and Python builds, which must
-   agree. Given Hrefine's `href`, every recorded parser reads every
+   agree. A table of 47 more disagreements (2026-10-30), by kind
+   (backslashes and controls, user info, IPv4, IPv6, escaped and
+   international names, schemes and ports, and paths), from WPT's cases
+   and published parser-differential research, brings the recorded
+   inputs from 14 to 61; path tricks compare paths, not hosts, and IPv6
+   hosts compare as addresses. Each row's full answers load only when
+   tried. Given Hrefine's `href`, every recorded parser reads every
    gallery URL's host as browsers do (Java's `URL` and curl refuse
    `javascript:`). A WPT scoreboard (2026-10-30) runs `urltestdata.json`
    live through the browser's `URL` and Hrefine, with the misses listed,
@@ -152,8 +172,13 @@ people know, with JavaScript's names, revised after the tours
   ASCII and domain to Unicode (IDNA), as in Node's `url` module, for
   converting and showing a domain. Not checks; `parseHost` is.
 
-Later, perhaps: a builder or setters (step 3), and the source view,
-display formatting, and comparison options (step 5). The canonical
+- Setters as `with` methods giving a new `Url` (step 3, below), and
+  `UrlSearchParams`, as JavaScript's `URLSearchParams`, not tied to a
+  URL: `url.searchParams` gives a new one each time, and
+  `url.withSearchParams(params)` a URL with them.
+
+Later, perhaps: the source view, display formatting, and comparison
+options (step 5). The canonical
 `Url` stays what security decisions use; the source view is a separate,
 opt-in type.
 
@@ -213,16 +238,43 @@ Hrefine's own, which stay open in Temper.
   `portNumber`), so the tour uses `temper.null_to_nil`. All Temper's,
   in `notes/temper-fixes.md`'s terms; still open.
 
+## Setters on an immutable URL
+
+Decided 2026-10-30, for step 3. JavaScript's `URL` is mutable, with a
+live `searchParams`. Hrefine's `Url` stays immutable, and each setter is
+a method giving a new `Url` (`withHost`, as Java's `java.time` and many
+immutable types name them), because:
+
+- **Security:** the README's pattern is to check a parsed URL and hand
+  on its `href`. A URL that can change after the check, by any code
+  holding it, undoes that. A new value can't.
+- **Values:** `==` compares `href`s, which is safe only if they can't
+  change, and immutable values are safe to share between threads in
+  C++, C#, Java, and Rust without locks.
+- **Every language:** methods that return a value translate plainly to
+  all seven backends; property setters and a live child object tied to
+  its parent don't (Lua and C++ have no property setters, and Rust's
+  shared mutation needs locks).
+- **Faithful still:** each `with` method runs the standard's setter
+  steps, on a copy of the URL record, with partial changes kept where
+  the standard keeps them, so `setters_tests.json` passes unchanged.
+
+A builder was the other choice, but it would be a second type with the
+same parts, and chaining `with` methods already builds. Search
+parameters are mutable, as a list being edited, and not tied to a URL:
+reading `searchParams` and handing them back with `withSearchParams` is
+the standard's update steps, made explicit.
+
 ## Design notes
 
 - **Code points, not code units:** Temper strings hold Unicode scalar
   values, walked with `StringIndex`, so every backend sees the same
   characters, whatever its own string encoding. The standard's inputs
   are code points too.
-- **Files:** the parser's state machine; hosts (domains, IPv4 with its
-  odd number forms, IPv6, and opaque hosts); percent-encoding and its
-  encode sets; IDNA (mapping, checks, and NFC), Punycode, and IDNA's
-  generated tables; and, later, search parameters.
+- **Files:** the parser's state machine and the setters; hosts
+  (domains, IPv4 with its odd number forms, IPv6, and opaque hosts);
+  percent-encoding and its encode sets; search parameters; and IDNA
+  (mapping, checks, and NFC), Punycode, and IDNA's generated tables.
 - **Speed and size:** as small and fast as we can make them, in every
   language, without giving up exactness, measured with `bench/` (see the
   README). As of 2026-10-29, against the version before, timed in turns:

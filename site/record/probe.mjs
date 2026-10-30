@@ -21,7 +21,7 @@ function node(input, base) {
     const url = new URL(input, base ?? undefined);
     // A URL without a host, such as javascript:alert(1), has hostname "".
     const host = url.host === "" && !url.href.startsWith(`${url.protocol}//`) ? null : url.hostname;
-    return { ok: true, scheme: url.protocol.slice(0, -1), host, href: url.href };
+    return { ok: true, scheme: url.protocol.slice(0, -1), host, path: url.pathname, href: url.href };
   } catch (error) {
     return { ok: false, error: String(error.code ?? error.message) };
   }
@@ -33,7 +33,7 @@ function hrefine(input, base) {
   const url = check.url;
   if (url === null) return { ok: false, error: errors.at(-1) ?? "failure", errors };
   const host = url.hostKind === null ? null : url.hostname;
-  return { ok: true, scheme: url.scheme, host, href: url.href, hostKind: url.hostKind?.toString() ?? null, errors };
+  return { ok: true, scheme: url.scheme, host, path: url.pathname, href: url.href, hostKind: url.hostKind?.toString() ?? null, errors };
 }
 
 for await (const line of createInterface({ input: process.stdin })) {
