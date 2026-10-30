@@ -3,14 +3,21 @@
 // The same tour exists for each language Hrefine supports, and they all print
 // the same text. See demos/README.md for how to run them.
 
+import static hrefine.HrefineGlobal.checkUrl;
 import static hrefine.HrefineGlobal.domainToAscii;
 import static hrefine.HrefineGlobal.domainToUnicode;
+import static hrefine.HrefineGlobal.parseHost;
 import static hrefine.HrefineGlobal.parseUrl;
 
+import hrefine.Host;
+import hrefine.HostKind;
 import hrefine.Url;
+import hrefine.UrlCheck;
+import hrefine.ValidationError;
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class Tour {
     private Tour() {}
@@ -25,23 +32,18 @@ public final class Tour {
         return text.replace("\t", "\\t").replace("\n", "\\n");
     }
 
-    /** The URL, or empty if it isn't one. */
-    static Optional<Url> tryParse(String text, String base) {
-        try {
-            return Optional.of(parseUrl(text, base));
-        } catch (RuntimeException e) {
-            return Optional.empty();
-        }
-    }
-
     static final Set<String> ALLOWED = Set.of("example.com", "api.example.com");
 
     /** The URL to fetch, or why not. */
     static String check(String input) {
-        Optional<Url> parsed = tryParse(input, null);
-        if (parsed.isEmpty()) return "refuse: not a URL";
-        Url url = parsed.get();
-        if (!url.getProtocol().equals("https:")) return "refuse: protocol " + url.getProtocol();
+        Url url = Url.parse(input);
+        if (url == null) return "refuse: not a URL";
+        if (!url.getScheme().equals("https")) return "refuse: scheme " + url.getScheme();
+        // An IP address isn't a name on the list, however it's written.
+        // Each kind is one object, so == works.
+        if (url.getHostKind() != HostKind.domain) {
+            return "refuse: " + url.getHostKind() + " host " + url.getHostname();
+        }
         if (!ALLOWED.contains(url.getHostname())) return "refuse: host " + url.getHostname();
         // client.send(HttpRequest.newBuilder(URI.create(url.getHref())).build(), ...),
         // never input, with a client built with
@@ -71,50 +73,59 @@ public final class Tour {
         System.out.println("pathname: " + url.getPathname());
         System.out.println("search: " + url.getSearch());
         System.out.println("hash: " + url.getHash());
-        // Every part is a string, as in JavaScript's URL, so no port is "".
+        // Typed parts, beside the standard's strings.
+        System.out.println("scheme: " + url.getScheme());
+        System.out.println("port number: " + url.getPortNumber());
+        System.out.println("host kind: " + url.getHostKind());
+        // The standard's parts are strings, as in JavaScript's URL, so no
+        // port is "", and getPortNumber() is null.
         Url plain = parseUrl("HTTPS://example.com:443");
-        System.out.println("default port: " + plain.getHref() + ", port \"" + plain.getPort() + "\"");
+        System.out.println("default port: " + plain.getHref() + ", port \"" + plain.getPort()
+            + "\", port number " + Objects.toString(plain.getPortNumber(), "none"));
 
         section("2. Relative URLs");
 
-        String base = "https://example.com/docs/guide/intro.html";
-        System.out.println("base: " + base);
+        // Parse the base once, then resolve against it.
+        Url guide = parseUrl("https://example.com/docs/guide/intro.html");
+        System.out.println("base: " + guide.getHref());
         for (String relative : List.of("setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js")) {
-            // The base is a string, parsed again on each call.
-            System.out.println(relative + " -> " + parseUrl(relative, base).getHref());
+            System.out.println(relative + " -> " + guide.resolve(relative).getHref());
         }
-        // Url.parse is the same as parseUrl, as in JavaScript's URL.parse.
-        System.out.println("Url.parse: " + Url.parse("setup.html", base).getHref());
-        // A Url can't be a base itself, so pass its href.
-        Url guide = parseUrl(base);
-        System.out.println("from a Url: " + parseUrl("faq.html", guide.getHref()).getHref());
+        // Or give the base as a string, parsed on each call.
+        System.out.println("with a string base: " + parseUrl("faq.html", guide.getHref()).getHref());
 
         section("3. Failures");
 
-        // Input that isn't a URL throws a plain RuntimeException, with no
-        // message, so it says nothing of why, and catching it catches every
-        // other unchecked exception too. (java.net.URI throws
-        // URISyntaxException, with a reason and an index.)
-        String[][] cases = {
-            {"https://exa mple.com", null},
-            {"http://[::1", null},
-            {"https://example.com:99999", null},
-            {"setup.html", null},
-            {"setup.html", "not a base"},
-        };
-        for (String[] pair : cases) {
-            String input = pair[0];
-            String against = pair[1];
-            String label = against != null ? input + " against " + against : input + ", without a base";
-            try {
-                parseUrl(input, against);
-                System.out.println(label + ": parsed");
-            } catch (RuntimeException e) {
-                System.out.println(label + ": not a URL");
-            }
+        // checkUrl says why input isn't a URL, with the standard's names for
+        // what's wrong and where, counted in code points from 0. The last
+        // error is why it failed. Some errors don't stop a URL from
+        // parsing, as browsers accept it.
+        for (String input : List.of(
+            "https://exa mple.com",
+            "http://[::1",
+            "https://example.com:99999",
+            "setup.html",
+            "https:example.com/a b"
+        )) {
+            UrlCheck check = checkUrl(input);
+            String errors = check.getErrors().stream().map(ValidationError::toString).collect(Collectors.joining(", "));
+            String result = check.getUrl() != null ? check.getUrl().getHref() : "not a URL";
+            System.out.println(input + ": " + result + " (" + errors + ")");
         }
-        // Or wrap it, as tryParse above does, for an Optional.
-        System.out.println("as an optional: " + (tryParse("https://exa mple.com", null).isEmpty() ? "nothing" : "a URL"));
+        // Url.parse gives null where parseUrl throws, and Url.canParse says
+        // only whether it would parse, as in JavaScript.
+        System.out.println("nullable parse: " + (Url.parse("setup.html") == null ? "nothing" : "a URL"));
+        System.out.println("can parse: " + Url.canParse("setup.html"));
+        // parseUrl throws a plain RuntimeException, with no message, and
+        // catching it catches every other unchecked exception too, so
+        // checkUrl says why. (java.net.URI throws URISyntaxException, with a
+        // reason and an index.)
+        try {
+            parseUrl("setup.html");
+            System.out.println("throwing parse: parsed");
+        } catch (RuntimeException e) {
+            System.out.println("throwing parse: throws");
+        }
 
         section("4. International domain names");
 
@@ -151,6 +162,8 @@ public final class Tour {
         }
         // toString() is href too, so string concatenation gives it.
         System.out.println("as a string: " + url);
+        // eq compares hrefs; equals, not overridden, compares objects.
+        System.out.println("same URL: " + parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c")));
 
         section("6. Using it safely");
 
@@ -169,16 +182,27 @@ public final class Tour {
             System.out.println(input + ": " + check(input));
         }
 
+        // Check hosts from configuration with parseHost, which domainToAscii
+        // isn't for: it passes all three.
+        for (String input : List.of("example.com", "0x7f.1", "exa mple.com")) {
+            try {
+                Host host = parseHost(input);
+                System.out.println("host " + input + ": " + host.getKind() + " " + host.getSerialized());
+            } catch (RuntimeException e) {
+                System.out.println("host " + input + ": not a host");
+            }
+        }
+
         // A server redirecting to a `next` parameter: resolve it against
-        // your own origin, and redirect only if the origin stays the same.
-        // In a servlet: response.sendRedirect(next.getHref()).
-        String site = "https://example.com/";
-        for (String target : List.of("/account", "//evil.example/", "/\\evil.example")) {
-            Optional<Url> next = tryParse(target, site);
-            if (next.isPresent() && next.get().getOrigin().equals("https://example.com")) {
-                System.out.println("next=" + target + ": redirect to " + next.get().getHref());
+        // your own site, and redirect only to the same origin. In a
+        // servlet: response.sendRedirect(next.getHref()).
+        Url site = parseUrl("https://example.com/");
+        for (String target : List.of("/account", "//evil.example/", "/\\evil.example", "//[::1")) {
+            Url next = site.tryResolve(target);
+            if (next != null && next.sameOrigin(site)) {
+                System.out.println("next=" + target + ": redirect to " + next.getHref());
             } else {
-                System.out.println("next=" + target + ": refuse, " + next.map(Url::getOrigin).orElse("not a URL"));
+                System.out.println("next=" + target + ": refuse, " + (next != null ? next.getOrigin() : "not a URL"));
             }
         }
     }

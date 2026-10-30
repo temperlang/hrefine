@@ -3,10 +3,92 @@
 The URL Standard's [hosts](https://url.spec.whatwg.org/#hosts-(domains-and-ip-addresses))
 section: a URL's host is a domain, an IPv4 address, an IPv6 address, an
 opaque host (for URLs that aren't special, such as `foo://host`), or
-empty. Each kind parses differently, and serializes to a string. Since
-nothing here needs a host's kind after parsing, the parser returns the
-host serialized, as the URL's getters give it: `example.com`,
-`127.0.0.1`, `[::1]`.
+empty. Each kind parses differently, and serializes to a string. The
+parser returns the host serialized, as the URL's getters give it:
+`example.com`, `127.0.0.1`, `[::1]`, since the kind can be read from
+that again, which is rarely needed.
+
+## Checking a Host
+
+Parses `input` as a special URL's host, as in `https://input/`, with
+the standard's [host parser](https://url.spec.whatwg.org/#concept-host-parser):
+a domain, converted to ASCII and checked, or an IPv4 address in any of
+its forms, or an IPv6 address in brackets. It bubbles where the host
+parser fails, as on a space or other forbidden code point, a bad
+international domain name, an IPv4 address out of range, or nothing at
+all. Unlike `domainToAscii`, it checks a host, so use it for that.
+
+    export let parseHost(input: String): Host throws Bubble {
+      let serialized = runHostParser(input, false, null, 0);
+      new Host(kindOfHost(serialized, true), serialized)
+    }
+
+A parsed host: what kind it is, and its
+[serialization](https://url.spec.whatwg.org/#concept-host-serializer),
+as a URL's `hostname` gives it, which `toString` gives too.
+
+    export class Host {
+      public kind: HostKind;
+      public serialized: String;
+
+      private constructor(kind: HostKind, serialized: String) {
+        this.kind = kind;
+        this.serialized = serialized;
+      }
+
+      public toString(): String { serialized }
+    }
+
+The kinds of host, each with its name, which `toString` gives too:
+`domain`, `ipv4`, `ipv6`, `opaque` (in URLs that aren't special), and
+`empty`.
+
+    export class HostKind {
+      public name: String;
+
+      private constructor(name: String) {
+        this.name = name;
+      }
+
+      public toString(): String { name }
+
+      @operator("==")
+      public eq(other: HostKind): Boolean { name == other.name }
+
+      public static domain = new HostKind("domain");
+      public static ipv4 = new HostKind("ipv4");
+      public static ipv6 = new HostKind("ipv6");
+      public static opaque = new HostKind("opaque");
+      public static empty = new HostKind("empty");
+    }
+
+The kind of a serialized host, in a URL that's `special` or not. A
+special URL's domain can't end in a number, which would have made it an
+IPv4 address, so a last label of digits means one.
+
+    let kindOfHost(host: String, special: Boolean): HostKind {
+      if (host.isEmpty) {
+        HostKind.empty
+      } else if (host[String.begin] == char'[') {
+        HostKind.ipv6
+      } else if (!special) {
+        HostKind.opaque
+      } else if (isDigit(host[host.prev(host.end)])) {
+        if (lastLabelIsDigits(host)) { HostKind.ipv4 } else { HostKind.domain }
+      } else {
+        HostKind.domain
+      }
+    }
+
+    let lastLabelIsDigits(host: String): Boolean {
+      var digits = true;
+      var i = host.end;
+      while (digits && i > String.begin && host[host.prev(i)] != char'.') {
+        i = host.prev(i);
+        digits = isDigit(host[i]);
+      }
+      digits
+    }
 
 ## Host Parsing
 
@@ -15,19 +97,21 @@ takes the text between the `//` and the path, minus any user, password,
 and port, and whether it's opaque (the URL isn't special). Bracketed
 input is an IPv6 address; opaque input is an opaque host; anything else
 is a domain, after percent-decoding, unless it ends in a number, as
-`127.0.0.1` and `0x7f.1` do, which makes it an IPv4 address.
+`127.0.0.1` and `0x7f.1` do, which makes it an IPv4 address. It notes
+validation errors in `log`, if given, at `at`, where the host starts.
 
-    let parseHost(input: String, isOpaque: Boolean): String throws Bubble {
+    let runHostParser(input: String, isOpaque: Boolean, log: ErrorLog?, at: Int): String throws Bubble {
       if (input.hasIndex(String.begin) && input[String.begin] == char'[') {
         let last = input.prev(input.end);
         if (input[last] != char']' || last == String.begin) {
+          noteAt(log, "IPv6-unclosed", at);
           bubble();
         }
-        "[${serializeIpv6(parseIpv6(input.slice(input.next(String.begin), last)))}]"
+        "[${serializeIpv6(parseIpv6(input.slice(input.next(String.begin), last), log, at))}]"
       } else if (isOpaque) {
-        parseOpaqueHost(input)
+        parseOpaqueHost(input, log, at)
       } else {
-        parseDomain(input)
+        parseDomain(input, log, at)
       }
     }
 
@@ -41,7 +125,7 @@ Most hosts are ASCII without `%`, which decoding doesn't change, and
 which converting only lowercases, so one look at each code point
 checks for all that, and for forbidden ones.
 
-    let parseDomain(input: String): String throws Bubble {
+    let parseDomain(input: String, log: ErrorLog?, at: Int): String throws Bubble {
       var plain = true;
       var upper = false;
       var forbidden = false;
@@ -56,10 +140,12 @@ checks for all that, and for forbidden ones.
         }
       }
       if (plain && (forbidden || input.isEmpty)) {
+        noteAt(log, if (forbidden) { "domain-invalid-code-point" } else { "domain-to-ASCII" }, at);
         bubble();
       }
       let asciiDomain = if (!plain) {
-        domainToAscii(utf8Decode(percentDecode(input)))
+        let decoded = utf8Decode(percentDecode(input));
+        if (log == null) { domainToAscii(decoded) } else { domainToAsciiNoting(decoded, log, at) }
       } else if (upper) {
         asciiLowercase(input)
       } else {
@@ -68,14 +154,27 @@ checks for all that, and for forbidden ones.
       if (!plain) {
         for (var i = String.begin; asciiDomain.hasIndex(i); i = asciiDomain.next(i)) {
           if (isForbiddenDomainCode(asciiDomain[i])) {
+            noteAt(log, "domain-invalid-code-point", at);
             bubble();
           }
         }
       }
       if (endsInANumber(asciiDomain)) {
-        serializeIpv4(parseIpv4(asciiDomain))
+        serializeIpv4(parseIpv4(asciiDomain, log, at))
       } else {
         asciiDomain
+      }
+    }
+
+Domain to ASCII, noting where it fails, for a log.
+
+    let domainToAsciiNoting(domain: String, log: ErrorLog?, at: Int): String throws Bubble {
+      let ascii: String? = domainToAscii(domain) orelse null;
+      if (ascii == null) {
+        noteAt(log, "domain-to-ASCII", at);
+        bubble()
+      } else {
+        ascii
       }
     }
 
@@ -105,12 +204,21 @@ be in a domain: those, any C0 control, `%`, and U+007F.
 
 The [opaque-host parser](https://url.spec.whatwg.org/#concept-opaque-host-parser)
 fails on a forbidden host code point, and otherwise escapes controls and
-code points past ASCII, with the C0 control percent-encode set.
+code points past ASCII, with the C0 control percent-encode set. Code
+points that aren't URL code points are errors, but not failures.
 
-    let parseOpaqueHost(input: String): String throws Bubble {
+    let parseOpaqueHost(input: String, log: ErrorLog?, at: Int): String throws Bubble {
       for (var i = String.begin; input.hasIndex(i); i = input.next(i)) {
         if (isForbiddenHostCode(input[i])) {
+          noteAt(log, "host-invalid-code-point", at);
           bubble();
+        }
+      }
+      if (log != null) {
+        var k = at;
+        for (var i = String.begin; input.hasIndex(i); i = input.next(i)) {
+          noteUnit(log, input, i, k);
+          k += 1;
         }
       }
       percentEncodeString(input, c0ControlSet)
@@ -165,25 +273,48 @@ takes one to four numbers, separated by dots, with an optional trailing
 dot. Each but the last is a byte, and the last fills the bytes left, so
 `127.1` is `127.0.0.1`, and `2130706433` is too. The address is a
 32-bit number, so it's an `Int64` here, since `Int` is signed 32-bit.
+As in the standard, every number must parse before any is checked for
+size, so the errors come in its order.
 
-    let parseIpv4(input: String): Int64 throws Bubble {
+    let parseIpv4(input: String, log: ErrorLog?, at: Int): Int64 throws Bubble {
       let parts = input.split(".").toListBuilder();
-      if (parts[parts.length - 1] == "" && parts.length > 1) {
-        parts.removeLast();
+      if (parts[parts.length - 1] == "") {
+        noteAt(log, "IPv4-empty-part", at);
+        if (parts.length > 1) {
+          parts.removeLast();
+        }
       }
       let count = parts.length;
       if (count > 4) {
+        noteAt(log, "IPv4-too-many-parts", at);
         bubble();
       }
       var ipv4 = 0i64;
-      for (var k = 0; k < count - 1; k += 1) {
-        let n = parseIpv4Number(parts[k]);
-        if (n > 255i64) {
+      var tooBig = false;
+      var last = 0i64;
+      for (var k = 0; k < count; k += 1) {
+        let part = parts[k];
+        let n = ipv4NumberOrNegative(part);
+        if (n < 0i64) {
+          noteAt(log, "IPv4-non-numeric-part", at);
           bubble();
         }
-        ipv4 = (ipv4 << 8) | n;
+        if (log != null && part.hasAtLeast(String.begin, part.end, 2) && part[String.begin] == char'0') {
+          noteAt(log, "IPv4-non-decimal-part", at);
+        }
+        if (k < count - 1) {
+          tooBig = tooBig || n > 255i64;
+          ipv4 = (ipv4 << 8) | n;
+        } else {
+          last = n;
+        }
       }
-      let last = parseIpv4Number(parts[count - 1]);
+      if (tooBig || last > 255i64) {
+        noteAt(log, "IPv4-out-of-range-part", at);
+      }
+      if (tooBig) {
+        bubble();
+      }
       let bytesLeft = 5 - count;
 
 The last number must fit in the bytes left, so shifting them out leaves
@@ -199,17 +330,8 @@ Temper's Java backend writes `1i64` as an `int`, so the shift wraps.)
 An [IPv4 number](https://url.spec.whatwg.org/#ipv4-number-parser) is
 decimal, octal after a leading `0`, or hex after `0x` or `0X`; `0x`
 alone is 0. Numbers can have any number of digits, so past 2³² this
-stops growing, which is enough to make the address fail.
-
-    let parseIpv4Number(input: String): Int64 throws Bubble {
-      let n = ipv4NumberOrNegative(input);
-      if (n < 0i64) {
-        bubble();
-      }
-      n
-    }
-
-The same, but -1 where it fails, for checking without bubbling.
+stops growing, which is enough to make the address fail. It's -1 where
+the number doesn't parse.
 
     let ipv4NumberOrNegative(input: String): Int64 {
       var radix = 10;
@@ -260,7 +382,7 @@ pieces may be written as an IPv4 address in plain dotted decimal, as in
 `::ffff:192.0.2.1`. It works on a list of code points, as the standard
 does, since it looks back and ahead.
 
-    let parseIpv6(text: String): List<Int> throws Bubble {
+    let parseIpv6(text: String, log: ErrorLog?, start: Int): List<Int> throws Bubble {
       let input = new ListBuilder<Int>();
       for (var i = String.begin; text.hasIndex(i); i = text.next(i)) {
         input.add(text[i]);
@@ -273,6 +395,7 @@ does, since it looks back and ahead.
       var pointer = 0;
       if (at(pointer) == char':') {
         if (at(pointer + 1) != char':') {
+          noteAt(log, "IPv6-invalid-compression", start);
           bubble();
         }
         pointer += 2;
@@ -281,10 +404,12 @@ does, since it looks back and ahead.
       }
       while (at(pointer) != -1) {
         if (pieceIndex == 8) {
+          noteAt(log, "IPv6-too-many-pieces", start);
           bubble();
         }
         if (at(pointer) == char':') {
           if (compress != -1) {
+            noteAt(log, "IPv6-multiple-compression", start);
             bubble();
           }
           pointer += 1;
@@ -305,10 +430,12 @@ An IPv4 address in the last two pieces: four decimal numbers, each a
 byte, without leading zeros.
 
           if (digits == 0) {
+            noteAt(log, "IPv4-in-IPv6-invalid-code-point", start);
             bubble();
           }
           pointer -= digits;
           if (pieceIndex > 6) {
+            noteAt(log, "IPv4-in-IPv6-too-many-pieces", start);
             bubble();
           }
           var numbersSeen = 0;
@@ -318,10 +445,12 @@ byte, without leading zeros.
               if (at(pointer) == char'.' && numbersSeen < 4) {
                 pointer += 1;
               } else {
+                noteAt(log, "IPv4-in-IPv6-invalid-code-point", start);
                 bubble();
               }
             }
             if (!isDigit(at(pointer))) {
+              noteAt(log, "IPv4-in-IPv6-invalid-code-point", start);
               bubble();
             }
             while (isDigit(at(pointer))) {
@@ -329,11 +458,13 @@ byte, without leading zeros.
               if (ipv4Piece == -1) {
                 ipv4Piece = number;
               } else if (ipv4Piece == 0) {
+                noteAt(log, "IPv4-in-IPv6-invalid-code-point", start);
                 bubble();
               } else {
                 ipv4Piece = ipv4Piece * 10 + number;
               }
               if (ipv4Piece > 255) {
+                noteAt(log, "IPv4-in-IPv6-out-of-range-part", start);
                 bubble();
               }
               pointer += 1;
@@ -345,15 +476,18 @@ byte, without leading zeros.
             }
           }
           if (numbersSeen != 4) {
+            noteAt(log, "IPv4-in-IPv6-too-few-parts", start);
             bubble();
           }
           break;
         } else if (at(pointer) == char':') {
           pointer += 1;
           if (at(pointer) == -1) {
+            noteAt(log, "IPv6-invalid-code-point", start);
             bubble();
           }
         } else if (at(pointer) != -1) {
+          noteAt(log, "IPv6-invalid-code-point", start);
           bubble();
         }
         address[pieceIndex] = value;
@@ -375,6 +509,7 @@ Without it, there must be eight pieces.
           swaps -= 1;
         }
       } else if (pieceIndex != 8) {
+        noteAt(log, "IPv6-too-few-pieces", start);
         bubble();
       }
       address.toList()

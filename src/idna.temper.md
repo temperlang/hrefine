@@ -21,7 +21,10 @@ without its strict option: `Bücher.example` becomes
 `xn--bcher-kva.example`. It bubbles where the standard fails, as on a
 disallowed code point or an empty result. A domain that's already ASCII
 is only lowercased, even with `xn--` labels that wouldn't decode, as
-browsers do.
+browsers do. It isn't a check: as the standard says, it passes
+`exa mple.com`, `0x7f.1`, and `[::1]` as they are, though none is a
+domain; [`parseHost`](host.temper.md) checks a host, and says what kind
+it is.
 
     export let domainToAscii(domain: String): String throws Bubble {
       if (domain.isEmpty) {
@@ -63,9 +66,9 @@ Converts `domain` to Unicode, for showing it, as the URL Standard's
 domain to Unicode does: `xn--bcher-kva.example` becomes
 `bücher.example`. It never fails: as UTS #46's ToUnicode says, labels
 with errors are converted as far as they can be, and an `xn--` label
-that isn't Punycode stays as it is. Use domain to ASCII to check a
-domain. An ASCII domain without `xn--` labels is only lowercased, as
-processing would do, without needing the tables.
+that isn't Punycode stays as it is. An ASCII domain without `xn--`
+labels is only lowercased, as processing would do, without needing the
+tables.
 
     export let domainToUnicode(domain: String): String {
       if (isAsciiString(domain) && !hasXnLabel(domain)) {

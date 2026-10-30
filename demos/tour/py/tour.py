@@ -4,7 +4,15 @@ The same tour exists for each language Hrefine supports, and they all print
 the same text. See demos/README.md for how to run them.
 """
 
-from hrefine import Url, domain_to_ascii, domain_to_unicode, parse_url
+from hrefine import (
+    HostKind,
+    Url,
+    check_url,
+    domain_to_ascii,
+    domain_to_unicode,
+    parse_host,
+    parse_url,
+)
 
 
 def section(title):
@@ -15,14 +23,6 @@ def section(title):
 def shown(text):
     """Tabs and newlines made visible."""
     return text.replace("\t", "\\t").replace("\n", "\\n")
-
-
-def try_parse(text, base=None):
-    """The URL, or None if it isn't one."""
-    try:
-        return parse_url(text, base)
-    except RuntimeError:
-        return None
 
 
 print("# Hrefine tour")
@@ -43,42 +43,51 @@ print(f"port: {url.port}")
 print(f"pathname: {url.pathname}")
 print(f"search: {url.search}")
 print(f"hash: {url.hash}")
-# Every part is a string, as in JavaScript's URL, so no port is "".
+# Typed parts, beside the standard's strings.
+print(f"scheme: {url.scheme}")
+print(f"port number: {url.port_number}")
+print(f"host kind: {url.host_kind.to_string()}")
+# The standard's parts are strings, as in JavaScript's URL, so no port is
+# "", and port_number is None.
 plain = parse_url("HTTPS://example.com:443")
-print(f'default port: {plain.href}, port "{plain.port}"')
+print(f'default port: {plain.href}, port "{plain.port}", port number {plain.port_number or "none"}')
 
 section("2. Relative URLs")
 
-base = "https://example.com/docs/guide/intro.html"
-print(f"base: {base}")
+# Parse the base once, then resolve against it.
+guide = parse_url("https://example.com/docs/guide/intro.html")
+print(f"base: {guide.href}")
 for relative in ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"]:
-    # The base is a string, parsed again on each call.
-    print(f"{relative} -> {parse_url(relative, base).href}")
-# Url.parse is the same as parse_url, as in JavaScript's URL.parse.
-print(f"Url.parse: {Url.parse('setup.html', base).href}")
-# A Url can't be a base itself, so pass its href.
-guide = parse_url(base)
-print(f"from a Url: {parse_url('faq.html', guide.href).href}")
+    print(f"{relative} -> {guide.resolve(relative).href}")
+# Or give the base as a string, parsed on each call.
+print(f"with a string base: {parse_url('faq.html', guide.href).href}")
 
 section("3. Failures")
 
-# Input that isn't a URL raises RuntimeError, with no message, so it says
-# nothing of why.
-for text, against in [
-    ("https://exa mple.com", None),
-    ("http://[::1", None),
-    ("https://example.com:99999", None),
-    ("setup.html", None),
-    ("setup.html", "not a base"),
+# check_url says why input isn't a URL, with the standard's names for
+# what's wrong and where, counted in code points. The last error is why it
+# failed. Some errors don't stop a URL from parsing, as browsers accept it.
+for text in [
+    "https://exa mple.com",
+    "http://[::1",
+    "https://example.com:99999",
+    "setup.html",
+    "https:example.com/a b",
 ]:
-    label = f"{text} against {against}" if against else f"{text}, without a base"
-    try:
-        parse_url(text, against)
-        print(f"{label}: parsed")
-    except RuntimeError:
-        print(f"{label}: not a URL")
-# Or wrap it, as try_parse above does, for None in place of failure.
-print(f"as an optional: {'nothing' if try_parse('https://exa mple.com') is None else 'a URL'}")
+    check = check_url(text)
+    errors = ", ".join(error.to_string() for error in check.errors)
+    result = check.url.href if check.url else "not a URL"
+    print(f"{text}: {result} ({errors})")
+# Url.parse gives None where parse_url raises, and Url.can_parse says only
+# whether it would parse, as in JavaScript.
+print(f"nullable parse: {'nothing' if Url.parse('setup.html') is None else 'a URL'}")
+print(f"can parse: {str(Url.can_parse('setup.html')).lower()}")
+# parse_url raises RuntimeError, with no message, so check_url says why.
+try:
+    parse_url("setup.html")
+    print("throwing parse: parsed")
+except RuntimeError:
+    print("throwing parse: throws")
 
 section("4. International domain names")
 
@@ -110,6 +119,8 @@ for text in [
     print(f"{shown(text)} -> {parse_url(text).href}")
 # to_string() is href too, but str() isn't.
 print(f"as a string: {url.to_string()}")
+# eq compares hrefs; == compares objects.
+print(f"same URL: {str(parse_url('HTTP://EXAMPLE.COM/a/./b/../c').eq(parse_url('http://example.com/a/c'))).lower()}")
 
 section("6. Using it safely")
 
@@ -122,11 +133,14 @@ ALLOWED = {"example.com", "api.example.com"}
 
 def check(text):
     """The URL to fetch, or why not."""
-    url = try_parse(text)
+    url = Url.parse(text)
     if url is None:
         return "refuse: not a URL"
-    if url.protocol != "https:":
-        return f"refuse: protocol {url.protocol}"
+    if url.scheme != "https":
+        return f"refuse: scheme {url.scheme}"
+    # An IP address isn't a name on the list, however it's written.
+    if url.host_kind != HostKind.domain:
+        return f"refuse: {url.host_kind.to_string()} host {url.hostname}"
     if url.hostname not in ALLOWED:
         return f"refuse: host {url.hostname}"
     # requests.get(url.href) or httpx.get(url.href), never text. Turn off
@@ -146,13 +160,22 @@ for text in [
 ]:
     print(f"{text}: {check(text)}")
 
+# Check hosts from configuration with parse_host, which domain_to_ascii
+# isn't for: it passes all three.
+for text in ["example.com", "0x7f.1", "exa mple.com"]:
+    try:
+        host = parse_host(text)
+        print(f"host {text}: {host.kind.to_string()} {host.serialized}")
+    except RuntimeError:
+        print(f"host {text}: not a host")
+
 # A server redirecting to a `next` parameter: resolve it against your own
-# origin, and redirect only if the origin stays the same. In Flask or
-# Django: return redirect(url.href).
-SITE = "https://example.com/"
-for target in ["/account", "//evil.example/", "/\\evil.example"]:
-    url = try_parse(target, SITE)
-    if url is not None and url.origin == "https://example.com":
+# site, and redirect only to the same origin. In Flask or Django:
+# return redirect(url.href).
+site = parse_url("https://example.com/")
+for target in ["/account", "//evil.example/", "/\\evil.example", "//[::1"]:
+    url = site.try_resolve(target)
+    if url is not None and url.same_origin(site):
         print(f"next={target}: redirect to {url.href}")
     else:
         print(f"next={target}: refuse, {url.origin if url else 'not a URL'}")

@@ -128,6 +128,37 @@ Each case is {stride} strings: the input; `y` and the base, or `n` and
 nothing; `y` if parsing must fail; `y` if the origin is given; `y` if
 the case waits for IDNA; and the expected {", ".join(GETTERS[:-1])}, and {GETTERS[-1]}.
 
+`Url.canParse` and `checkUrl` must agree with `parseUrl`, and
+`checkUrl` must say why where parsing fails: a base that doesn't parse
+bubbles, and otherwise the URL fails with at least one error.
+
+    let otherWays(input: String, base: String?, url: Url?): String {{
+      let baseFails = base != null && !Url.canParse(base);
+      let checked: UrlCheck? = checkUrl(input, base) orelse null;
+      var problem = "";
+      if (Url.canParse(input, base) != (url != null)) {{
+        problem = "canParse disagrees";
+      }} else if (checked == null) {{
+        if (!baseFails) {{
+          problem = "checkUrl bubbles";
+        }}
+      }} else {{
+        let checkedUrl = checked.url;
+        if (baseFails) {{
+          problem = "checkUrl doesn't bubble for a bad base";
+        }} else if (checkedUrl == null) {{
+          if (url != null) {{
+            problem = "checkUrl fails";
+          }} else if (checked.errors.isEmpty) {{
+            problem = "checkUrl fails without errors";
+          }}
+        }} else if (url == null || checkedUrl.href != url.href) {{
+          problem = "checkUrl gives ${{checkedUrl.href}}";
+        }}
+      }}
+      problem
+    }}
+
     test("WHATWG URL parsing: web-platform-tests' urltestdata.json") {{
       let data = urlTestData();
       let stride = {stride};
@@ -157,6 +188,9 @@ the case waits for IDNA; and the expected {", ".join(GETTERS[:-1])}, and {GETTER
           if (data[i + 4] == "y") {{
             check("origin", url.origin, data[i + 7]);
           }}
+        }}
+        if (problem == "") {{
+          problem = otherWays(input, base, url);
         }}
         if (problem != "") {{
           if (data[i + 5] == "y") {{

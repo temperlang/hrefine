@@ -4,8 +4,12 @@
 -- the same text. See demos/README.md for how to run them.
 
 local hrefine = require("hrefine")
-local Url, parseUrl = hrefine.Url, hrefine.parseUrl
-local domainToAscii, domainToUnicode = hrefine.domainToAscii, hrefine.domainToUnicode
+local Url, HostKind, parseUrl, checkUrl = hrefine.Url, hrefine.HostKind, hrefine.parseUrl, hrefine.checkUrl
+local parseHost, domainToAscii, domainToUnicode = hrefine.parseHost, hrefine.domainToAscii, hrefine.domainToUnicode
+-- Temper's runtime gives temper.null, not nil, for no value, so null_to_nil
+-- turns it into nil.
+local temper = require("temper-core")
+local null_to_nil = temper.null_to_nil
 
 local function section(title)
   print()
@@ -15,13 +19,6 @@ end
 -- Tabs and newlines made visible.
 local function shown(text)
   return (text:gsub("\t", "\\t"):gsub("\n", "\\n"))
-end
-
--- The URL, or nil if it isn't one.
-local function tryParse(text, base)
-  local ok, url = pcall(parseUrl, text, base)
-  if ok then return url end
-  return nil
 end
 
 print("# Hrefine tour")
@@ -42,46 +39,59 @@ print("port: " .. url.port)
 print("pathname: " .. url.pathname)
 print("search: " .. url.search)
 print("hash: " .. url.hash)
--- Every part is a string, as in JavaScript's URL, so no port is "".
+-- Typed parts, beside the standard's strings.
+print("scheme: " .. url.scheme)
+print("port number: " .. url.portNumber)
+print("host kind: " .. url.hostKind:toString())
+-- The standard's parts are strings, as in JavaScript's URL, so no port is
+-- "", and portNumber is null.
 local plain = parseUrl("HTTPS://example.com:443")
-print("default port: " .. plain.href .. ', port "' .. plain.port .. '"')
+print("default port: " .. plain.href .. ', port "' .. plain.port .. '", port number '
+  .. (null_to_nil(plain.portNumber) or "none"))
 
 section("2. Relative URLs")
 
-local base = "https://example.com/docs/guide/intro.html"
-print("base: " .. base)
+-- Parse the base once, then resolve against it.
+local guide = parseUrl("https://example.com/docs/guide/intro.html")
+print("base: " .. guide.href)
 for _, relative in ipairs({ "setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js" }) do
-  -- The base is a string, parsed again on each call.
-  print(relative .. " -> " .. parseUrl(relative, base).href)
+  print(relative .. " -> " .. guide:resolve(relative).href)
 end
--- Url.parse is the same as parseUrl, as in JavaScript's URL.parse.
-print("Url.parse: " .. Url.parse("setup.html", base).href)
--- A Url can't be a base itself, so pass its href.
-local guide = parseUrl(base)
-print("from a Url: " .. parseUrl("faq.html", guide.href).href)
+-- Or give the base as a string, parsed on each call.
+print("with a string base: " .. parseUrl("faq.html", guide.href).href)
 
 section("3. Failures")
 
--- Input that isn't a URL raises an error, which pcall catches. The error is
--- Temper's bubble, whose message is only "Bubble", so it says nothing of
--- why.
-for _, case in ipairs({
-  { "https://exa mple.com" },
-  { "http://[::1" },
-  { "https://example.com:99999" },
-  { "setup.html" },
-  { "setup.html", "not a base" },
+-- checkUrl says why input isn't a URL, with the standard's names for
+-- what's wrong and where, counted in code points from 0. The last error is
+-- why it failed. Some errors don't stop a URL from parsing, as browsers
+-- accept it.
+for _, input in ipairs({
+  "https://exa mple.com",
+  "http://[::1",
+  "https://example.com:99999",
+  "setup.html",
+  "https:example.com/a b",
 }) do
-  local input, against = case[1], case[2]
-  local label = against and (input .. " against " .. against) or (input .. ", without a base")
-  if pcall(parseUrl, input, against) then
-    print(label .. ": parsed")
-  else
-    print(label .. ": not a URL")
+  local check = checkUrl(input)
+  local errors = {}
+  for _, error in ipairs(check.errors) do
+    errors[#errors + 1] = error:toString()
   end
+  local parsed = null_to_nil(check.url)
+  print(input .. ": " .. (parsed and parsed.href or "not a URL") .. " (" .. table.concat(errors, ", ") .. ")")
 end
--- Or wrap it, as tryParse above does, for nil in place of failure.
-print("as an optional: " .. (tryParse("https://exa mple.com") == nil and "nothing" or "a URL"))
+-- Url.parse gives null where parseUrl raises, and Url.canParse says only
+-- whether it would parse, as in JavaScript.
+print("nullable parse: " .. (null_to_nil(Url.parse("setup.html")) == nil and "nothing" or "a URL"))
+print("can parse: " .. tostring(Url.canParse("setup.html")))
+-- parseUrl raises an error, which pcall catches. It's Temper's bubble,
+-- whose message is only "Bubble", so checkUrl says why.
+if pcall(parseUrl, "setup.html") then
+  print("throwing parse: parsed")
+else
+  print("throwing parse: throws")
+end
 
 section("4. International domain names")
 
@@ -118,6 +128,8 @@ for _, input in ipairs({
 end
 -- url:toString() is href too, but tostring(url) isn't.
 print("as a string: " .. url:toString())
+-- eq compares hrefs; == compares tables.
+print("same URL: " .. tostring(parseUrl("HTTP://EXAMPLE.COM/a/./b/../c"):eq(parseUrl("http://example.com/a/c"))))
 
 section("6. Using it safely")
 
@@ -127,9 +139,14 @@ local allowed = { ["example.com"] = true, ["api.example.com"] = true }
 
 -- The URL to fetch, or why not.
 local function check(input)
-  local url = tryParse(input)
+  local url = null_to_nil(Url.parse(input))
   if url == nil then return "refuse: not a URL" end
-  if url.protocol ~= "https:" then return "refuse: protocol " .. url.protocol end
+  if url.scheme ~= "https" then return "refuse: scheme " .. url.scheme end
+  -- An IP address isn't a name on the list, however it's written. Each
+  -- kind is one table, so == works.
+  if url.hostKind ~= HostKind.domain then
+    return "refuse: " .. url.hostKind:toString() .. " host " .. url.hostname
+  end
   if not allowed[url.hostname] then return "refuse: host " .. url.hostname end
   -- With LuaSocket (and LuaSec for https): http.request{ url = url.href,
   -- redirect = false, ... }, never input. Check each redirect the same
@@ -149,15 +166,26 @@ for _, input in ipairs({
   print(input .. ": " .. check(input))
 end
 
--- A server redirecting to a `next` parameter: resolve it against your own
--- origin, and redirect only if the origin stays the same. In OpenResty:
--- return ngx.redirect(url.href).
-local site = "https://example.com/"
-for _, target in ipairs({ "/account", "//evil.example/", "/\\evil.example" }) do
-  local url = tryParse(target, site)
-  if url ~= nil and url.origin == "https://example.com" then
-    print("next=" .. target .. ": redirect to " .. url.href)
+-- Check hosts from configuration with parseHost, which domainToAscii isn't
+-- for: it passes all three.
+for _, input in ipairs({ "example.com", "0x7f.1", "exa mple.com" }) do
+  local ok, host = pcall(parseHost, input)
+  if ok then
+    print("host " .. input .. ": " .. host.kind:toString() .. " " .. host.serialized)
   else
-    print("next=" .. target .. ": refuse, " .. (url and url.origin or "not a URL"))
+    print("host " .. input .. ": not a host")
+  end
+end
+
+-- A server redirecting to a `next` parameter: resolve it against your own
+-- site, and redirect only to the same origin. In OpenResty:
+-- return ngx.redirect(url.href).
+local site = parseUrl("https://example.com/")
+for _, target in ipairs({ "/account", "//evil.example/", "/\\evil.example", "//[::1" }) do
+  local next = null_to_nil(site:tryResolve(target))
+  if next ~= nil and next:sameOrigin(site) then
+    print("next=" .. target .. ": redirect to " .. next.href)
+  else
+    print("next=" .. target .. ": refuse, " .. (next and next.origin or "not a URL"))
   end
 end

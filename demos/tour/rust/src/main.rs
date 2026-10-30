@@ -3,7 +3,9 @@
 //! The same tour exists for each language Hrefine supports, and they all
 //! print the same text. See demos/README.md for how to run them.
 
-use hrefine::{domain_to_ascii, domain_to_unicode, parse_url, Url};
+use hrefine::{
+    check_url, domain_to_ascii, domain_to_unicode, parse_host, parse_url, HostKind, Url,
+};
 
 /// No base. `None` alone can't say which string type it isn't.
 const NO_BASE: Option<&str> = None;
@@ -23,11 +25,18 @@ const ALLOWED: [&str; 2] = ["example.com", "api.example.com"];
 
 /// The URL to fetch, or why not.
 fn check(input: &str) -> String {
-    let Ok(url) = parse_url(input, NO_BASE) else {
+    let Some(url) = Url::parse(input, NO_BASE) else {
         return "refuse: not a URL".into();
     };
-    if url.protocol().as_str() != "https:" {
-        return format!("refuse: protocol {}", url.protocol());
+    if url.scheme().as_str() != "https" {
+        return format!("refuse: scheme {}", url.scheme());
+    }
+    // An IP address isn't a name on the list, however it's written.
+    // HostKind has no PartialEq, but eq compares kinds.
+    match url.host_kind() {
+        Some(kind) if kind.eq(HostKind::domain()) => {}
+        Some(kind) => return format!("refuse: {} host {}", kind.to_string(), url.hostname()),
+        None => return "refuse: no host".into(),
     }
     if !ALLOWED.contains(&url.hostname().as_str()) {
         return format!("refuse: host {}", url.hostname());
@@ -63,49 +72,57 @@ fn main() {
     println!("pathname: {}", url.pathname());
     println!("search: {}", url.search());
     println!("hash: {}", url.hash());
-    // Every part is a string, as in JavaScript's URL, so no port is "".
+    // Typed parts, beside the standard's strings.
+    println!("scheme: {}", url.scheme());
+    println!("port number: {}", url.port_number().expect("a port"));
+    println!("host kind: {}", url.host_kind().expect("a host").to_string());
+    // The standard's parts are strings, as in JavaScript's URL, so no port is
+    // "", and port_number is None.
     let plain = parse_url("HTTPS://example.com:443", NO_BASE).expect("a URL");
-    println!("default port: {}, port \"{}\"", plain.href(), plain.port());
+    let port_number = plain.port_number().map_or("none".to_string(), |n| n.to_string());
+    println!("default port: {}, port \"{}\", port number {port_number}", plain.href(), plain.port());
 
     section("2. Relative URLs");
 
-    let base = "https://example.com/docs/guide/intro.html";
-    println!("base: {base}");
+    // Parse the base once, then resolve against it.
+    let guide = parse_url("https://example.com/docs/guide/intro.html", NO_BASE).expect("a URL");
+    println!("base: {}", guide.href());
     for relative in ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"] {
-        // The base is a string, parsed again on each call.
-        let url = parse_url(relative, Some(base)).expect("a URL");
-        println!("{relative} -> {}", url.href());
+        println!("{relative} -> {}", guide.resolve(relative).expect("a URL").href());
     }
-    // Url::parse is the same as parse_url, as in JavaScript's URL.parse.
-    println!("Url.parse: {}", Url::parse("setup.html", Some(base)).expect("a URL").href());
-    // A Url can't be a base itself, so pass its href.
-    let guide = parse_url(base, NO_BASE).expect("a URL");
-    println!("from a Url: {}", parse_url("faq.html", Some(guide.href())).expect("a URL").href());
+    // Or give the base as a string, parsed on each call.
+    let faq = parse_url("faq.html", Some(guide.href())).expect("a URL");
+    println!("with a string base: {}", faq.href());
 
     section("3. Failures");
 
-    // Input that isn't a URL gives Err(temper_core::Error), which says
-    // nothing of why, and can't be shown: its Display calls itself.
-    let cases = [
-        ("https://exa mple.com", None),
-        ("http://[::1", None),
-        ("https://example.com:99999", None),
-        ("setup.html", None),
-        ("setup.html", Some("not a base")),
-    ];
-    for (input, against) in cases {
-        let label = match against {
-            Some(against) => format!("{input} against {against}"),
-            None => format!("{input}, without a base"),
-        };
-        match parse_url(input, against) {
-            Ok(_) => println!("{label}: parsed"),
-            Err(_) => println!("{label}: not a URL"),
-        }
+    // check_url says why input isn't a URL, with the standard's names for
+    // what's wrong and where, counted in code points from 0. The last error
+    // is why it failed. Some errors don't stop a URL from parsing, as
+    // browsers accept it. It's an Err only for a base that isn't a URL.
+    for input in [
+        "https://exa mple.com",
+        "http://[::1",
+        "https://example.com:99999",
+        "setup.html",
+        "https:example.com/a b",
+    ] {
+        let check = check_url(input, NO_BASE).expect("no base to fail");
+        let errors: Vec<String> = check.errors().iter().map(|error| error.to_string().to_string()).collect();
+        let result = check.url().map_or("not a URL".to_string(), |url| url.href().to_string());
+        println!("{input}: {result} ({})", errors.join(", "));
     }
-    // Or .ok(), for None in place of failure.
-    let maybe: Option<Url> = parse_url("https://exa mple.com", NO_BASE).ok();
-    println!("as an optional: {}", if maybe.is_none() { "nothing" } else { "a URL" });
+    // Url::parse gives None where parse_url gives Err, and Url::can_parse
+    // says only whether it would parse, as in JavaScript.
+    let nothing = Url::parse("setup.html", NO_BASE).is_none();
+    println!("nullable parse: {}", if nothing { "nothing" } else { "a URL" });
+    println!("can parse: {}", Url::can_parse("setup.html", NO_BASE));
+    // parse_url's Err(temper_core::Error) says nothing of why, and can't be
+    // shown: its Display calls itself. So check_url says why.
+    match parse_url("setup.html", NO_BASE) {
+        Ok(_) => println!("throwing parse: parsed"),
+        Err(_) => println!("throwing parse: throws"),
+    }
 
     section("4. International domain names");
 
@@ -142,6 +159,10 @@ fn main() {
     // url.to_string() is href too, but Url has no Display, so format!("{url}")
     // doesn't compile.
     println!("as a string: {}", url.to_string());
+    // eq compares hrefs; there's no PartialEq, so == doesn't compile.
+    let a = parse_url("HTTP://EXAMPLE.COM/a/./b/../c", NO_BASE).expect("a URL");
+    let b = parse_url("http://example.com/a/c", NO_BASE).expect("a URL");
+    println!("same URL: {}", a.eq(b));
 
     section("6. Using it safely");
 
@@ -161,17 +182,26 @@ fn main() {
         println!("{input}: {}", check(input));
     }
 
+    // Check hosts from configuration with parse_host, which domain_to_ascii
+    // isn't for: it passes all three.
+    for input in ["example.com", "0x7f.1", "exa mple.com"] {
+        match parse_host(input) {
+            Ok(host) => println!("host {input}: {} {}", host.kind().to_string(), host.serialized()),
+            Err(_) => println!("host {input}: not a host"),
+        }
+    }
+
     // A server redirecting to a `next` parameter: resolve it against your
-    // own origin, and redirect only if the origin stays the same. In axum:
+    // own site, and redirect only to the same origin. In axum:
     // Redirect::to(url.href().as_str()).
-    let site = "https://example.com/";
-    for target in ["/account", "//evil.example/", "/\\evil.example"] {
-        match parse_url(target, Some(site)) {
-            Ok(url) if url.origin().as_str() == "https://example.com" => {
+    let site = parse_url("https://example.com/", NO_BASE).expect("a URL");
+    for target in ["/account", "//evil.example/", "/\\evil.example", "//[::1"] {
+        match site.try_resolve(target) {
+            Some(url) if url.same_origin(site.clone()) => {
                 println!("next={target}: redirect to {}", url.href())
             }
-            Ok(url) => println!("next={target}: refuse, {}", url.origin()),
-            Err(_) => println!("next={target}: refuse, not a URL"),
+            Some(url) => println!("next={target}: refuse, {}", url.origin()),
+            None => println!("next={target}: refuse, not a URL"),
         }
     }
 }

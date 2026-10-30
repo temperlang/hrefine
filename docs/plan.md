@@ -94,32 +94,58 @@ site that makes the point.
    2026-10-29, after checking package registries and a web search for
    companies and trademarks; check USPTO and EUIPO before 1.0.
 
-## Starting API
+**Order** (2026-10-29): after the API review below, the next milestone
+is the site (step 6), ahead of setters and search parameters (step 3),
+even if the site needs refining later.
+
+## API
 
 Close to the URL Standard's `URL` interface, which the tests check and
-people know; to refine before 1.0:
+people know, with JavaScript's names, revised after the tours
+(2026-10-29, below); to refine before 1.0:
 
 - `parseUrl(input: String, base: String? = null): Url throws Bubble`:
-  the basic URL parser, failing (bubbling) where the standard fails.
-  `Url.parse` is the same, as in JavaScript; it's there because only
-  the class can call its private constructor.
+  the basic URL parser, failing (bubbling) where the standard fails, as
+  `new URL()` throws. `Url.parse` gives `Url?` instead, as `URL.parse`
+  does, and `Url.canParse` a `Boolean`.
+- `checkUrl(input: String, base: String? = null): UrlCheck throws Bubble`:
+  the URL or null, and the standard's validation errors, each a
+  `ValidationError` with its `name` and `position` (in code points of
+  the input as given: where the parser was, or where the host or port
+  at fault starts). It bubbles only for a base that doesn't parse. The
+  parser notes errors at the standard's points into a log that's null
+  for `parseUrl`, so normal parsing pays only null checks in rare
+  branches and one per run of code points.
 - `Url`, immutable at first, with the standard's getters, each a
   `String`: `href`, `origin`, `protocol`, `username`, `password`,
-  `host`, `hostname`, `port`, `pathname`, `search`, and `hash`.
+  `host`, `hostname`, `port`, `pathname`, `search`, and `hash`; typed
+  parts beside them: `scheme`, `portNumber: Int?`, and
+  `hostKind: HostKind?`; `resolve(ref): Url throws Bubble` and
+  `tryResolve(ref): Url?`, against the parsed URL without reparsing it;
+  `sameOrigin(other)`, false for opaque origins; `toString()` giving
+  `href`; and `==` comparing `href`s. Its constructor is private, so a
+  `Url` comes only from the parser, but C#, JS, Python, Lua, and C++
+  still make it public (only Java and Rust hide it).
+- `HostKind`: `domain`, `ipv4`, `ipv6`, `opaque`, and `empty`, as a
+  class with a private constructor and one static instance of each, so
+  identity comparison works in every language.
+- `parseHost(input: String): Host throws Bubble`: the host parser, as
+  for a special URL, giving the `kind` and `serialized` host.
 - `domainToAscii(domain: String): String throws Bubble` and
   `domainToUnicode(domain: String): String`: the standard's domain to
   ASCII and domain to Unicode (IDNA), as in Node's `url` module, for
-  checking a domain and for showing one.
+  converting and showing a domain. Not checks; `parseHost` is.
 
-Later, perhaps: a builder or setters (step 3), the source view,
-display formatting, and comparison (step 5), `canParse`, and parsing a
-base once to reuse. The canonical `Url` stays what security decisions
-use; the source view is a separate, opt-in type.
+Later, perhaps: a builder or setters (step 3), and the source view,
+display formatting, and comparison options (step 5). The canonical
+`Url` stays what security decisions use; the source view is a separate,
+opt-in type.
 
 ## API review from the tours
 
-What writing the tours (`demos/tour/`, 2026-10-29) showed, to weigh
-before 1.0. Several are Temper backend issues, not Hrefine's own.
+What writing the tours (`demos/tour/`, 2026-10-29) showed, and what was
+done (2026-10-29, the same day). Several are Temper backend issues, not
+Hrefine's own, which stay open in Temper.
 
 - **Failures say nothing,** in every language: a bare `RuntimeError`
   (Python), `Error` (JS), `RuntimeException` (Java), `System.Exception`
@@ -127,33 +153,49 @@ before 1.0. Several are Temper backend issues, not Hrefine's own.
   `Error(None)` (Rust, whose `Display` overflows the stack). Catching
   them catches unrelated errors too. Six tours wrote their own
   `tryParse` (Rust has `.ok()`).
-  So: a nullable parse in the library, and a reason (the standard's
-  validation error names) on some result type.
-- **One parse function:** `parseUrl` and `Url.parse` do the same, but
-  JavaScript's `URL.parse` returns null where Hrefine's throws. Keep one
-  throwing parse, and make the other the nullable one, or drop it.
+  *Done:* `Url.parse` is nullable and `Url.canParse` a boolean, so the
+  tours' `tryParse` helpers are gone, and `checkUrl` gives the
+  standard's validation errors, with positions. The bubbles themselves
+  are still bare (Temper's).
+- **One parse function:** `parseUrl` and `Url.parse` did the same, but
+  JavaScript's `URL.parse` returns null where Hrefine's threw.
+  *Done:* JavaScript's names, exactly: `parseUrl` throws, `Url.parse`
+  gives null, and `Url.canParse` is added.
 - **Parsing a base once:** the base is a string, parsed again on each
-  call, and a `Url` can't be one without going through `href`. A
-  `url.resolve(input)` (as Java's `URI.resolve` and Rust's `Url::join`)
-  would fix both.
+  call, and a `Url` couldn't be one without going through `href`.
+  *Done:* `url.resolve(ref)` and `url.tryResolve(ref)` (as Java's
+  `URI.resolve` and Rust's `Url::join`), which reuse the parsed URL.
 - **Typed parts:** `port` is `""` or digits; `origin` is the string
   `"null"` for opaque origins, so two `data:` URLs compare as the same
-  origin; and telling an IP host from a domain means parsing `hostname`
-  again, which SSRF checks need. Keep the standard's strings, and add a
-  host kind, a numeric port, and an origin check.
+  origin; and telling an IP host from a domain meant parsing `hostname`
+  again, which SSRF checks need.
+  *Done:* `scheme`, `portNumber`, `hostKind`, and `sameOrigin`, beside
+  the standard's strings; the tours' safety checks use them.
 - **`domainToAscii` isn't a host check:** it passes `exa mple.com`,
   `0x7f.1`, and `[::1]` unchanged, as the standard's algorithm does,
-  though the README offers it "for checking a domain".
+  though the README offered it "for checking a domain".
+  *Done:* `parseHost` checks a host and gives its kind, and the docs no
+  longer offer `domainToAscii` as a check.
 - **Strings and equality:** `href` works everywhere, but `str()`
   (Python), `tostring` (Lua), `$"{url}"` (C#), `Display` (Rust), and `<<`
   (C++) don't give it, and no backend compares two `Url`s by value.
+  *Done in Temper:* `toString()` gives `href`, and `@operator("==")`
+  compares `href`s. *Open in Temper:* backends still emit them as plain
+  `toString`/`eq` methods, so only Java's string concatenation and JS
+  templates use `toString`, and no language's own `==` or `equals`
+  compares by value (Python, C#, Rust, C++, and Lua get no `__eq__`,
+  `Equals`, `PartialEq`, `operator==`, or `__eq`).
 - **Per language:** Rust needs `None::<&str>` for no base, `.as_str()`
   to compare parts, and `init` first (else a bare `unwrap` panic); Python
   takes no keywords (`base=` fails); C++ needs `global_init_init()` and
-  Temper's `NullableParam` for an optional base, and its header shows
-  every internal, with `Url`'s fields public and mutable; C# and JS make
-  `Url`'s constructor public, so a `Url` needn't come from the parser;
-  Java and C# reach the functions through a `HrefineGlobal` class.
+  Temper's `NullableParam` for an optional base (and now for
+  `portNumber`), and its header shows every internal, with `Url`'s
+  fields public and mutable; C#, JS, Python, Lua, and C++ make private
+  constructors public, so a `Url` needn't come from the parser; Java and
+  C# reach the functions through a `HrefineGlobal` class; and Lua gives
+  `temper.null`, not `nil`, for a null result (`Url.parse`,
+  `portNumber`), so the tour uses `temper.null_to_nil`. All Temper's,
+  in `notes/temper-fixes.md`'s terms; still open.
 
 ## Design notes
 

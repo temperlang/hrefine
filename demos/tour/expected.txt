@@ -13,7 +13,10 @@ port: 8080
 pathname: /b/c
 search: ?q=1
 hash: #top
-default port: https://example.com/, port ""
+scheme: https
+port number: 8080
+host kind: domain
+default port: https://example.com/, port "", port number none
 
 ## 2. Relative URLs
 base: https://example.com/docs/guide/intro.html
@@ -23,16 +26,17 @@ setup.html -> https://example.com/docs/guide/setup.html
 ?page=2 -> https://example.com/docs/guide/intro.html?page=2
 #install -> https://example.com/docs/guide/intro.html#install
 //cdn.example/lib.js -> https://cdn.example/lib.js
-Url.parse: https://example.com/docs/guide/setup.html
-from a Url: https://example.com/docs/guide/faq.html
+with a string base: https://example.com/docs/guide/faq.html
 
 ## 3. Failures
-https://exa mple.com, without a base: not a URL
-http://[::1, without a base: not a URL
-https://example.com:99999, without a base: not a URL
-setup.html, without a base: not a URL
-setup.html against not a base: not a URL
-as an optional: nothing
+https://exa mple.com: not a URL (domain-invalid-code-point at 8)
+http://[::1: not a URL (IPv6-unclosed at 7)
+https://example.com:99999: not a URL (port-out-of-range at 20)
+setup.html: not a URL (missing-scheme-non-relative-URL at 0)
+https:example.com/a b: https://example.com/a%20b (special-scheme-missing-following-solidus at 6, invalid-URL-unit at 19)
+nullable parse: nothing
+can parse: false
+throwing parse: throws
 
 ## 4. International domain names
 hostname: xn--bcher-kva.example
@@ -52,15 +56,20 @@ https://[0:0::1]:443/ -> https://[::1]/
 https://example.com/a b?c d#e f -> https://example.com/a%20b?c%20d#e%20f
  https://exa\tmple.com/\n -> https://example.com/
 as a string: https://user:pass@example.com:8080/b/c?q=1#top
+same URL: true
 
 ## 6. Using it safely
 https://api.example.com/v1/items: fetch https://api.example.com/v1/items
 https://example.com\@evil.example/: fetch https://example.com/@evil.example/
 https://evil.example#@example.com: refuse: host evil.example
-https://0x7f.1/admin: refuse: host 127.0.0.1
-http://example.com/: refuse: protocol http:
-javascript:alert(1): refuse: protocol javascript:
+https://0x7f.1/admin: refuse: ipv4 host 127.0.0.1
+http://example.com/: refuse: scheme http
+javascript:alert(1): refuse: scheme javascript
 https://exa mple.com: refuse: not a URL
+host example.com: domain example.com
+host 0x7f.1: ipv4 127.0.0.1
+host exa mple.com: not a host
 next=/account: redirect to https://example.com/account
 next=//evil.example/: refuse, https://evil.example
 next=/\evil.example: refuse, https://evil.example
+next=//[::1: refuse, not a URL

@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Hrefine;
 using static Hrefine.HrefineGlobal;
 
@@ -16,19 +17,6 @@ static void Section(string title)
 
 // Tabs and newlines made visible.
 static string Shown(string text) => text.Replace("\t", "\\t").Replace("\n", "\\n");
-
-// The URL, or null if it isn't one.
-static Url? TryParse(string text, string? @base = null)
-{
-    try
-    {
-        return ParseUrl(text, @base);
-    }
-    catch (Exception)
-    {
-        return null;
-    }
-}
 
 Console.WriteLine("# Hrefine tour");
 
@@ -48,53 +36,61 @@ Console.WriteLine($"port: {url.Port}");
 Console.WriteLine($"pathname: {url.Pathname}");
 Console.WriteLine($"search: {url.Search}");
 Console.WriteLine($"hash: {url.Hash}");
-// Every part is a string, as in JavaScript's URL, so no port is "".
+// Typed parts, beside the standard's strings.
+Console.WriteLine($"scheme: {url.Scheme}");
+Console.WriteLine($"port number: {url.PortNumber}");
+Console.WriteLine($"host kind: {url.HostKind!.ToString()}");
+// The standard's parts are strings, as in JavaScript's URL, so no port is
+// "", and PortNumber is null.
 var plain = ParseUrl("HTTPS://example.com:443");
-Console.WriteLine($"default port: {plain.Href}, port \"{plain.Port}\"");
+Console.WriteLine($"default port: {plain.Href}, port \"{plain.Port}\", port number {plain.PortNumber?.ToString() ?? "none"}");
 
 Section("2. Relative URLs");
 
-var baseUrl = "https://example.com/docs/guide/intro.html";
-Console.WriteLine($"base: {baseUrl}");
+// Parse the base once, then resolve against it.
+var guide = ParseUrl("https://example.com/docs/guide/intro.html");
+Console.WriteLine($"base: {guide.Href}");
 foreach (var relative in new[] { "setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js" })
 {
-    // The base is a string, parsed again on each call.
-    Console.WriteLine($"{relative} -> {ParseUrl(relative, baseUrl).Href}");
+    Console.WriteLine($"{relative} -> {guide.Resolve(relative).Href}");
 }
-// Url.Parse is the same as ParseUrl, as in JavaScript's URL.parse.
-Console.WriteLine($"Url.parse: {Url.Parse("setup.html", baseUrl).Href}");
-// A Url can't be a base itself, so pass its Href.
-var guide = ParseUrl(baseUrl);
-Console.WriteLine($"from a Url: {ParseUrl("faq.html", guide.Href).Href}");
+// Or give the base as a string, parsed on each call.
+Console.WriteLine($"with a string base: {ParseUrl("faq.html", guide.Href).Href}");
 
 Section("3. Failures");
 
-// Input that isn't a URL throws a plain System.Exception, so it says nothing
-// of why, and catching it catches everything else too. (Uri throws
-// UriFormatException, and has TryCreate.)
-var cases = new (string Input, string? Against)[]
+// CheckUrl says why input isn't a URL, with the standard's names for
+// what's wrong and where, counted in code points from 0. The last error is
+// why it failed. Some errors don't stop a URL from parsing, as browsers
+// accept it.
+foreach (var input in new[] {
+    "https://exa mple.com",
+    "http://[::1",
+    "https://example.com:99999",
+    "setup.html",
+    "https:example.com/a b",
+})
 {
-    ("https://exa mple.com", null),
-    ("http://[::1", null),
-    ("https://example.com:99999", null),
-    ("setup.html", null),
-    ("setup.html", "not a base"),
-};
-foreach (var (input, against) in cases)
-{
-    var label = against != null ? $"{input} against {against}" : $"{input}, without a base";
-    try
-    {
-        ParseUrl(input, against);
-        Console.WriteLine($"{label}: parsed");
-    }
-    catch (Exception)
-    {
-        Console.WriteLine($"{label}: not a URL");
-    }
+    var check = CheckUrl(input);
+    var errors = string.Join(", ", check.Errors.Select(error => error.ToString()));
+    Console.WriteLine($"{input}: {check.Url?.Href ?? "not a URL"} ({errors})");
 }
-// Or wrap it, as TryParse above does, for null in place of failure.
-Console.WriteLine($"as an optional: {(TryParse("https://exa mple.com") is null ? "nothing" : "a URL")}");
+// Url.Parse gives null where ParseUrl throws, and Url.CanParse says only
+// whether it would parse, as in JavaScript.
+Console.WriteLine($"nullable parse: {(Url.Parse("setup.html") is null ? "nothing" : "a URL")}");
+Console.WriteLine($"can parse: {(Url.CanParse("setup.html") ? "true" : "false")}");
+// ParseUrl throws a plain System.Exception, so catching it catches
+// everything else too, and CheckUrl says why. (Uri throws
+// UriFormatException, and has TryCreate.)
+try
+{
+    ParseUrl("setup.html");
+    Console.WriteLine("throwing parse: parsed");
+}
+catch (Exception)
+{
+    Console.WriteLine("throwing parse: throws");
+}
 
 Section("4. International domain names");
 
@@ -137,6 +133,8 @@ foreach (var input in new[] {
 // url.ToString() is Href too, but it hides object.ToString rather than
 // overriding it, so $"{url}" gives "Hrefine.Url".
 Console.WriteLine($"as a string: {url.ToString()}");
+// Eq compares hrefs; == compares objects.
+Console.WriteLine($"same URL: {(ParseUrl("HTTP://EXAMPLE.COM/a/./b/../c").Eq(ParseUrl("http://example.com/a/c")) ? "true" : "false")}");
 
 Section("6. Using it safely");
 
@@ -148,9 +146,12 @@ var allowed = new HashSet<string> { "example.com", "api.example.com" };
 // The URL to fetch, or why not.
 string Check(string input)
 {
-    var url = TryParse(input);
+    var url = Url.Parse(input);
     if (url is null) return "refuse: not a URL";
-    if (url.Protocol != "https:") return $"refuse: protocol {url.Protocol}";
+    if (url.Scheme != "https") return $"refuse: scheme {url.Scheme}";
+    // An IP address isn't a name on the list, however it's written. Each
+    // kind is one object, so == works.
+    if (url.HostKind != HostKind.Domain) return $"refuse: {url.HostKind!.ToString()} host {url.Hostname}";
     if (!allowed.Contains(url.Hostname)) return $"refuse: host {url.Hostname}";
     // await client.GetAsync(url.Href), never input, with a client whose
     // handler has AllowAutoRedirect = false, or check each redirect the
@@ -171,14 +172,29 @@ foreach (var input in new[] {
     Console.WriteLine($"{input}: {Check(input)}");
 }
 
-// A server redirecting to a `next` parameter: resolve it against your own
-// origin, and redirect only if the origin stays the same. In ASP.NET Core:
-// return Redirect(url.Href).
-var site = "https://example.com/";
-foreach (var target in new[] { "/account", "//evil.example/", "/\\evil.example" })
+// Check hosts from configuration with ParseHost, which DomainToAscii isn't
+// for: it passes all three.
+foreach (var input in new[] { "example.com", "0x7f.1", "exa mple.com" })
 {
-    var next = TryParse(target, site);
-    if (next is not null && next.Origin == "https://example.com")
+    try
+    {
+        var host = ParseHost(input);
+        Console.WriteLine($"host {input}: {host.Kind.ToString()} {host.Serialized}");
+    }
+    catch (Exception)
+    {
+        Console.WriteLine($"host {input}: not a host");
+    }
+}
+
+// A server redirecting to a `next` parameter: resolve it against your own
+// site, and redirect only to the same origin. In ASP.NET Core:
+// return Redirect(url.Href).
+var site = ParseUrl("https://example.com/");
+foreach (var target in new[] { "/account", "//evil.example/", "/\\evil.example", "//[::1" })
+{
+    var next = site.TryResolve(target);
+    if (next is not null && next.SameOrigin(site))
     {
         Console.WriteLine($"next={target}: redirect to {next.Href}");
     }

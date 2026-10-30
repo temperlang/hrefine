@@ -18,8 +18,9 @@ names included. Setters and search parameters come in step 3 of the
 
 ## Examples
 
-In Temper, and the same API in each supported language (a starting
-point, to refine before 1.0):
+In Temper, and the same API in each supported language (to refine
+before 1.0). The names are JavaScript's, so `parseUrl` throws (bubbles)
+as `new URL()` does, and `Url.parse` gives null:
 
 ```temper
 let url = parseUrl("https://user@EXAMPLE.com:443/a/../b?q=1#top") orelse panic();
@@ -27,14 +28,22 @@ url.href;     // "https://user@example.com/b?q=1#top"
 url.hostname; // "example.com" (lowercased; the default port is dropped)
 url.pathname; // "/b"
 
-// Relative to a base.
+// Relative to a base, given as a string, or parsed once and reused.
 (parseUrl("../c", "https://example.com/a/b") orelse panic()).href; // "https://example.com/c"
+let base = parseUrl("https://example.com/a/b") orelse panic();
+(base.resolve("../c") orelse panic()).href; // "https://example.com/c"
 
-// The same, as JavaScript's URL.parse.
-Url.parse("../c", "https://example.com/a/b") orelse panic();
+// Inputs that aren't URLs bubble, or give null, or say why.
+Url.parse("https://exa mple.com");     // null
+Url.canParse("https://exa mple.com");  // false
+(checkUrl("https://exa mple.com") orelse panic()).errors; // [domain-invalid-code-point at 8]
 
-// Inputs that aren't URLs bubble.
-parseUrl("https://exa mple.com") orelse null; // null
+// Typed parts, beside the standard's strings.
+url.scheme;     // "https"
+url.portNumber; // null (443 is the default)
+url.hostKind;   // HostKind.domain
+(parseUrl("http://0x7f.1/") orelse panic()).hostKind; // HostKind.ipv4, 127.0.0.1
+url.sameOrigin(base); // true
 
 // International domain names, as browsers read them.
 (parseUrl("https://Bücher.example") orelse panic()).hostname; // "xn--bcher-kva.example"
@@ -44,6 +53,46 @@ domainToUnicode("xn--bcher-kva.example"); // "bücher.example"
 The [tour](demos/README.md) shows the same in each language, with
 identical output.
 
+## API
+
+- `parseUrl(input, base?)`: the standard's URL parser, as `new URL()`
+  in JavaScript: a `Url`, or it bubbles (throws) where the standard
+  fails. `Url.parse(input, base?)` gives null instead, and
+  `Url.canParse(input, base?)` only says whether it would parse.
+- `checkUrl(input, base?)`: a `UrlCheck`, with the `url` (or null) and
+  the standard's validation errors, each with its `name` (such as
+  `invalid-URL-unit` or `host-invalid-code-point`) and `position`, in
+  code points. Where parsing fails, the last error says why. Most
+  errors don't stop a URL from parsing, as browsers accept it. Parsing
+  notes errors only when asked, so `parseUrl` is no slower for them.
+- `Url`: the standard's getters, each a string, as in JavaScript:
+  `href`, `origin`, `protocol`, `username`, `password`, `host`,
+  `hostname`, `port`, `pathname`, `search`, and `hash`. Typed parts
+  beside them: `scheme` (without the colon), `portNumber` (null where
+  `port` is empty), and `hostKind` (`HostKind.domain`, `ipv4`, `ipv6`,
+  `opaque`, or `empty`, or null without a host). And:
+  - `url.resolve(ref)`: `ref` resolved against `url`, without parsing
+    `url` again; it bubbles where that fails, and `url.tryResolve(ref)`
+    gives null instead.
+  - `url.sameOrigin(other)`: whether the two have the same origin;
+    opaque origins (as for `data:` URLs) never do.
+  - `toString()` gives `href`, and `==` in Temper compares `href`s
+    (`eq` in other languages).
+- `parseHost(input)`: checks a host, as in `https://input/`, giving a
+  `Host` with its `kind` and `serialized` form, or bubbles.
+- `domainToAscii(domain)` and `domainToUnicode(domain)`: the standard's
+  domain to ASCII and to Unicode (IDNA), as in Node's `url` module, for
+  converting and showing names. They aren't checks: domain to ASCII
+  passes `exa mple.com`, `0x7f.1`, and `[::1]` as they are, as the
+  standard says. Use `parseHost` to check a host.
+
+Every language gets these names in its own style (`parse_url` and
+`url.host_kind` in Python and Rust, `ParseUrl` and `url.HostKind` in C#,
+`getHref()` in Java). Some don't yet carry everything over from Temper:
+`toString` and `==` reach only some languages' own string conversion
+and equality, and only Java and Rust keep `Url`'s constructor private;
+see the tour for each.
+
 ## Using it safely
 
 Hrefine doesn't change how other code reads URLs: `fetch`, `requests`,
@@ -51,10 +100,23 @@ Hrefine doesn't change how other code reads URLs: `fetch`, `requests`,
 Hrefine, then hand on its `href`, never the original string:
 
 ```temper
-let url = parseUrl(input) orelse panic();
-if (isAllowed(url.hostname)) { // your check
+let url = Url.parse(input);
+if (
+  url != null && url.scheme == "https" && url.hostKind == HostKind.domain &&
+    isAllowed(url.hostname) // your check
+) {
   fetchUrl(url.href); // your HTTP client, given href, not input
 }
+```
+
+`hostKind` says whether the host is a name or an address, however the
+address is written (`0x7f.1` is `127.0.0.1`), so an allowlist of names
+can't be met by an address. To redirect to a user's `next` parameter,
+resolve it against your own site, and check `sameOrigin`:
+
+```temper
+let next = site.tryResolve(param);
+if (next != null && next.sameOrigin(site)) { redirectTo(next.href) }
 ```
 
 `href` is the standard's canonical form: backslashes become slashes,
@@ -123,7 +185,9 @@ Medians on a busy laptop (2026-10-29), so rough:
 | Rust | 0.08 ms | 0.009 ms | 7.2 µs | 4.9 µs | 248 KB (45 KB) |
 
 Load is after Temper's own runtime, which takes another 30–40 ms to
-import in Python. The [plan](docs/plan.md) has what changed these.
+import in Python. The API revision after the tours (`checkUrl`, typed
+parts, and `parseHost`) left parsing as fast, timed in turns, and added
+about 21–23 KB (4 KB gzipped) in Python and JavaScript. The [plan](docs/plan.md) has what changed these.
 
 ## Development
 

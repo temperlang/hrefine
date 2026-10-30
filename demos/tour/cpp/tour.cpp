@@ -10,9 +10,12 @@
 
 #include "hrefine/init.hpp"
 
+using hrefine::HostKind;
 using hrefine::Url;
+using hrefine::checkUrl;
 using hrefine::domainToAscii;
 using hrefine::domainToUnicode;
+using hrefine::parseHost;
 using hrefine::parseUrl;
 using temper::core::TemperBubble;
 
@@ -27,24 +30,18 @@ std::string shown(std::string const &text) {
   return out;
 }
 
-// The URL, or null if it isn't one. The optional base is Temper's own
-// NullableParam, which takes a string or nullptr.
-std::shared_ptr<Url> tryParse(std::string const &text,
-                              temper::core::NullableParam<std::string> base = nullptr) {
-  try {
-    return parseUrl(text, base);
-  } catch (TemperBubble const &) {
-    return nullptr;
-  }
-}
-
 const std::set<std::string> allowed = {"example.com", "api.example.com"};
 
 // The URL to fetch, or why not.
 std::string check(std::string const &input) {
-  auto url = tryParse(input);
+  auto url = Url::parse(input);
   if (!url) return "refuse: not a URL";
-  if (url->get_protocol() != "https:") return "refuse: protocol " + url->get_protocol();
+  if (url->get_scheme() != "https") return "refuse: scheme " + url->get_scheme();
+  // An IP address isn't a name on the list, however it's written. Each
+  // kind is one object, so == works.
+  if (url->get_hostKind() != HostKind::domain) {
+    return "refuse: " + url->get_hostKind()->toString() + " host " + url->get_hostname();
+  }
   if (!allowed.count(url->get_hostname())) return "refuse: host " + url->get_hostname();
   // With libcurl: curl_easy_setopt(curl, CURLOPT_URL, url->get_href().c_str()),
   // never input, and leave CURLOPT_FOLLOWLOCATION off, or check each
@@ -75,49 +72,57 @@ int main() {
   std::cout << "pathname: " << url->get_pathname() << "\n";
   std::cout << "search: " << url->get_search() << "\n";
   std::cout << "hash: " << url->get_hash() << "\n";
-  // Every part is a string, as in JavaScript's URL, so no port is "".
+  // Typed parts, beside the standard's strings. A missing value is Temper's
+  // NullableParam, with has_value and value.
+  std::cout << "scheme: " << url->get_scheme() << "\n";
+  std::cout << "port number: " << url->get_portNumber().value << "\n";
+  std::cout << "host kind: " << url->get_hostKind()->toString() << "\n";
+  // The standard's parts are strings, as in JavaScript's URL, so no port is
+  // "", and get_portNumber() has no value.
   auto plain = parseUrl("HTTPS://example.com:443");
-  std::cout << "default port: " << plain->get_href() << ", port \"" << plain->get_port() << "\"\n";
+  auto portNumber = plain->get_portNumber();
+  std::cout << "default port: " << plain->get_href() << ", port \"" << plain->get_port() << "\", port number "
+            << (portNumber.has_value ? std::to_string(portNumber.value) : "none") << "\n";
 
   section("2. Relative URLs");
 
-  std::string base = "https://example.com/docs/guide/intro.html";
-  std::cout << "base: " << base << "\n";
+  // Parse the base once, then resolve against it.
+  auto guide = parseUrl("https://example.com/docs/guide/intro.html");
+  std::cout << "base: " << guide->get_href() << "\n";
   for (std::string relative : {"setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"}) {
-    // The base is a string, parsed again on each call.
-    std::cout << relative << " -> " << parseUrl(relative, base)->get_href() << "\n";
+    std::cout << relative << " -> " << guide->resolve(relative)->get_href() << "\n";
   }
-  // Url::parse is the same as parseUrl, as in JavaScript's URL.parse.
-  std::cout << "Url.parse: " << Url::parse("setup.html", base)->get_href() << "\n";
-  // A Url can't be a base itself, so pass its href.
-  auto guide = parseUrl(base);
-  std::cout << "from a Url: " << parseUrl("faq.html", guide->get_href())->get_href() << "\n";
+  // Or give the base as a string, parsed on each call.
+  std::cout << "with a string base: " << parseUrl("faq.html", guide->get_href())->get_href() << "\n";
 
   section("3. Failures");
 
-  // Input that isn't a URL throws temper::core::TemperBubble, whose what()
-  // is only "bubble", so it says nothing of why.
-  struct Case {
-    std::string input;
-    const char *against;
-  };
-  for (Case const &c : {Case{"https://exa mple.com", nullptr}, Case{"http://[::1", nullptr},
-                        Case{"https://example.com:99999", nullptr}, Case{"setup.html", nullptr},
-                        Case{"setup.html", "not a base"}}) {
-    std::string label = c.against ? c.input + " against " + c.against : c.input + ", without a base";
-    try {
-      if (c.against) {
-        parseUrl(c.input, std::string(c.against));
-      } else {
-        parseUrl(c.input);
-      }
-      std::cout << label << ": parsed\n";
-    } catch (TemperBubble const &) {
-      std::cout << label << ": not a URL\n";
+  // checkUrl says why input isn't a URL, with the standard's names for
+  // what's wrong and where, counted in code points from 0. The last error is
+  // why it failed. Some errors don't stop a URL from parsing, as browsers
+  // accept it.
+  for (std::string input : {"https://exa mple.com", "http://[::1", "https://example.com:99999", "setup.html",
+                            "https:example.com/a b"}) {
+    auto check = checkUrl(input);
+    std::string errors;
+    for (auto const &error : *check->get_errors()) {
+      errors += (errors.empty() ? "" : ", ") + error->toString();
     }
+    auto parsed = check->get_url();
+    std::cout << input << ": " << (parsed ? parsed->get_href() : "not a URL") << " (" << errors << ")\n";
   }
-  // Or wrap it, as tryParse above does, for null in place of failure.
-  std::cout << "as an optional: " << (tryParse("https://exa mple.com") ? "a URL" : "nothing") << "\n";
+  // Url::parse gives nullptr where parseUrl throws, and Url::canParse says
+  // only whether it would parse, as in JavaScript.
+  std::cout << "nullable parse: " << (Url::parse("setup.html") ? "a URL" : "nothing") << "\n";
+  std::cout << "can parse: " << (Url::canParse("setup.html") ? "true" : "false") << "\n";
+  // parseUrl throws temper::core::TemperBubble, whose what() is only
+  // "bubble", so checkUrl says why.
+  try {
+    parseUrl("setup.html");
+    std::cout << "throwing parse: parsed\n";
+  } catch (TemperBubble const &) {
+    std::cout << "throwing parse: throws\n";
+  }
 
   section("4. International domain names");
 
@@ -150,6 +155,10 @@ int main() {
   }
   // toString() is href too, but there's no operator<<.
   std::cout << "as a string: " << url->toString() << "\n";
+  // eq compares hrefs; == compares pointers.
+  std::cout << "same URL: "
+            << (parseUrl("HTTP://EXAMPLE.COM/a/./b/../c")->eq(parseUrl("http://example.com/a/c")) ? "true" : "false")
+            << "\n";
 
   section("6. Using it safely");
 
@@ -162,13 +171,24 @@ int main() {
     std::cout << input << ": " << check(input) << "\n";
   }
 
+  // Check hosts from configuration with parseHost, which domainToAscii isn't
+  // for: it passes all three.
+  for (std::string input : {"example.com", "0x7f.1", "exa mple.com"}) {
+    try {
+      auto host = parseHost(input);
+      std::cout << "host " << input << ": " << host->get_kind()->toString() << " " << host->get_serialized() << "\n";
+    } catch (TemperBubble const &) {
+      std::cout << "host " << input << ": not a host\n";
+    }
+  }
+
   // A server redirecting to a `next` parameter: resolve it against your own
-  // origin, and redirect only if the origin stays the same. In
-  // cpp-httplib: res.set_redirect(next->get_href()).
-  std::string site = "https://example.com/";
-  for (std::string target : {"/account", "//evil.example/", "/\\evil.example"}) {
-    auto next = tryParse(target, site);
-    if (next && next->get_origin() == "https://example.com") {
+  // site, and redirect only to the same origin. In cpp-httplib:
+  // res.set_redirect(next->get_href()).
+  auto site = parseUrl("https://example.com/");
+  for (std::string target : {"/account", "//evil.example/", "/\\evil.example", "//[::1"}) {
+    auto next = site->tryResolve(target);
+    if (next && next->sameOrigin(site)) {
       std::cout << "next=" << target << ": redirect to " << next->get_href() << "\n";
     } else {
       std::cout << "next=" << target << ": refuse, " << (next ? next->get_origin() : "not a URL") << "\n";

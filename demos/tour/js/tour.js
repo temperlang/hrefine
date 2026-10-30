@@ -3,7 +3,7 @@
 // The same tour exists for each language Hrefine supports, and they all print
 // the same text. See demos/README.md for how to run them.
 
-import { Url, domainToAscii, domainToUnicode, parseUrl } from "hrefine";
+import { HostKind, Url, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl } from "hrefine";
 
 function section(title) {
   console.log();
@@ -12,15 +12,6 @@ function section(title) {
 
 // Tabs and newlines made visible.
 const shown = (text) => text.replaceAll("\t", "\\t").replaceAll("\n", "\\n");
-
-// The URL, or null if it isn't one.
-function tryParse(text, base = null) {
-  try {
-    return parseUrl(text, base);
-  } catch {
-    return null;
-  }
-}
 
 console.log("# Hrefine tour");
 
@@ -40,47 +31,55 @@ console.log(`port: ${url.port}`);
 console.log(`pathname: ${url.pathname}`);
 console.log(`search: ${url.search}`);
 console.log(`hash: ${url.hash}`);
-// Every part is a string, as in the built-in URL, so no port is "".
+// Typed parts, beside the standard's strings.
+console.log(`scheme: ${url.scheme}`);
+console.log(`port number: ${url.portNumber}`);
+console.log(`host kind: ${url.hostKind}`);
+// The standard's parts are strings, as in the built-in URL, so no port is
+// "", and portNumber is null.
 const plain = parseUrl("HTTPS://example.com:443");
-console.log(`default port: ${plain.href}, port "${plain.port}"`);
+console.log(`default port: ${plain.href}, port "${plain.port}", port number ${plain.portNumber ?? "none"}`);
 
 section("2. Relative URLs");
 
-const base = "https://example.com/docs/guide/intro.html";
-console.log(`base: ${base}`);
+// Parse the base once, then resolve against it.
+const guide = parseUrl("https://example.com/docs/guide/intro.html");
+console.log(`base: ${guide.href}`);
 for (const relative of ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"]) {
-  // The base is a string, parsed again on each call.
-  console.log(`${relative} -> ${parseUrl(relative, base).href}`);
+  console.log(`${relative} -> ${guide.resolve(relative).href}`);
 }
-// Url.parse is the same as parseUrl, but throws, unlike the built-in
-// URL.parse, which gives null.
-console.log(`Url.parse: ${Url.parse("setup.html", base).href}`);
-// A Url can't be a base itself, so pass its href. (The built-in URL
-// takes a URL as a base.)
-const guide = parseUrl(base);
-console.log(`from a Url: ${parseUrl("faq.html", guide.href).href}`);
+// Or give the base as a string, parsed on each call. (Unlike the built-in
+// URL, a Url isn't taken as a base.)
+console.log(`with a string base: ${parseUrl("faq.html", guide.href).href}`);
 
 section("3. Failures");
 
-// Input that isn't a URL throws a plain Error, with no message, so it says
-// nothing of why. (The built-in URL throws a TypeError.)
-for (const [input, against] of [
-  ["https://exa mple.com", null],
-  ["http://[::1", null],
-  ["https://example.com:99999", null],
-  ["setup.html", null],
-  ["setup.html", "not a base"],
+// checkUrl says why input isn't a URL, with the standard's names for
+// what's wrong and where, counted in code points. The last error is why it
+// failed. Some errors don't stop a URL from parsing, as browsers accept it.
+for (const input of [
+  "https://exa mple.com",
+  "http://[::1",
+  "https://example.com:99999",
+  "setup.html",
+  "https:example.com/a b",
 ]) {
-  const label = against ? `${input} against ${against}` : `${input}, without a base`;
-  try {
-    parseUrl(input, against);
-    console.log(`${label}: parsed`);
-  } catch {
-    console.log(`${label}: not a URL`);
-  }
+  const check = checkUrl(input);
+  const errors = check.errors.map((error) => `${error}`).join(", ");
+  console.log(`${input}: ${check.url?.href ?? "not a URL"} (${errors})`);
 }
-// Or wrap it, as tryParse above does, for null in place of failure.
-console.log(`as an optional: ${tryParse("https://exa mple.com") === null ? "nothing" : "a URL"}`);
+// As with the built-in URL: Url.parse gives null where parseUrl throws, and
+// Url.canParse says only whether it would parse.
+console.log(`nullable parse: ${Url.parse("setup.html") === null ? "nothing" : "a URL"}`);
+console.log(`can parse: ${Url.canParse("setup.html")}`);
+// parseUrl throws a plain Error, with no message, so checkUrl says why.
+// (The built-in URL throws a TypeError.)
+try {
+  parseUrl("setup.html");
+  console.log("throwing parse: parsed");
+} catch {
+  console.log("throwing parse: throws");
+}
 
 section("4. International domain names");
 
@@ -116,6 +115,8 @@ for (const input of [
 }
 // toString() is href too, so templates and String() give it.
 console.log(`as a string: ${url}`);
+// eq compares hrefs; === compares objects.
+console.log(`same URL: ${parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c"))}`);
 
 section("6. Using it safely");
 
@@ -127,9 +128,11 @@ const allowed = new Set(["example.com", "api.example.com"]);
 
 // The URL to fetch, or why not.
 function check(input) {
-  const url = tryParse(input);
+  const url = Url.parse(input);
   if (url === null) return "refuse: not a URL";
-  if (url.protocol !== "https:") return `refuse: protocol ${url.protocol}`;
+  if (url.scheme !== "https") return `refuse: scheme ${url.scheme}`;
+  // An IP address isn't a name on the list, however it's written.
+  if (url.hostKind !== HostKind.domain) return `refuse: ${url.hostKind} host ${url.hostname}`;
   if (!allowed.has(url.hostname)) return `refuse: host ${url.hostname}`;
   // await fetch(url.href, { redirect: "manual" }), never input. Check each
   // redirect the same way. A hostname doesn't say where DNS sends it.
@@ -148,13 +151,24 @@ for (const input of [
   console.log(`${input}: ${check(input)}`);
 }
 
+// Check hosts from configuration with parseHost, which domainToAscii isn't
+// for: it passes all three.
+for (const input of ["example.com", "0x7f.1", "exa mple.com"]) {
+  try {
+    const host = parseHost(input);
+    console.log(`host ${input}: ${host.kind} ${host.serialized}`);
+  } catch {
+    console.log(`host ${input}: not a host`);
+  }
+}
+
 // A server redirecting to a `next` parameter: resolve it against your own
-// origin, and redirect only if the origin stays the same. In Express:
+// site, and redirect only to the same origin. In Express:
 // res.redirect(url.href).
-const site = "https://example.com/";
-for (const target of ["/account", "//evil.example/", "/\\evil.example"]) {
-  const url = tryParse(target, site);
-  if (url !== null && url.origin === "https://example.com") {
+const site = parseUrl("https://example.com/");
+for (const target of ["/account", "//evil.example/", "/\\evil.example", "//[::1"]) {
+  const url = site.tryResolve(target);
+  if (url !== null && url.sameOrigin(site)) {
     console.log(`next=${target}: redirect to ${url.href}`);
   } else {
     console.log(`next=${target}: refuse, ${url ? url.origin : "not a URL"}`);
