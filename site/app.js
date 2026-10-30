@@ -247,6 +247,34 @@ for (const card of cards) {
     $("try").scrollIntoView({ behavior: "smooth" });
     urlInput.focus({ preventScroll: true });
   });
+  // Open the card ourselves (mouse or keyboard), so it can be kept in place
+  // before the browser paints it moved.
+  const details = card.querySelector("details");
+  card.querySelector("summary")?.addEventListener("click", (event) => {
+    if (!details || details.open) return;
+    event.preventDefault();
+    const before = card.getBoundingClientRect();
+    details.open = true;
+    revealCard(card, before);
+  });
+}
+
+/**
+ * Brings a card just opened into view. First it's held where it was on
+ * screen, though an open card spans its grid row and so may have moved.
+ * Then, if it was only partly visible before or doesn't fit now, it
+ * scrolls from there until its top is near the window's top.
+ * @param {HTMLElement} card
+ * @param {DOMRect} before where the card was before opening
+ */
+function revealCard(card, before) {
+  const margin = 16;
+  window.scrollBy({ top: card.getBoundingClientRect().top - before.top, behavior: "instant" });
+  const now = card.getBoundingClientRect();
+  const wasVisible = before.top >= 0 && before.bottom <= window.innerHeight;
+  if (wasVisible && now.bottom <= window.innerHeight) return;
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollBy({ top: now.top - margin, behavior: still ? "instant" : "smooth" });
 }
 
 for (const row of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".more-row"))) {
