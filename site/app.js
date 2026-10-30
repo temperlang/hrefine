@@ -3,6 +3,9 @@
 // as plain ES modules named by the page's import map.
 
 import * as hrefine from "hrefine";
+import * as temperCore from "@temperlang/core";
+import { initDevMode } from "./devmode.js";
+import { runTour } from "./tourrun.js";
 
 const { checkUrl } = hrefine;
 
@@ -374,10 +377,14 @@ for (const pre of /** @type {NodeListOf<HTMLElement>} */ (document.querySelector
 const sources = new Map();
 let selected = DEFAULT_LANGUAGE;
 const tabRows = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll("[data-tabs]"))];
+// Dev mode follows the chosen language; set up below.
+/** @type {{ setLanguage: (file: string) => void } | null} */
+let devMode = null;
 
 /** @param {string} file */
 async function selectLanguage(file) {
   selected = file;
+  devMode?.setLanguage(file);
   const [name, , run, comment] = /** @type {string[]} */ (LANGUAGES.find(([, f]) => f === file));
   for (const row of tabRows) {
     for (const button of /** @type {NodeListOf<HTMLElement>} */ (row.querySelectorAll("button"))) {
@@ -425,9 +432,23 @@ for (const row of tabRows) {
 }
 selectLanguage(DEFAULT_LANGUAGE);
 
-// The JavaScript tour runs as the body of a function given Hrefine's
-// exports, with console.log sent to the page, and its output is compared
-// with the text every language's tour prints.
+// Dev mode shows the code behind each part of the page, in the code tabs'
+// language, and can open the full tour.
+devMode = initDevMode({
+  toggle: /** @type {HTMLButtonElement} */ ($("dev-toggle")),
+  languages: LANGUAGES.map(([name, file, , comment]) => ({ name, file, comment })),
+  language: DEFAULT_LANGUAGE,
+  highlight,
+  showTour: (file) => {
+    selectLanguage(file);
+    $("tour").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  },
+});
+
+// The JavaScript tour runs in the page (tourrun.js, which the build also
+// runs in Node), with what it imports from this page's copies of Hrefine
+// and Temper's runtime, and its output is compared with the text every
+// language's tour prints.
 
 $("tour-run").addEventListener("click", async () => {
   const output = $("tour-output");
@@ -435,17 +456,7 @@ $("tour-run").addEventListener("click", async () => {
   output.hidden = false;
   output.textContent = "Running…";
   try {
-    const code = (sources.get("js") ?? "").replace(/^import \{[^}]*\} from "hrefine";$/m, "");
-    /** @type {string[]} */
-    const lines = [];
-    const log = (/** @type {unknown[]} */ ...args) => lines.push(args.map(String).join(" "));
-    const names = Object.keys(hrefine);
-    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-    await new AsyncFunction(...names, "console", code)(
-      ...names.map((n) => /** @type {any} */ (hrefine)[n]),
-      { log },
-    );
-    const out = lines.map((line) => line + "\n").join("");
+    const out = await runTour(sources.get("js") ?? "", { hrefine, "@temperlang/core": temperCore });
     output.textContent = out;
     const expected = await (await fetch("tour/expected.txt")).text();
     note.textContent =

@@ -32,24 +32,24 @@ print("# Hrefine tour")
 
 section("1. Parsing and reading parts")
 
-text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top"
-url = parse_url(text)
+text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top"  # snippet: hero
+url = parse_url(text)  # snippet: hero, parts
 print(f"input: {text}")
-print(f"href: {url.href}")
-print(f"origin: {url.origin}")
-print(f"protocol: {url.protocol}")
-print(f"username: {url.username}")
-print(f"password: {url.password}")
-print(f"host: {url.host}")
-print(f"hostname: {url.hostname}")
-print(f"port: {url.port}")
-print(f"pathname: {url.pathname}")
-print(f"search: {url.search}")
-print(f"hash: {url.hash}")
+print(f"href: {url.href}")  # snippet: parts
+print(f"origin: {url.origin}")  # snippet: parts
+print(f"protocol: {url.protocol}")  # snippet: parts
+print(f"username: {url.username}")  # snippet: parts
+print(f"password: {url.password}")  # snippet: parts
+print(f"host: {url.host}")  # snippet: parts
+print(f"hostname: {url.hostname}")  # snippet: hero, parts
+print(f"port: {url.port}")  # snippet: parts
+print(f"pathname: {url.pathname}")  # snippet: parts
+print(f"search: {url.search}")  # snippet: parts
+print(f"hash: {url.hash}")  # snippet: parts
 # Typed parts, beside the standard's strings.
-print(f"scheme: {url.scheme}")
-print(f"port number: {url.port_number}")
-print(f"host kind: {url.host_kind.to_string()}")
+print(f"scheme: {url.scheme}")  # snippet: parts
+print(f"port number: {url.port_number}")  # snippet: parts
+print(f"host kind: {url.host_kind.to_string()}")  # snippet: parts
 # The standard's parts are strings, as in JavaScript's URL, so no port is
 # "", and port_number is None.
 plain = parse_url("HTTPS://example.com:443")
@@ -58,12 +58,12 @@ print(f'default port: {plain.href}, port "{plain.port}", port number {plain.port
 section("2. Relative URLs")
 
 # Parse the base once, then resolve against it.
-guide = parse_url("https://example.com/docs/guide/intro.html")
+guide = parse_url("https://example.com/docs/guide/intro.html")  # snippet: base
 print(f"base: {guide.href}")
-for relative in ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"]:
-    print(f"{relative} -> {guide.resolve(relative).href}")
+for relative in ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"]:  # snippet: base
+    print(f"{relative} -> {guide.resolve(relative).href}")  # snippet: base
 # Or give the base as a string, parsed on each call.
-print(f"with a string base: {parse_url('faq.html', guide.href).href}")
+print(f"with a string base: {parse_url('faq.html', guide.href).href}")  # snippet: base
 
 section("3. Failures")
 
@@ -77,10 +77,10 @@ for text in [
     "setup.html",
     "https:example.com/a b",
 ]:
-    check = check_url(text)
-    errors = ", ".join(error.to_string() for error in check.errors)
-    result = check.url.href if check.url else "not a URL"
-    print(f"{text}: {result} ({errors})")
+    check = check_url(text)  # snippet: errors
+    errors = ", ".join(error.to_string() for error in check.errors)  # snippet: errors
+    result = check.url.href if check.url else "not a URL"  # snippet: errors
+    print(f"{text}: {result} ({errors})")  # snippet: errors
 # Url.parse gives None where parse_url raises, and Url.can_parse says only
 # whether it would parse, as in JavaScript.
 print(f"nullable parse: {'nothing' if Url.parse('setup.html') is None else 'a URL'}")
@@ -126,8 +126,8 @@ print(f"as a string: {url.to_string()}")
 print(f"same URL: {str(parse_url('HTTP://EXAMPLE.COM/a/./b/../c').eq(parse_url('http://example.com/a/c'))).lower()}")
 # strict_href also escapes what RFC 3986 parsers reject, for those that
 # follow it strictly.
-strict = parse_url("https://example.com/a|b/%zz?q={x}#c^d")
-print(f"strict: {strict.href} -> {strict.strict_href}")
+strict = parse_url("https://example.com/a|b/%zz?q={x}#c^d")  # snippet: proof
+print(f"strict: {strict.href} -> {strict.strict_href}")  # snippet: proof
 
 section("6. Using it safely")
 
@@ -138,22 +138,22 @@ section("6. Using it safely")
 ALLOWED = {"example.com", "api.example.com"}
 
 
-def check(text):
+def check(text):  # snippet: card
     """The URL to fetch, or why not."""
-    url = Url.parse(text)
-    if url is None:
-        return "refuse: not a URL"
-    if url.scheme != "https":
-        return f"refuse: scheme {url.scheme}"
+    url = Url.parse(text)  # snippet: card
+    if url is None:  # snippet: card
+        return "refuse: not a URL"  # snippet: card
+    if url.scheme != "https":  # snippet: card
+        return f"refuse: scheme {url.scheme}"  # snippet: card
     # An IP address isn't a name on the list, however it's written.
-    if url.host_kind != HostKind.domain:
-        return f"refuse: {url.host_kind.to_string()} host {url.hostname}"
-    if url.hostname not in ALLOWED:
-        return f"refuse: host {url.hostname}"
+    if url.host_kind != HostKind.domain:  # snippet: card
+        return f"refuse: {url.host_kind.to_string()} host {url.hostname}"  # snippet: card
+    if url.hostname not in ALLOWED:  # snippet: card
+        return f"refuse: host {url.hostname}"  # snippet: card
     # requests.get(url.href) or httpx.get(url.href), never text. Turn off
     # redirects (allow_redirects=False, follow_redirects=False) or check
     # each hop the same way. A hostname doesn't say where DNS sends it.
-    return f"fetch {url.href}"
+    return f"fetch {url.href}"  # snippet: card
 
 
 for text in [
@@ -213,3 +213,19 @@ for entry in params.entries():
 print(f"with search params: {page.with_search_params(params).href}")
 # Or from pairs of names and values.
 print(f"from pairs: {UrlSearchParams.from_entries([Pair('q', 'a b'), Pair('page', '2')]).to_string()}")
+
+section("8. Test cases")
+
+# Each of web-platform-tests' URL cases gives an input, a base, and the
+# href it must parse to, or "" where parsing must fail. Hrefine's tests
+# run them all, checking every part, and so does the site, in the browser.
+cases = [
+    ["http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"],
+    ["../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"],
+    ["http://999999999", "http://other.com/", "http://59.154.201.255/"],
+    ["http://192.168.0.257", "http://other.com/", ""],
+]
+for text, base, href in cases:  # snippet: scoreboard
+    url = Url.parse(text, base)  # snippet: scoreboard
+    got = "" if url is None else url.href  # snippet: scoreboard
+    print(f"{text} against {base}: {'pass' if got == href else 'fail'}")  # snippet: scoreboard

@@ -90,3 +90,9 @@ lang = fr
 q = café & more
 with search params: https://example.com/docs?lang=en&lang=fr&q=caf%C3%A9+%26+more
 from pairs: q=a+b&page=2
+
+## 8. Test cases
+http:\\foo.com\ against http://example.org/foo/bar: pass
+../aaa/test.txt against http://www.example.com/test: pass
+http://999999999 against http://other.com/: pass
+http://192.168.0.257 against http://other.com/: pass

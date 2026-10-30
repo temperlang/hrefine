@@ -18,24 +18,24 @@ console.log("# Hrefine tour");
 
 section("1. Parsing and reading parts");
 
-const text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";
-const url = parseUrl(text);
+const text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
+const url = parseUrl(text);  // snippet: hero, parts
 console.log(`input: ${text}`);
-console.log(`href: ${url.href}`);
-console.log(`origin: ${url.origin}`);
-console.log(`protocol: ${url.protocol}`);
-console.log(`username: ${url.username}`);
-console.log(`password: ${url.password}`);
-console.log(`host: ${url.host}`);
-console.log(`hostname: ${url.hostname}`);
-console.log(`port: ${url.port}`);
-console.log(`pathname: ${url.pathname}`);
-console.log(`search: ${url.search}`);
-console.log(`hash: ${url.hash}`);
+console.log(`href: ${url.href}`);  // snippet: parts
+console.log(`origin: ${url.origin}`);  // snippet: parts
+console.log(`protocol: ${url.protocol}`);  // snippet: parts
+console.log(`username: ${url.username}`);  // snippet: parts
+console.log(`password: ${url.password}`);  // snippet: parts
+console.log(`host: ${url.host}`);  // snippet: parts
+console.log(`hostname: ${url.hostname}`);  // snippet: parts, hero
+console.log(`port: ${url.port}`);  // snippet: parts
+console.log(`pathname: ${url.pathname}`);  // snippet: parts
+console.log(`search: ${url.search}`);  // snippet: parts
+console.log(`hash: ${url.hash}`);  // snippet: parts
 // Typed parts, beside the standard's strings.
-console.log(`scheme: ${url.scheme}`);
-console.log(`port number: ${url.portNumber}`);
-console.log(`host kind: ${url.hostKind}`);
+console.log(`scheme: ${url.scheme}`);  // snippet: parts
+console.log(`port number: ${url.portNumber}`);  // snippet: parts
+console.log(`host kind: ${url.hostKind}`);  // snippet: parts
 // The standard's parts are strings, as in the built-in URL, so no port is
 // "", and portNumber is null.
 const plain = parseUrl("HTTPS://example.com:443");
@@ -44,14 +44,14 @@ console.log(`default port: ${plain.href}, port "${plain.port}", port number ${pl
 section("2. Relative URLs");
 
 // Parse the base once, then resolve against it.
-const guide = parseUrl("https://example.com/docs/guide/intro.html");
+const guide = parseUrl("https://example.com/docs/guide/intro.html");  // snippet: base
 console.log(`base: ${guide.href}`);
-for (const relative of ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"]) {
-  console.log(`${relative} -> ${guide.resolve(relative).href}`);
-}
+for (const relative of ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"]) {  // snippet: base
+  console.log(`${relative} -> ${guide.resolve(relative).href}`);  // snippet: base
+}  // snippet: base
 // Or give the base as a string, parsed on each call. (Unlike the built-in
 // URL, a Url isn't taken as a base.)
-console.log(`with a string base: ${parseUrl("faq.html", guide.href).href}`);
+console.log(`with a string base: ${parseUrl("faq.html", guide.href).href}`);  // snippet: base
 
 section("3. Failures");
 
@@ -65,9 +65,9 @@ for (const input of [
   "setup.html",
   "https:example.com/a b",
 ]) {
-  const check = checkUrl(input);
-  const errors = check.errors.map((error) => `${error}`).join(", ");
-  console.log(`${input}: ${check.url?.href ?? "not a URL"} (${errors})`);
+  const check = checkUrl(input);  // snippet: errors
+  const errors = check.errors.map((error) => `${error}`).join(", ");  // snippet: errors
+  console.log(`${input}: ${check.url?.href ?? "not a URL"} (${errors})`);  // snippet: errors
 }
 // As with the built-in URL: Url.parse gives null where parseUrl throws, and
 // Url.canParse says only whether it would parse.
@@ -120,8 +120,8 @@ console.log(`as a string: ${url}`);
 console.log(`same URL: ${parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c"))}`);
 // strictHref also escapes what RFC 3986 parsers reject, for those that
 // follow it strictly.
-const strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");
-console.log(`strict: ${strict.href} -> ${strict.strictHref}`);
+const strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");  // snippet: proof
+console.log(`strict: ${strict.href} -> ${strict.strictHref}`);  // snippet: proof
 
 section("6. Using it safely");
 
@@ -132,17 +132,17 @@ section("6. Using it safely");
 const allowed = new Set(["example.com", "api.example.com"]);
 
 // The URL to fetch, or why not.
-function check(input) {
-  const url = Url.parse(input);
-  if (url === null) return "refuse: not a URL";
-  if (url.scheme !== "https") return `refuse: scheme ${url.scheme}`;
+function check(input) {  // snippet: card
+  const url = Url.parse(input);  // snippet: card
+  if (url === null) return "refuse: not a URL";  // snippet: card
+  if (url.scheme !== "https") return `refuse: scheme ${url.scheme}`;  // snippet: card
   // An IP address isn't a name on the list, however it's written.
-  if (url.hostKind !== HostKind.domain) return `refuse: ${url.hostKind} host ${url.hostname}`;
-  if (!allowed.has(url.hostname)) return `refuse: host ${url.hostname}`;
+  if (url.hostKind !== HostKind.domain) return `refuse: ${url.hostKind} host ${url.hostname}`;  // snippet: card
+  if (!allowed.has(url.hostname)) return `refuse: host ${url.hostname}`;  // snippet: card
   // await fetch(url.href, { redirect: "manual" }), never input. Check each
   // redirect the same way. A hostname doesn't say where DNS sends it.
-  return `fetch ${url.href}`;
-}
+  return `fetch ${url.href}`;  // snippet: card
+}  // snippet: card
 
 for (const input of [
   "https://api.example.com/v1/items",
@@ -207,3 +207,20 @@ for (const entry of params.entries()) {
 console.log(`with search params: ${page.withSearchParams(params).href}`);
 // Or from pairs of names and values.
 console.log(`from pairs: ${UrlSearchParams.fromEntries([new Pair("q", "a b"), new Pair("page", "2")])}`);
+
+section("8. Test cases");
+
+// Each of web-platform-tests' URL cases gives an input, a base, and the
+// href it must parse to, or "" where parsing must fail. Hrefine's tests
+// run them all, checking every part, and so does the site, in the browser.
+const cases = [
+  ["http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"],
+  ["../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"],
+  ["http://999999999", "http://other.com/", "http://59.154.201.255/"],
+  ["http://192.168.0.257", "http://other.com/", ""],
+];
+for (const [input, base, href] of cases) {  // snippet: scoreboard
+  const url = Url.parse(input, base);  // snippet: scoreboard
+  const got = url === null ? "" : url.href;  // snippet: scoreboard
+  console.log(`${input} against ${base}: ${got === href ? "pass" : "fail"}`);  // snippet: scoreboard
+}  // snippet: scoreboard

@@ -140,6 +140,13 @@ site that makes the point.
    An open gallery card spans its row, and narrow tables (each parser's
    answers and the more disagreements) stack each row, by container
    query, as checked in headless Chromium at phone and desktop widths.
+   Dev mode (2026-10-30), as on Chromarite's and Ordable's sites: a
+   switch shows badges on the opening, the tester (base, parts, and
+   errors), a gallery card, the proof table, and the scoreboard, each
+   with a snippet in all seven languages, marked in the tours (which
+   gained a few WPT cases for the scoreboard's). The page shows no search
+   parameters, so they have no badge. The build also runs the JS tour in
+   Node the way the page's "Run in your browser" does.
    `site.yml` deploys from `main`, untested until it runs on GitHub. Not
    yet: PHP (no binary here), a minified bundle (Ordable uses esbuild,
    which needs approval here).

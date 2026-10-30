@@ -26,28 +26,28 @@ fn shown(text: &str) -> String {
 const ALLOWED: [&str; 2] = ["example.com", "api.example.com"];
 
 /// The URL to fetch, or why not.
-fn check(input: &str) -> String {
-    let Some(url) = Url::parse(input, NO_BASE) else {
-        return "refuse: not a URL".into();
-    };
-    if url.scheme().as_str() != "https" {
-        return format!("refuse: scheme {}", url.scheme());
-    }
+fn check(input: &str) -> String {  // snippet: card
+    let Some(url) = Url::parse(input, NO_BASE) else {  // snippet: card
+        return "refuse: not a URL".into();  // snippet: card
+    };  // snippet: card
+    if url.scheme().as_str() != "https" {  // snippet: card
+        return format!("refuse: scheme {}", url.scheme());  // snippet: card
+    }  // snippet: card
     // An IP address isn't a name on the list, however it's written.
     // HostKind has no PartialEq, but eq compares kinds.
-    match url.host_kind() {
-        Some(kind) if kind.eq(HostKind::domain()) => {}
-        Some(kind) => return format!("refuse: {} host {}", kind.to_string(), url.hostname()),
-        None => return "refuse: no host".into(),
-    }
-    if !ALLOWED.contains(&url.hostname().as_str()) {
-        return format!("refuse: host {}", url.hostname());
-    }
+    match url.host_kind() {  // snippet: card
+        Some(kind) if kind.eq(HostKind::domain()) => {}  // snippet: card
+        Some(kind) => return format!("refuse: {} host {}", kind.to_string(), url.hostname()),  // snippet: card
+        None => return "refuse: no host".into(),  // snippet: card
+    }  // snippet: card
+    if !ALLOWED.contains(&url.hostname().as_str()) {  // snippet: card
+        return format!("refuse: host {}", url.hostname());  // snippet: card
+    }  // snippet: card
     // reqwest::get(url.href().as_str()), never input, with a client built
     // with .redirect(Policy::none()), or check each redirect the same way.
     // A hostname doesn't say where DNS sends it.
-    format!("fetch {}", url.href())
-}
+    format!("fetch {}", url.href())  // snippet: card
+}  // snippet: card
 
 fn main() {
     // Sets up Hrefine and Temper's runtime. Call it once before anything
@@ -59,25 +59,25 @@ fn main() {
     section("1. Parsing and reading parts");
 
     // Failure is an Err, so a URL known to be good can take expect.
-    let text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";
-    let url = parse_url(text, NO_BASE).expect("a URL");
+    let text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
+    let url = parse_url(text, NO_BASE).expect("a URL");  // snippet: hero, parts
     println!("input: {text}");
     // Each part is an Arc<String>.
-    println!("href: {}", url.href());
-    println!("origin: {}", url.origin());
-    println!("protocol: {}", url.protocol());
-    println!("username: {}", url.username());
-    println!("password: {}", url.password());
-    println!("host: {}", url.host());
-    println!("hostname: {}", url.hostname());
-    println!("port: {}", url.port());
-    println!("pathname: {}", url.pathname());
-    println!("search: {}", url.search());
-    println!("hash: {}", url.hash());
+    println!("href: {}", url.href());  // snippet: parts
+    println!("origin: {}", url.origin());  // snippet: parts
+    println!("protocol: {}", url.protocol());  // snippet: parts
+    println!("username: {}", url.username());  // snippet: parts
+    println!("password: {}", url.password());  // snippet: parts
+    println!("host: {}", url.host());  // snippet: parts
+    println!("hostname: {}", url.hostname());  // snippet: parts, hero
+    println!("port: {}", url.port());  // snippet: parts
+    println!("pathname: {}", url.pathname());  // snippet: parts
+    println!("search: {}", url.search());  // snippet: parts
+    println!("hash: {}", url.hash());  // snippet: parts
     // Typed parts, beside the standard's strings.
-    println!("scheme: {}", url.scheme());
-    println!("port number: {}", url.port_number().expect("a port"));
-    println!("host kind: {}", url.host_kind().expect("a host").to_string());
+    println!("scheme: {}", url.scheme());  // snippet: parts
+    println!("port number: {}", url.port_number().expect("a port"));  // snippet: parts
+    println!("host kind: {}", url.host_kind().expect("a host").to_string());  // snippet: parts
     // The standard's parts are strings, as in JavaScript's URL, so no port is
     // "", and port_number is None.
     let plain = parse_url("HTTPS://example.com:443", NO_BASE).expect("a URL");
@@ -87,14 +87,14 @@ fn main() {
     section("2. Relative URLs");
 
     // Parse the base once, then resolve against it.
-    let guide = parse_url("https://example.com/docs/guide/intro.html", NO_BASE).expect("a URL");
+    let guide = parse_url("https://example.com/docs/guide/intro.html", NO_BASE).expect("a URL");  // snippet: base
     println!("base: {}", guide.href());
-    for relative in ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"] {
-        println!("{relative} -> {}", guide.resolve(relative).expect("a URL").href());
-    }
+    for relative in ["setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"] {  // snippet: base
+        println!("{relative} -> {}", guide.resolve(relative).expect("a URL").href());  // snippet: base
+    }  // snippet: base
     // Or give the base as a string, parsed on each call.
-    let faq = parse_url("faq.html", Some(guide.href())).expect("a URL");
-    println!("with a string base: {}", faq.href());
+    let faq = parse_url("faq.html", Some(guide.href())).expect("a URL");  // snippet: base
+    println!("with a string base: {}", faq.href());  // snippet: base
 
     section("3. Failures");
 
@@ -109,10 +109,10 @@ fn main() {
         "setup.html",
         "https:example.com/a b",
     ] {
-        let check = check_url(input, NO_BASE).expect("no base to fail");
-        let errors: Vec<String> = check.errors().iter().map(|error| error.to_string().to_string()).collect();
-        let result = check.url().map_or("not a URL".to_string(), |url| url.href().to_string());
-        println!("{input}: {result} ({})", errors.join(", "));
+        let check = check_url(input, NO_BASE).expect("no base to fail");  // snippet: errors
+        let errors: Vec<String> = check.errors().iter().map(|error| error.to_string().to_string()).collect();  // snippet: errors
+        let result = check.url().map_or("not a URL".to_string(), |url| url.href().to_string());  // snippet: errors
+        println!("{input}: {result} ({})", errors.join(", "));  // snippet: errors
     }
     // Url::parse gives None where parse_url gives Err, and Url::can_parse
     // says only whether it would parse, as in JavaScript.
@@ -167,8 +167,8 @@ fn main() {
     println!("same URL: {}", a.eq(b));
     // strict_href also escapes what RFC 3986 parsers reject, for those that
     // follow it strictly.
-    let strict = parse_url("https://example.com/a|b/%zz?q={x}#c^d", NO_BASE).expect("a URL");
-    println!("strict: {} -> {}", strict.href(), strict.strict_href());
+    let strict = parse_url("https://example.com/a|b/%zz?q={x}#c^d", NO_BASE).expect("a URL");  // snippet: proof
+    println!("strict: {} -> {}", strict.href(), strict.strict_href());  // snippet: proof
 
     section("6. Using it safely");
 
@@ -241,4 +241,22 @@ fn main() {
     // Or from pairs of names and values.
     let pairs = [("q", "a b"), ("page", "2")].map(|(name, value)| (Arc::new(name.to_string()), Arc::new(value.to_string())));
     println!("from pairs: {}", UrlSearchParams::from_entries(pairs).to_string());
+
+    section("8. Test cases");
+
+    // Each of web-platform-tests' URL cases gives an input, a base, and the
+    // href it must parse to, or "" where parsing must fail. Hrefine's tests
+    // run them all, checking every part, and so does the site, in the
+    // browser.
+    let cases = [
+        ["http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"],
+        ["../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"],
+        ["http://999999999", "http://other.com/", "http://59.154.201.255/"],
+        ["http://192.168.0.257", "http://other.com/", ""],
+    ];
+    for [input, base, href] in cases {  // snippet: scoreboard
+        let url = Url::parse(input, Some(base));  // snippet: scoreboard
+        let got = url.map_or(String::new(), |url| url.href().to_string());  // snippet: scoreboard
+        println!("{input} against {base}: {}", if got == href { "pass" } else { "fail" });  // snippet: scoreboard
+    }  // snippet: scoreboard
 }

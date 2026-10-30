@@ -21,6 +21,17 @@ one is tried. The
 fix's code comes from each tour's "Using it safely" section, which CI runs
 in every language, and the tours themselves go in `tour/`.
 
+Lines in the tours ending in a comment like `# snippet: hero, parts` are
+snippets for the page's dev mode: each snippet's lines, in order, for each
+language, dedented, go into `snippets.json`, and the comments come off the
+tours the page shows. Since CI runs every tour, the snippets are known to
+work; every snippet must be in every language, and every spot in
+`devmode.js` must have one.
+
+Runs the JavaScript tour in Node as the page's "Run in your browser" does
+(`tour-node.mjs` and `tourrun.js`), against the built `lib/`, failing
+unless it prints `demos/tour/expected.txt`.
+
 Runs web-platform-tests' URL cases (`tests/wpt/urltestdata.json`, copied
 into `wpt/` for the page's live scoreboard) in Node, through Node's `URL`
 and Hrefine's built JS, with the page's own scoring module
@@ -28,6 +39,7 @@ and Hrefine's built JS, with the page's own scoring module
 beside the visitor's, and the build fails unless Hrefine passes every case.
 """
 
+import difflib
 import gzip
 import hashlib
 import html
@@ -36,6 +48,7 @@ import json
 import re
 import shutil
 import subprocess
+import textwrap
 import urllib.parse
 from pathlib import Path
 
@@ -57,6 +70,67 @@ TOURS = {
     "py": "py/tour.py",
     "rs": "rust/src/main.rs",
 }
+
+# A snippet line's marker: its comment and the snippets it's in.
+MARKER = re.compile(r"\s+(?:#|//|--) snippet: ([\w, -]+)$")
+
+
+def snippets(tours):
+    """Each snippet's code by language, and each tour without markers."""
+    found = {}
+    stripped = {}
+    for ext, text in tours.items():
+        lines = []
+        for line in text.splitlines():
+            m = MARKER.search(line)
+            if m:
+                line = line[: m.start()]
+                for name in m[1].split(","):
+                    found.setdefault(name.strip(), {}).setdefault(ext, []).append(line)
+            lines.append(line)
+        stripped[ext] = "\n".join(lines) + "\n"
+    for name, by_ext in found.items():
+        missing = set(tours) - set(by_ext)
+        if missing:
+            raise SystemExit(f"Snippet {name!r} is missing from the {', '.join(sorted(missing))} tours.")
+    spots = set(re.findall(r'^    id: "([\w-]+)",$', (SITE / "devmode.js").read_text(encoding="utf-8"), re.M))
+    if not spots or spots - set(found):
+        raise SystemExit(f"devmode.js has spots without snippets: {', '.join(sorted(spots - set(found))) or 'none found'}")
+    return {
+        name: {ext: textwrap.dedent("\n".join(code)) for ext, code in sorted(by_ext.items())} for name, by_ext in found.items()
+    }, stripped
+
+
+def check_tour_run(expected):
+    """Fails unless the built JS tour, run as the page runs it, prints
+    what every tour prints."""
+    try:
+        run = subprocess.run(
+            ["node", str(SITE / "tour-node.mjs"), str(OUT)], capture_output=True, text=True, encoding="utf-8"
+        )
+    except FileNotFoundError:
+        raise SystemExit("The build needs Node (24 or later), to run the JS tour.")
+    if run.returncode:
+        raise SystemExit(f"The JS tour doesn't run as the page runs it:\n{run.stderr}")
+    if run.stdout != expected:
+        diff = difflib.unified_diff(
+            expected.splitlines(keepends=True), run.stdout.splitlines(keepends=True), "expected.txt", "in the page"
+        )
+        raise SystemExit(f"The JS tour, run as the page runs it, prints otherwise:\n{''.join(diff)}")
+
+
+def link_modules(name):
+    """Gives each `./x.js` that a built module imports its file's hash, as
+    the page's references get theirs."""
+    path = OUT / name
+    text = path.read_text(encoding="utf-8")
+
+    def hashed(m):
+        digest = hashlib.sha256((OUT / m[2]).read_bytes()).hexdigest()[:10]
+        return f'{m[1]}"./{m[2]}?v={digest}";'
+
+    path.write_text(re.sub(r'^(import .* from )"\./([\w-]+\.js)";$', hashed, text, flags=re.M), encoding="utf-8")
+
 
 # Parsers in the order the opening shows them, after the browser and
 # Hrefine: those that differ from the browser first.
@@ -436,8 +510,9 @@ def main():
     OUT.mkdir(parents=True)
     # GitHub Pages serves files as they are, without Jekyll.
     (OUT / ".nojekyll").touch()
-    for name in ["style.css", "app.js", "recorded.json"]:
+    for name in ["style.css", "app.js", "devmode.js", "tourrun.js", "recorded.json"]:
         copy(SITE / name, OUT / name)
+    link_modules("app.js")
 
     lib = []
     for path in sorted((JS / "hrefine").glob("*.js")):
@@ -456,10 +531,14 @@ def main():
     (OUT / "tables.json").write_text(json.dumps(tables, ensure_ascii=False) + "\n", encoding="utf-8")
     compares = {row_key(i): i.get("compare", "host") for i in items}
 
-    sources = {ext: (TOUR / path).read_text(encoding="utf-8") for ext, path in TOURS.items()}
+    found, sources = snippets({ext: (TOUR / path).read_text(encoding="utf-8") for ext, path in TOURS.items()})
+    (OUT / "snippets.json").write_text(json.dumps(found, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (OUT / "tour").mkdir(parents=True, exist_ok=True)
     for ext, text in sources.items():
-        copy(TOUR / TOURS[ext], OUT / "tour" / f"tour.{ext}")
+        (OUT / "tour" / f"tour.{ext}").write_text(text, encoding="utf-8")
+    expected = (TOUR / "expected.txt").read_text(encoding="utf-8")
     copy(TOUR / "expected.txt", OUT / "tour" / "expected.txt")
+    check_tour_run(expected)
     fixes = "\n".join(
         f'<pre class="source fix-code" data-lang="{ext}" tabindex="0" hidden><code>{esc(fix_snippet(ext, text))}</code></pre>'
         for ext, text in sources.items()

@@ -274,7 +274,18 @@ The build copies the JS library and Temper's runtime as plain ES modules
 (no bundler, so about 60 KB gzipped), renders the opening, the gallery,
 and the table from the recorded answers (each table row's full answers go
 in `tables.json`, which the tester fetches only when one is tried), and takes the fix's code from each tour's
-"Using it safely" section, failing if it can't find it. Visits are counted
+"Using it safely" section, failing if it can't find it. It also runs the
+JavaScript tour in Node as the page's "Run in your browser" does
+(`site/tourrun.js`, shared by both), failing unless it prints what every
+tour prints.
+
+A "Show the code" switch puts badges on the parts of the page with code
+behind them (`site/devmode.js`), each opening a short snippet in any of
+the seven languages. The snippets are lines of the tours marked with a
+comment such as `# snippet: hero, parts`; the build collects them into
+`snippets.json`, failing if one is missing from a tour or a badge has
+none, and strips the markers from the tours the page shows. CI runs
+every tour, so every snippet runs. Visits are counted
 by cookieless GoatCounter, site code `hrefine`. CI
 (`.github/workflows/site.yml`) builds the site on every change and
 publishes it to GitHub Pages from `main`.
@@ -326,6 +337,19 @@ about 21–23 KB (4 KB gzipped) in Python and JavaScript. The [plan](docs/plan.m
 The table predates the setters and search parameters (2026-10-30),
 which add code, and a few checks to the parser for the setters' state
 overrides; they aren't measured yet.
+
+## Roadmap
+
+See the [plan](docs/plan.md) for details.
+
+- **Done:** parsing and serializing, international domain names (IDNA),
+  setters and search parameters, the strict RFC 3986 form, the tours,
+  and the site.
+- **Next:** the rest of the plan's step 5: display formatting,
+  comparison, and the lossless source view.
+- **Before 1.0:** trademark checks, dropping the `orelse` workaround
+  once Temper's nightly has the fix, a minified site bundle, and
+  publishing packages.
 
 ## Development
 

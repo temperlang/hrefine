@@ -34,21 +34,21 @@ std::string shown(std::string const &text) {
 const std::set<std::string> allowed = {"example.com", "api.example.com"};
 
 // The URL to fetch, or why not.
-std::string check(std::string const &input) {
-  auto url = Url::parse(input);
-  if (!url) return "refuse: not a URL";
-  if (url->get_scheme() != "https") return "refuse: scheme " + url->get_scheme();
+std::string check(std::string const &input) {  // snippet: card
+  auto url = Url::parse(input);  // snippet: card
+  if (!url) return "refuse: not a URL";  // snippet: card
+  if (url->get_scheme() != "https") return "refuse: scheme " + url->get_scheme();  // snippet: card
   // An IP address isn't a name on the list, however it's written. Each
   // kind is one object, so == works.
-  if (url->get_hostKind() != HostKind::domain) {
-    return "refuse: " + url->get_hostKind()->toString() + " host " + url->get_hostname();
-  }
-  if (!allowed.count(url->get_hostname())) return "refuse: host " + url->get_hostname();
+  if (url->get_hostKind() != HostKind::domain) {  // snippet: card
+    return "refuse: " + url->get_hostKind()->toString() + " host " + url->get_hostname();  // snippet: card
+  }  // snippet: card
+  if (!allowed.count(url->get_hostname())) return "refuse: host " + url->get_hostname();  // snippet: card
   // With libcurl: curl_easy_setopt(curl, CURLOPT_URL, url->get_href().c_str()),
   // never input, and leave CURLOPT_FOLLOWLOCATION off, or check each
   // redirect the same way. A hostname doesn't say where DNS sends it.
-  return "fetch " + url->get_href();
-}
+  return "fetch " + url->get_href();  // snippet: card
+}  // snippet: card
 
 int main() {
   // Sets up Hrefine. Call it once before anything else.
@@ -59,25 +59,25 @@ int main() {
   section("1. Parsing and reading parts");
 
   // A Url comes as a shared_ptr, with a getter for each part.
-  std::string text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";
-  auto url = parseUrl(text);
+  std::string text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
+  auto url = parseUrl(text);  // snippet: hero, parts
   std::cout << "input: " << text << "\n";
-  std::cout << "href: " << url->get_href() << "\n";
-  std::cout << "origin: " << url->get_origin() << "\n";
-  std::cout << "protocol: " << url->get_protocol() << "\n";
-  std::cout << "username: " << url->get_username() << "\n";
-  std::cout << "password: " << url->get_password() << "\n";
-  std::cout << "host: " << url->get_host() << "\n";
-  std::cout << "hostname: " << url->get_hostname() << "\n";
-  std::cout << "port: " << url->get_port() << "\n";
-  std::cout << "pathname: " << url->get_pathname() << "\n";
-  std::cout << "search: " << url->get_search() << "\n";
-  std::cout << "hash: " << url->get_hash() << "\n";
+  std::cout << "href: " << url->get_href() << "\n";  // snippet: parts
+  std::cout << "origin: " << url->get_origin() << "\n";  // snippet: parts
+  std::cout << "protocol: " << url->get_protocol() << "\n";  // snippet: parts
+  std::cout << "username: " << url->get_username() << "\n";  // snippet: parts
+  std::cout << "password: " << url->get_password() << "\n";  // snippet: parts
+  std::cout << "host: " << url->get_host() << "\n";  // snippet: parts
+  std::cout << "hostname: " << url->get_hostname() << "\n";  // snippet: parts, hero
+  std::cout << "port: " << url->get_port() << "\n";  // snippet: parts
+  std::cout << "pathname: " << url->get_pathname() << "\n";  // snippet: parts
+  std::cout << "search: " << url->get_search() << "\n";  // snippet: parts
+  std::cout << "hash: " << url->get_hash() << "\n";  // snippet: parts
   // Typed parts, beside the standard's strings. A missing value is Temper's
   // NullableParam, with has_value and value.
-  std::cout << "scheme: " << url->get_scheme() << "\n";
-  std::cout << "port number: " << url->get_portNumber().value << "\n";
-  std::cout << "host kind: " << url->get_hostKind()->toString() << "\n";
+  std::cout << "scheme: " << url->get_scheme() << "\n";  // snippet: parts
+  std::cout << "port number: " << url->get_portNumber().value << "\n";  // snippet: parts
+  std::cout << "host kind: " << url->get_hostKind()->toString() << "\n";  // snippet: parts
   // The standard's parts are strings, as in JavaScript's URL, so no port is
   // "", and get_portNumber() has no value.
   auto plain = parseUrl("HTTPS://example.com:443");
@@ -88,13 +88,13 @@ int main() {
   section("2. Relative URLs");
 
   // Parse the base once, then resolve against it.
-  auto guide = parseUrl("https://example.com/docs/guide/intro.html");
+  auto guide = parseUrl("https://example.com/docs/guide/intro.html");  // snippet: base
   std::cout << "base: " << guide->get_href() << "\n";
-  for (std::string relative : {"setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"}) {
-    std::cout << relative << " -> " << guide->resolve(relative)->get_href() << "\n";
-  }
+  for (std::string relative : {"setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js"}) {  // snippet: base
+    std::cout << relative << " -> " << guide->resolve(relative)->get_href() << "\n";  // snippet: base
+  }  // snippet: base
   // Or give the base as a string, parsed on each call.
-  std::cout << "with a string base: " << parseUrl("faq.html", guide->get_href())->get_href() << "\n";
+  std::cout << "with a string base: " << parseUrl("faq.html", guide->get_href())->get_href() << "\n";  // snippet: base
 
   section("3. Failures");
 
@@ -104,13 +104,13 @@ int main() {
   // accept it.
   for (std::string input : {"https://exa mple.com", "http://[::1", "https://example.com:99999", "setup.html",
                             "https:example.com/a b"}) {
-    auto check = checkUrl(input);
-    std::string errors;
-    for (auto const &error : *check->get_errors()) {
-      errors += (errors.empty() ? "" : ", ") + error->toString();
-    }
-    auto parsed = check->get_url();
-    std::cout << input << ": " << (parsed ? parsed->get_href() : "not a URL") << " (" << errors << ")\n";
+    auto check = checkUrl(input);  // snippet: errors
+    std::string errors;  // snippet: errors
+    for (auto const &error : *check->get_errors()) {  // snippet: errors
+      errors += (errors.empty() ? "" : ", ") + error->toString();  // snippet: errors
+    }  // snippet: errors
+    auto parsed = check->get_url();  // snippet: errors
+    std::cout << input << ": " << (parsed ? parsed->get_href() : "not a URL") << " (" << errors << ")\n";  // snippet: errors
   }
   // Url::parse gives nullptr where parseUrl throws, and Url::canParse says
   // only whether it would parse, as in JavaScript.
@@ -162,8 +162,8 @@ int main() {
             << "\n";
   // get_strictHref() also escapes what RFC 3986 parsers reject, for those
   // that follow it strictly.
-  auto strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");
-  std::cout << "strict: " << strict->get_href() << " -> " << strict->get_strictHref() << "\n";
+  auto strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");  // snippet: proof
+  std::cout << "strict: " << strict->get_href() << " -> " << strict->get_strictHref() << "\n";  // snippet: proof
 
   section("6. Using it safely");
 
@@ -238,4 +238,21 @@ int main() {
   pairs->push_back(std::make_shared<StringPair>("q", "a b"));
   pairs->push_back(std::make_shared<StringPair>("page", "2"));
   std::cout << "from pairs: " << UrlSearchParams::fromEntries(pairs)->toString() << "\n";
+
+  section("8. Test cases");
+
+  // Each of web-platform-tests' URL cases gives an input, a base, and the
+  // href it must parse to, or "" where parsing must fail. Hrefine's tests
+  // run them all, checking every part, and so does the site, in the browser.
+  std::string cases[][3] = {
+      {"http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"},
+      {"../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"},
+      {"http://999999999", "http://other.com/", "http://59.154.201.255/"},
+      {"http://192.168.0.257", "http://other.com/", ""},
+  };
+  for (auto const &[input, base, href] : cases) {  // snippet: scoreboard
+    auto url = Url::parse(input, base);  // snippet: scoreboard
+    std::string got = url ? url->get_href() : "";  // snippet: scoreboard
+    std::cout << input << " against " << base << ": " << (got == href ? "pass" : "fail") << "\n";  // snippet: scoreboard
+  }  // snippet: scoreboard
 }

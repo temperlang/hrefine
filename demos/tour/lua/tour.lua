@@ -26,24 +26,24 @@ print("# Hrefine tour")
 
 section("1. Parsing and reading parts")
 
-local text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top"
-local url = parseUrl(text)
+local text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top"  -- snippet: hero
+local url = parseUrl(text)  -- snippet: hero, parts
 print("input: " .. text)
-print("href: " .. url.href)
-print("origin: " .. url.origin)
-print("protocol: " .. url.protocol)
-print("username: " .. url.username)
-print("password: " .. url.password)
-print("host: " .. url.host)
-print("hostname: " .. url.hostname)
-print("port: " .. url.port)
-print("pathname: " .. url.pathname)
-print("search: " .. url.search)
-print("hash: " .. url.hash)
+print("href: " .. url.href)  -- snippet: parts
+print("origin: " .. url.origin)  -- snippet: parts
+print("protocol: " .. url.protocol)  -- snippet: parts
+print("username: " .. url.username)  -- snippet: parts
+print("password: " .. url.password)  -- snippet: parts
+print("host: " .. url.host)  -- snippet: parts
+print("hostname: " .. url.hostname)  -- snippet: parts, hero
+print("port: " .. url.port)  -- snippet: parts
+print("pathname: " .. url.pathname)  -- snippet: parts
+print("search: " .. url.search)  -- snippet: parts
+print("hash: " .. url.hash)  -- snippet: parts
 -- Typed parts, beside the standard's strings.
-print("scheme: " .. url.scheme)
-print("port number: " .. url.portNumber)
-print("host kind: " .. url.hostKind:toString())
+print("scheme: " .. url.scheme)  -- snippet: parts
+print("port number: " .. url.portNumber)  -- snippet: parts
+print("host kind: " .. url.hostKind:toString())  -- snippet: parts
 -- The standard's parts are strings, as in JavaScript's URL, so no port is
 -- "", and portNumber is null.
 local plain = parseUrl("HTTPS://example.com:443")
@@ -53,13 +53,13 @@ print("default port: " .. plain.href .. ', port "' .. plain.port .. '", port num
 section("2. Relative URLs")
 
 -- Parse the base once, then resolve against it.
-local guide = parseUrl("https://example.com/docs/guide/intro.html")
+local guide = parseUrl("https://example.com/docs/guide/intro.html")  -- snippet: base
 print("base: " .. guide.href)
-for _, relative in ipairs({ "setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js" }) do
-  print(relative .. " -> " .. guide:resolve(relative).href)
-end
+for _, relative in ipairs({ "setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js" }) do  -- snippet: base
+  print(relative .. " -> " .. guide:resolve(relative).href)  -- snippet: base
+end  -- snippet: base
 -- Or give the base as a string, parsed on each call.
-print("with a string base: " .. parseUrl("faq.html", guide.href).href)
+print("with a string base: " .. parseUrl("faq.html", guide.href).href)  -- snippet: base
 
 section("3. Failures")
 
@@ -74,13 +74,13 @@ for _, input in ipairs({
   "setup.html",
   "https:example.com/a b",
 }) do
-  local check = checkUrl(input)
-  local errors = {}
-  for _, error in ipairs(check.errors) do
-    errors[#errors + 1] = error:toString()
-  end
-  local parsed = null_to_nil(check.url)
-  print(input .. ": " .. (parsed and parsed.href or "not a URL") .. " (" .. table.concat(errors, ", ") .. ")")
+  local check = checkUrl(input)  -- snippet: errors
+  local errors = {}  -- snippet: errors
+  for _, error in ipairs(check.errors) do  -- snippet: errors
+    errors[#errors + 1] = error:toString()  -- snippet: errors
+  end  -- snippet: errors
+  local parsed = null_to_nil(check.url)  -- snippet: errors
+  print(input .. ": " .. (parsed and parsed.href or "not a URL") .. " (" .. table.concat(errors, ", ") .. ")")  -- snippet: errors
 end
 -- Url.parse gives null where parseUrl raises, and Url.canParse says only
 -- whether it would parse, as in JavaScript.
@@ -133,8 +133,8 @@ print("as a string: " .. url:toString())
 print("same URL: " .. tostring(parseUrl("HTTP://EXAMPLE.COM/a/./b/../c"):eq(parseUrl("http://example.com/a/c"))))
 -- strictHref also escapes what RFC 3986 parsers reject, for those that
 -- follow it strictly.
-local strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d")
-print("strict: " .. strict.href .. " -> " .. strict.strictHref)
+local strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d")  -- snippet: proof
+print("strict: " .. strict.href .. " -> " .. strict.strictHref)  -- snippet: proof
 
 section("6. Using it safely")
 
@@ -143,21 +143,21 @@ section("6. Using it safely")
 local allowed = { ["example.com"] = true, ["api.example.com"] = true }
 
 -- The URL to fetch, or why not.
-local function check(input)
-  local url = null_to_nil(Url.parse(input))
-  if url == nil then return "refuse: not a URL" end
-  if url.scheme ~= "https" then return "refuse: scheme " .. url.scheme end
+local function check(input)  -- snippet: card
+  local url = null_to_nil(Url.parse(input))  -- snippet: card
+  if url == nil then return "refuse: not a URL" end  -- snippet: card
+  if url.scheme ~= "https" then return "refuse: scheme " .. url.scheme end  -- snippet: card
   -- An IP address isn't a name on the list, however it's written. Each
   -- kind is one table, so == works.
-  if url.hostKind ~= HostKind.domain then
-    return "refuse: " .. url.hostKind:toString() .. " host " .. url.hostname
-  end
-  if not allowed[url.hostname] then return "refuse: host " .. url.hostname end
+  if url.hostKind ~= HostKind.domain then  -- snippet: card
+    return "refuse: " .. url.hostKind:toString() .. " host " .. url.hostname  -- snippet: card
+  end  -- snippet: card
+  if not allowed[url.hostname] then return "refuse: host " .. url.hostname end  -- snippet: card
   -- With LuaSocket (and LuaSec for https): http.request{ url = url.href,
   -- redirect = false, ... }, never input. Check each redirect the same
   -- way. A hostname doesn't say where DNS sends it.
-  return "fetch " .. url.href
-end
+  return "fetch " .. url.href  -- snippet: card
+end  -- snippet: card
 
 for _, input in ipairs({
   "https://api.example.com/v1/items",
@@ -227,3 +227,21 @@ print("with search params: " .. page:withSearchParams(params).href)
 -- Or from pairs of names and values, each a table with key and value.
 local pairs_ = { { key = "q", value = "a b" }, { key = "page", value = "2" } }
 print("from pairs: " .. UrlSearchParams.fromEntries(pairs_):toString())
+
+section("8. Test cases")
+
+-- Each of web-platform-tests' URL cases gives an input, a base, and the
+-- href it must parse to, or "" where parsing must fail. Hrefine's tests run
+-- them all, checking every part, and so does the site, in the browser.
+local cases = {
+  { "http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/" },
+  { "../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt" },
+  { "http://999999999", "http://other.com/", "http://59.154.201.255/" },
+  { "http://192.168.0.257", "http://other.com/", "" },
+}
+for _, test in ipairs(cases) do  -- snippet: scoreboard
+  local input, base, href = test[1], test[2], test[3]  -- snippet: scoreboard
+  local url = null_to_nil(Url.parse(input, base))  -- snippet: scoreboard
+  local got = url and url.href or ""  -- snippet: scoreboard
+  print(input .. " against " .. base .. ": " .. (got == href and "pass" or "fail"))  -- snippet: scoreboard
+end  -- snippet: scoreboard

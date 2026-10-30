@@ -22,24 +22,24 @@ Console.WriteLine("# Hrefine tour");
 
 Section("1. Parsing and reading parts");
 
-var text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";
-var url = ParseUrl(text);
+var text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
+var url = ParseUrl(text);  // snippet: hero, parts
 Console.WriteLine($"input: {text}");
-Console.WriteLine($"href: {url.Href}");
-Console.WriteLine($"origin: {url.Origin}");
-Console.WriteLine($"protocol: {url.Protocol}");
-Console.WriteLine($"username: {url.Username}");
-Console.WriteLine($"password: {url.Password}");
-Console.WriteLine($"host: {url.Host}");
-Console.WriteLine($"hostname: {url.Hostname}");
-Console.WriteLine($"port: {url.Port}");
-Console.WriteLine($"pathname: {url.Pathname}");
-Console.WriteLine($"search: {url.Search}");
-Console.WriteLine($"hash: {url.Hash}");
+Console.WriteLine($"href: {url.Href}");  // snippet: parts
+Console.WriteLine($"origin: {url.Origin}");  // snippet: parts
+Console.WriteLine($"protocol: {url.Protocol}");  // snippet: parts
+Console.WriteLine($"username: {url.Username}");  // snippet: parts
+Console.WriteLine($"password: {url.Password}");  // snippet: parts
+Console.WriteLine($"host: {url.Host}");  // snippet: parts
+Console.WriteLine($"hostname: {url.Hostname}");  // snippet: parts, hero
+Console.WriteLine($"port: {url.Port}");  // snippet: parts
+Console.WriteLine($"pathname: {url.Pathname}");  // snippet: parts
+Console.WriteLine($"search: {url.Search}");  // snippet: parts
+Console.WriteLine($"hash: {url.Hash}");  // snippet: parts
 // Typed parts, beside the standard's strings.
-Console.WriteLine($"scheme: {url.Scheme}");
-Console.WriteLine($"port number: {url.PortNumber}");
-Console.WriteLine($"host kind: {url.HostKind!.ToString()}");
+Console.WriteLine($"scheme: {url.Scheme}");  // snippet: parts
+Console.WriteLine($"port number: {url.PortNumber}");  // snippet: parts
+Console.WriteLine($"host kind: {url.HostKind!.ToString()}");  // snippet: parts
 // The standard's parts are strings, as in JavaScript's URL, so no port is
 // "", and PortNumber is null.
 var plain = ParseUrl("HTTPS://example.com:443");
@@ -48,14 +48,14 @@ Console.WriteLine($"default port: {plain.Href}, port \"{plain.Port}\", port numb
 Section("2. Relative URLs");
 
 // Parse the base once, then resolve against it.
-var guide = ParseUrl("https://example.com/docs/guide/intro.html");
+var guide = ParseUrl("https://example.com/docs/guide/intro.html");  // snippet: base
 Console.WriteLine($"base: {guide.Href}");
-foreach (var relative in new[] { "setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js" })
-{
-    Console.WriteLine($"{relative} -> {guide.Resolve(relative).Href}");
-}
+foreach (var relative in new[] { "setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js" })  // snippet: base
+{  // snippet: base
+    Console.WriteLine($"{relative} -> {guide.Resolve(relative).Href}");  // snippet: base
+}  // snippet: base
 // Or give the base as a string, parsed on each call.
-Console.WriteLine($"with a string base: {ParseUrl("faq.html", guide.Href).Href}");
+Console.WriteLine($"with a string base: {ParseUrl("faq.html", guide.Href).Href}");  // snippet: base
 
 Section("3. Failures");
 
@@ -71,9 +71,9 @@ foreach (var input in new[] {
     "https:example.com/a b",
 })
 {
-    var check = CheckUrl(input);
-    var errors = string.Join(", ", check.Errors.Select(error => error.ToString()));
-    Console.WriteLine($"{input}: {check.Url?.Href ?? "not a URL"} ({errors})");
+    var check = CheckUrl(input);  // snippet: errors
+    var errors = string.Join(", ", check.Errors.Select(error => error.ToString()));  // snippet: errors
+    Console.WriteLine($"{input}: {check.Url?.Href ?? "not a URL"} ({errors})");  // snippet: errors
 }
 // Url.Parse gives null where ParseUrl throws, and Url.CanParse says only
 // whether it would parse, as in JavaScript.
@@ -137,8 +137,8 @@ Console.WriteLine($"as a string: {url.ToString()}");
 Console.WriteLine($"same URL: {(ParseUrl("HTTP://EXAMPLE.COM/a/./b/../c").Eq(ParseUrl("http://example.com/a/c")) ? "true" : "false")}");
 // StrictHref also escapes what RFC 3986 parsers reject, for those that
 // follow it strictly.
-var strict = ParseUrl("https://example.com/a|b/%zz?q={x}#c^d");
-Console.WriteLine($"strict: {strict.Href} -> {strict.StrictHref}");
+var strict = ParseUrl("https://example.com/a|b/%zz?q={x}#c^d");  // snippet: proof
+Console.WriteLine($"strict: {strict.Href} -> {strict.StrictHref}");  // snippet: proof
 
 Section("6. Using it safely");
 
@@ -148,20 +148,20 @@ Section("6. Using it safely");
 var allowed = new HashSet<string> { "example.com", "api.example.com" };
 
 // The URL to fetch, or why not.
-string Check(string input)
-{
-    var url = Url.Parse(input);
-    if (url is null) return "refuse: not a URL";
-    if (url.Scheme != "https") return $"refuse: scheme {url.Scheme}";
+string Check(string input)  // snippet: card
+{  // snippet: card
+    var url = Url.Parse(input);  // snippet: card
+    if (url is null) return "refuse: not a URL";  // snippet: card
+    if (url.Scheme != "https") return $"refuse: scheme {url.Scheme}";  // snippet: card
     // An IP address isn't a name on the list, however it's written. Each
     // kind is one object, so == works.
-    if (url.HostKind != HostKind.Domain) return $"refuse: {url.HostKind!.ToString()} host {url.Hostname}";
-    if (!allowed.Contains(url.Hostname)) return $"refuse: host {url.Hostname}";
+    if (url.HostKind != HostKind.Domain) return $"refuse: {url.HostKind!.ToString()} host {url.Hostname}";  // snippet: card
+    if (!allowed.Contains(url.Hostname)) return $"refuse: host {url.Hostname}";  // snippet: card
     // await client.GetAsync(url.Href), never input, with a client whose
     // handler has AllowAutoRedirect = false, or check each redirect the
     // same way. A hostname doesn't say where DNS sends it.
-    return $"fetch {url.Href}";
-}
+    return $"fetch {url.Href}";  // snippet: card
+}  // snippet: card
 
 foreach (var input in new[] {
     "https://api.example.com/v1/items",
@@ -237,3 +237,21 @@ Console.WriteLine($"with search params: {page.WithSearchParams(searchParams).Hre
 // Or from pairs of names and values.
 var fromPairs = UrlSearchParams.FromEntries(new List<KeyValuePair<string, string>> { new("q", "a b"), new("page", "2") });
 Console.WriteLine($"from pairs: {fromPairs}");
+
+Section("8. Test cases");
+
+// Each of web-platform-tests' URL cases gives an input, a base, and the
+// href it must parse to, or "" where parsing must fail. Hrefine's tests run
+// them all, checking every part, and so does the site, in the browser.
+var cases = new[] {
+    ("http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"),
+    ("../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"),
+    ("http://999999999", "http://other.com/", "http://59.154.201.255/"),
+    ("http://192.168.0.257", "http://other.com/", ""),
+};
+foreach (var (input, baseUrl, href) in cases)  // snippet: scoreboard
+{  // snippet: scoreboard
+    var parsed = Url.Parse(input, baseUrl);  // snippet: scoreboard
+    var got = parsed?.Href ?? "";  // snippet: scoreboard
+    Console.WriteLine($"{input} against {baseUrl}: {(got == href ? "pass" : "fail")}");  // snippet: scoreboard
+}  // snippet: scoreboard

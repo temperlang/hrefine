@@ -263,7 +263,7 @@
           <script type="application/json" id="score-node-data"><!--WPT_NODE_JSON--></script>
         </div>
 
-        <h3>The tour, in seven languages</h3>
+        <h3 id="tour">The tour, in seven languages</h3>
         <p>
           One program through the whole API, written in each language. Every
           version prints exactly the same text, and CI checks that they do.
@@ -308,6 +308,9 @@
       </p>
     </div>
   </footer>
+  <button type="button" id="dev-toggle" class="dev-toggle" aria-pressed="false">
+    <span class="dev-icon" aria-hidden="true">&lt;/&gt;</span><span class="dev-label">Show the code</span>
+  </button>
   <script data-goatcounter="https://hrefine.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

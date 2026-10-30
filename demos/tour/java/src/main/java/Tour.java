@@ -37,48 +37,48 @@ public final class Tour {
     static final Set<String> ALLOWED = Set.of("example.com", "api.example.com");
 
     /** The URL to fetch, or why not. */
-    static String check(String input) {
-        Url url = Url.parse(input);
-        if (url == null) return "refuse: not a URL";
-        if (!url.getScheme().equals("https")) return "refuse: scheme " + url.getScheme();
+    static String check(String input) {  // snippet: card
+        Url url = Url.parse(input);  // snippet: card
+        if (url == null) return "refuse: not a URL";  // snippet: card
+        if (!url.getScheme().equals("https")) return "refuse: scheme " + url.getScheme();  // snippet: card
         // An IP address isn't a name on the list, however it's written.
         // Each kind is one object, so == works.
-        if (url.getHostKind() != HostKind.domain) {
-            return "refuse: " + url.getHostKind() + " host " + url.getHostname();
-        }
-        if (!ALLOWED.contains(url.getHostname())) return "refuse: host " + url.getHostname();
+        if (url.getHostKind() != HostKind.domain) {  // snippet: card
+            return "refuse: " + url.getHostKind() + " host " + url.getHostname();  // snippet: card
+        }  // snippet: card
+        if (!ALLOWED.contains(url.getHostname())) return "refuse: host " + url.getHostname();  // snippet: card
         // client.send(HttpRequest.newBuilder(URI.create(url.getHref())).build(), ...),
         // never input, with a client built with
         // .followRedirects(HttpClient.Redirect.NEVER), or check each redirect
         // the same way. URI.create follows RFC 3986, which rejects a few
         // characters href leaves as they are, such as | and ^. A hostname
         // doesn't say where DNS sends it.
-        return "fetch " + url.getHref();
-    }
+        return "fetch " + url.getHref();  // snippet: card
+    }  // snippet: card
 
     public static void main(String[] args) {
         System.out.println("# Hrefine tour");
 
         section("1. Parsing and reading parts");
 
-        String text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";
-        Url url = parseUrl(text);
+        String text = "https://user:pass@EXAMPLE.com:8080/a/../b/./c?q=1#top";  // snippet: hero
+        Url url = parseUrl(text);  // snippet: hero, parts
         System.out.println("input: " + text);
-        System.out.println("href: " + url.getHref());
-        System.out.println("origin: " + url.getOrigin());
-        System.out.println("protocol: " + url.getProtocol());
-        System.out.println("username: " + url.getUsername());
-        System.out.println("password: " + url.getPassword());
-        System.out.println("host: " + url.getHost());
-        System.out.println("hostname: " + url.getHostname());
-        System.out.println("port: " + url.getPort());
-        System.out.println("pathname: " + url.getPathname());
-        System.out.println("search: " + url.getSearch());
-        System.out.println("hash: " + url.getHash());
+        System.out.println("href: " + url.getHref());  // snippet: parts
+        System.out.println("origin: " + url.getOrigin());  // snippet: parts
+        System.out.println("protocol: " + url.getProtocol());  // snippet: parts
+        System.out.println("username: " + url.getUsername());  // snippet: parts
+        System.out.println("password: " + url.getPassword());  // snippet: parts
+        System.out.println("host: " + url.getHost());  // snippet: parts
+        System.out.println("hostname: " + url.getHostname());  // snippet: parts, hero
+        System.out.println("port: " + url.getPort());  // snippet: parts
+        System.out.println("pathname: " + url.getPathname());  // snippet: parts
+        System.out.println("search: " + url.getSearch());  // snippet: parts
+        System.out.println("hash: " + url.getHash());  // snippet: parts
         // Typed parts, beside the standard's strings.
-        System.out.println("scheme: " + url.getScheme());
-        System.out.println("port number: " + url.getPortNumber());
-        System.out.println("host kind: " + url.getHostKind());
+        System.out.println("scheme: " + url.getScheme());  // snippet: parts
+        System.out.println("port number: " + url.getPortNumber());  // snippet: parts
+        System.out.println("host kind: " + url.getHostKind());  // snippet: parts
         // The standard's parts are strings, as in JavaScript's URL, so no
         // port is "", and getPortNumber() is null.
         Url plain = parseUrl("HTTPS://example.com:443");
@@ -88,13 +88,13 @@ public final class Tour {
         section("2. Relative URLs");
 
         // Parse the base once, then resolve against it.
-        Url guide = parseUrl("https://example.com/docs/guide/intro.html");
+        Url guide = parseUrl("https://example.com/docs/guide/intro.html");  // snippet: base
         System.out.println("base: " + guide.getHref());
-        for (String relative : List.of("setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js")) {
-            System.out.println(relative + " -> " + guide.resolve(relative).getHref());
-        }
+        for (String relative : List.of("setup.html", "../api/", "/about", "?page=2", "#install", "//cdn.example/lib.js")) {  // snippet: base
+            System.out.println(relative + " -> " + guide.resolve(relative).getHref());  // snippet: base
+        }  // snippet: base
         // Or give the base as a string, parsed on each call.
-        System.out.println("with a string base: " + parseUrl("faq.html", guide.getHref()).getHref());
+        System.out.println("with a string base: " + parseUrl("faq.html", guide.getHref()).getHref());  // snippet: base
 
         section("3. Failures");
 
@@ -109,10 +109,10 @@ public final class Tour {
             "setup.html",
             "https:example.com/a b"
         )) {
-            UrlCheck check = checkUrl(input);
-            String errors = check.getErrors().stream().map(ValidationError::toString).collect(Collectors.joining(", "));
-            String result = check.getUrl() != null ? check.getUrl().getHref() : "not a URL";
-            System.out.println(input + ": " + result + " (" + errors + ")");
+            UrlCheck check = checkUrl(input);  // snippet: errors
+            String errors = check.getErrors().stream().map(ValidationError::toString).collect(Collectors.joining(", "));  // snippet: errors
+            String result = check.getUrl() != null ? check.getUrl().getHref() : "not a URL";  // snippet: errors
+            System.out.println(input + ": " + result + " (" + errors + ")");  // snippet: errors
         }
         // Url.parse gives null where parseUrl throws, and Url.canParse says
         // only whether it would parse, as in JavaScript.
@@ -168,8 +168,8 @@ public final class Tour {
         System.out.println("same URL: " + parseUrl("HTTP://EXAMPLE.COM/a/./b/../c").eq(parseUrl("http://example.com/a/c")));
         // getStrictHref() also escapes what RFC 3986 parsers reject, such as
         // java.net.URI, which refuses the href below.
-        Url strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");
-        System.out.println("strict: " + strict.getHref() + " -> " + strict.getStrictHref());
+        Url strict = parseUrl("https://example.com/a|b/%zz?q={x}#c^d");  // snippet: proof
+        System.out.println("strict: " + strict.getHref() + " -> " + strict.getStrictHref());  // snippet: proof
 
         section("6. Using it safely");
 
@@ -241,5 +241,25 @@ public final class Tour {
         // Or from pairs of names and values.
         UrlSearchParams fromPairs = UrlSearchParams.fromEntries(List.of(Map.entry("q", "a b"), Map.entry("page", "2")));
         System.out.println("from pairs: " + fromPairs);
+   
+
+        section("8. Test cases");
+
+        // Each of web-platform-tests' URL cases gives an input, a base, and
+        // the href it must parse to, or "" where parsing must fail.
+        // Hrefine's tests run them all, checking every part, and so does
+        // the site, in the browser.
+        String[][] cases = {
+            {"http:\\\\foo.com\\", "http://example.org/foo/bar", "http://foo.com/"},
+            {"../aaa/test.txt", "http://www.example.com/test", "http://www.example.com/aaa/test.txt"},
+            {"http://999999999", "http://other.com/", "http://59.154.201.255/"},
+            {"http://192.168.0.257", "http://other.com/", ""},
+        };
+        for (String[] test : cases) {  // snippet: scoreboard
+            String input = test[0], base = test[1], href = test[2];  // snippet: scoreboard
+            Url parsed = Url.parse(input, base);  // snippet: scoreboard
+            String got = parsed == null ? "" : parsed.getHref();  // snippet: scoreboard
+            System.out.println(input + " against " + base + ": " + (got.equals(href) ? "pass" : "fail"));  // snippet: scoreboard
+        }  // snippet: scoreboard
     }
 }
