@@ -538,6 +538,12 @@ tbody th {
   font-style: italic;
 }
 
+.parts .row-note {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
 .marked {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   overflow-wrap: anywhere;

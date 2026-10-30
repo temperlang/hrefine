@@ -44,7 +44,7 @@ std::string check(std::string const &input) {  // snippet: card
   if (url->get_scheme() != "https") return "refuse: scheme " + url->get_scheme();  // snippet: card
   // An IP address isn't a name on the list, however it's written. Each
   // kind is one object, so == works.
-  if (url->get_hostKind() != HostKind::domain) {  // snippet: card
+  if (url->get_hostKind() != HostKind::domain()) {  // snippet: card
     return "refuse: " + url->get_hostKind()->toString() + " host " + url->get_hostname();  // snippet: card
   }  // snippet: card
   if (!allowed.count(url->get_hostname())) return "refuse: host " + url->get_hostname();  // snippet: card
@@ -278,7 +278,7 @@ int main() {
   // names; this one adds example.com or its subdomains. Reasons never show
   // credentials.
   using Strings = std::vector<std::string>;  // snippet: policy
-  auto policy = UrlPolicy::fetch->withHosts(std::make_shared<Strings>(Strings{"example.com"}), true);  // snippet: policy
+  auto policy = UrlPolicy::fetch()->withHosts(std::make_shared<Strings>(Strings{"example.com"}), true);  // snippet: policy
   std::vector<std::string> inputs = {"https://api.example.com/v1/items", "http://example.com/", "https://example.com@evil.example/",
                                        "https://127.1/", "https://169.254.169.254/latest/meta-data/",
                                        "https://[::ffff:127.0.0.1]/", "https://localhost./",
@@ -310,7 +310,7 @@ int main() {
 
   // Redirect targets: withPathOnly takes only a path, query, or fragment on
   // the base, never another host, however it's written.
-  auto redirects = UrlPolicy::any->withBase(site)->withPathOnly(true);
+  auto redirects = UrlPolicy::any()->withBase(site)->withPathOnly(true);
   for (std::string target : {"/account?tab=2", "//evil.example/", "/\\evil.example", "/\t/evil.example", "https://example.com/"}) {
     auto result = redirects->check(target);
     auto url = result->get_url();
@@ -323,7 +323,7 @@ int main() {
   // where browsers would show them (not look-alikes such as Cyrillic а in
   // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
   // security decisions, nor for handing on: use get_href() for those.
-  auto display = UrlDisplay::addressBar->withRootSlash(false);  // snippet: display
+  auto display = UrlDisplay::addressBar()->withRootSlash(false);  // snippet: display
   for (std::string input : {  // snippet: display
            "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
            "https://xn--pple-43d.com/"}) {  // snippet: display

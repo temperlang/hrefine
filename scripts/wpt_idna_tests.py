@@ -76,48 +76,43 @@ def main() -> None:
 
     ascii_rows, idna_rows = files
 
-    def test_body(data: str) -> str:
-        """The test's body, the same for each file. It's written out in
-        each test, not shared as a function, since Temper (as of
-        2026-10-29) can fold a call with constant arguments at compile
-        time, and gets `orelse` wrong there when the code it runs has a
-        loop with `break`, `continue`, or `return` in it."""
-        return f"""      let data = {data};
-      var cases = 0;
+    check_body = """      var cases = 0;
       var wrong = 0;
       let examples = new ListBuilder<String>();
-      for (var i = 0; i < data.length; i += 4) {{
+      for (var i = 0; i < data.length; i += 4) {
         cases += 1;
         let domain = data[i];
         let expected = data[i + 2];
-        let url: Url? = parseUrl("https://${{domain}}/x") orelse null;
+        let url: Url? = parseUrl("https://${domain}/x") orelse null;
         var problem = "";
-        if (url == null) {{
-          problem = if (data[i + 1] == "y") {{ "failed to parse" }} else {{ "" }};
-        }} else if (data[i + 1] == "n") {{
-          problem = "parsed, but must fail, as ${{url.host}}";
-        }} else if (
+        if (url == null) {
+          problem = if (data[i + 1] == "y") { "failed to parse" } else { "" };
+        } else if (data[i + 1] == "n") {
+          problem = "parsed, but must fail, as ${url.host}";
+        } else if (
           url.host != expected || url.hostname != expected || url.pathname != "/x" ||
-          url.href != "https://${{expected}}/x"
-        ) {{
-          problem = "host is ${{url.host}}, not ${{expected}}";
-        }} else if (data[i + 3] == "r") {{
+          url.href != "https://${expected}/x"
+        ) {
+          problem = "host is ${url.host}, not ${expected}";
+        } else if (data[i + 3] == "r") {
           let unicode = domainToUnicode(expected);
           let back = domainToAscii(unicode) orelse "(fails)";
-          if (back != expected) {{
-            problem = "domain to Unicode gives ${{unicode}}, which goes back to ${{back}}";
-          }}
-        }}
-        if (problem != "") {{
+          if (back != expected) {
+            problem = "domain to Unicode gives ${unicode}, which goes back to ${back}";
+          }
+        }
+        if (problem != "") {
           wrong += 1;
-          if (examples.length < 10) {{
-            examples.add("${{domain}}: ${{problem}}");
-          }}
-        }}
-      }}
-      assert(wrong == 0) {{
-        "${{wrong.toString()}} of ${{cases.toString()}} cases differ, such as: ${{examples.toList().join("; ") {{ e => e }}}}"
-      }}"""
+          if (examples.length < 10) {
+            examples.add("${domain}: ${problem}");
+          }
+        }
+      }
+      if (wrong == 0) {
+        ""
+      } else {
+        "${wrong.toString()} of ${cases.toString()} cases differ, such as: ${examples.toList().join("; ") { e => e }}"
+      }"""
     ascii_calls, ascii_bodies = data_functions("addToAscii", ascii_rows)
     idna_calls, idna_bodies = data_functions("addIdnaTestV2", idna_rows)
     OUT.write_text(f"""# Web Platform Tests: International Domain Names
@@ -140,11 +135,19 @@ the host it must give; and `r` if it has no errors at all, so domain to
 Unicode and back must give the host again, or `n`.
 
     test("IDNA: web-platform-tests' toascii.json") {{
-{test_body("toAsciiData()")}
+      let problems = idnaProblems(toAsciiData());
+      assert(problems == "") {{ problems }};
     }}
 
     test("IDNA: web-platform-tests' IdnaTestV2.json") {{
-{test_body("idnaTestV2Data()")}
+      let problems = idnaProblems(idnaTestV2Data());
+      assert(problems == "") {{ problems }};
+    }}
+
+How many cases differ, and some examples, or empty if none do.
+
+    let idnaProblems(data: List<String>): String {{
+{check_body}
     }}
 
 The data, built in chunks, since one function holding it all is too

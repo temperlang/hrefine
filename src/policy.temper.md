@@ -234,7 +234,7 @@ first, or gives the URL. It never bubbles.
 
       public check(input: String): PolicyCheck {
         if (maxLength >= 0 && input.hasAtLeast(String.begin, input.end, maxLength + 1)) {
-          refuse(PolicyRule.maxLength, "input longer than ${maxLength.toString()}")
+          refuse(PolicyRule.maxLength, "the input is longer than ${maxLength.toString()} code points")
         } else if (strict) {
           let b = base;
           // The base's full form, as resolve uses it, credentials and all.
@@ -285,7 +285,7 @@ read that way fails the host rules.
         let sameAs = origin;
         let special = if (specialHosts) { null } else { specialHostReason(kind, host, unreadable) };
         if (maxLength >= 0 && href.hasAtLeast(String.begin, href.end, maxLength + 1)) {
-          refuse(PolicyRule.maxLength, "href longer than ${maxLength.toString()}")
+          refuse(PolicyRule.maxLength, "the URL is longer than ${maxLength.toString()} code points")
         } else if (allowedSchemes != null && !hasString(allowedSchemes, url.scheme)) {
           refuse(PolicyRule.scheme, schemeReason(url.scheme))
         } else if (!credentials && (url.username != "" || url.password != "")) {
@@ -739,8 +739,14 @@ since Temper's Java backend compares list elements as boxed objects.
         "https://example.com/abcde", "maxLength",
         "https://example.com/ä", "maxLength",
       ]);
-      assert(policyResult(short, "https://example.com/abcde") == "maxLength: input longer than 24");
-      assert(policyResult(short, "https://example.com/ä") == "maxLength: href longer than 24");
+      assert(
+        policyResult(short, "https://example.com/abcde") ==
+          "maxLength: the input is longer than 24 code points"
+      );
+      assert(
+        policyResult(short, "https://example.com/ä") ==
+          "maxLength: the URL is longer than 24 code points"
+      );
       assert(policyResult(UrlPolicy.any.withMaxLength(0), "") == "parse: not a URL");
     }
 

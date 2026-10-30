@@ -217,9 +217,11 @@ identical output.
   `display.format(url)`.
   `domainToDisplay(domain)` does a host alone: each label in Unicode
   only where browsers would show it, else `xn--`. For now that's Latin
-  labels without look-alikes of ASCII letters; other scripts keep
-  `xn--` until Hrefine has Unicode's script data (see the
-  [plan](docs/plan.md), "Display formatting").
+  labels of modern European languages and Vietnamese, without
+  look-alikes of ASCII letters; other scripts keep `xn--` until Hrefine
+  has Unicode's script data. Hrefine doesn't yet check labels against
+  popular domains, as Chromium does (see the [plan](docs/plan.md),
+  "Display formatting").
 - `parseUrlSource(input, base?)`: a `UrlSource`, with the input
   `asWritten`, the parsed `url`, and where each part was written:
   `schemeSpan`, `usernameSpan`, `passwordSpan`, `hostSpan`, `portSpan`,
@@ -364,7 +366,8 @@ own URL cases, the ones browsers are checked against, vendored in
 
 [Display](src/display.temper.md)'s tests try Latin names browsers show
 in Unicode, and spoofs they don't (mixed scripts, whole-script
-look-alikes, and Latin look-alikes of ASCII letters), all hand-written,
+look-alikes, Latin look-alikes of ASCII letters, and Chromium's rules
+for `ß`, `þ`, `ð`, and `ə`), all hand-written,
 since neither browser's IDN test data is in web-platform-tests; and
 decoding for display, checking that each display form parses back to the
 same `href`. [Source](src/source.temper.md)'s tests try spans through
@@ -516,8 +519,7 @@ See the [plan](docs/plan.md) for details.
   scripts in Unicode as browsers do; lossless editing, designed in the
   plan, once its span and edit model is settled with a lossless
   Markdown and HTML library.
-- **Before 1.0:** trademark checks, dropping the `orelse` workaround
-  once Temper's nightly has the fix, a minified site bundle, and
+- **Before 1.0:** trademark checks, a minified site bundle, and
   publishing packages.
 
 ## Development

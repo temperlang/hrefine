@@ -175,8 +175,9 @@ function update() {
     const hv = h.url ? /** @type {any} */ (h.url)[part] : null;
     const bv = b.url ? /** @type {any} */ (b.url)[part] : null;
     const diff = h.url !== null && b.url !== null && (part === "href" ? full : hv) !== bv;
-    const note = part === "href" && full !== hv ? ' <span class="small-note">(no credentials, by design)</span>' : "";
-    return `<tr class="${diff ? "diff" : ""}"><th scope="row">${part}</th><td>${cell(hv)}${note}</td><td>${cell(bv)}${diff ? ' <span aria-label="differs">≠</span>' : ""}</td></tr>`;
+    // Under the name, not beside the value, so it reads well when narrow.
+    const note = part === "href" && full !== hv ? '<span class="small-note row-note">no credentials</span>' : "";
+    return `<tr class="${diff ? "diff" : ""}"><th scope="row">${part}${note}</th><td>${cell(hv)}</td><td>${cell(bv)}${diff ? ' <span aria-label="differs">≠</span>' : ""}</td></tr>`;
   });
   if (h.url && full !== h.url.href) {
     rows.splice(1, 0, `<tr class="typed"><th scope="row">hrefWithCredentials</th><td>${cell(full)}</td><td><span class="none">its href, above</span></td></tr>`);

@@ -89,14 +89,14 @@ const PROPERTIES = new Set([
   "href", "hrefWithCredentials", "strictHref", "strictHrefWithCredentials", "hostname", "scheme", "portNumber", "hostKind", "url", "errors", "strictErrors",
   "asWritten", "hostSpan", "position", "length",
 ]);
-// Static properties, such as `UrlPolicy.any`, which Rust reads with a call.
+// Static properties, such as `UrlPolicy.any`, which C++ and Rust read with a call.
 const STATICS = new Set(["any", "fetch", "addressBar", "domain", "ipv4", "ipv6", "opaque", "empty"]);
 
 /**
  * A Hrefine name, like `Url.parse` or `hostKind`, as `file`'s language
  * spells it: snake_case in Python and Rust, PascalCase in C#, `::` after a
  * type in C++ and Rust, properties as getters in C++, Java, and Rust, and
- * static properties as calls in Rust (`UrlPolicy::any()`). The build checks
+ * static properties as calls in C++ and Rust (`UrlPolicy::any()`). The build checks
  * each card's names against the tours (`spell-node.mjs`).
  *
  * @param {string} name
@@ -115,6 +115,7 @@ export function spell(name, file) {
     if (file === "cs") return pascal;
     if (file === "java" && property) return `get${pascal}()`;
     if (file === "cpp" && property) return `get_${part}()`;
+    if (file === "cpp" && isStatic) return `${part}()`;
     return part;
   });
   return parts.join(file === "rs" || file === "cpp" ? "::" : ".");

@@ -18,46 +18,18 @@ the host it must give; and `r` if it has no errors at all, so domain to
 Unicode and back must give the host again, or `n`.
 
     test("IDNA: web-platform-tests' toascii.json") {
-      let data = toAsciiData();
-      var cases = 0;
-      var wrong = 0;
-      let examples = new ListBuilder<String>();
-      for (var i = 0; i < data.length; i += 4) {
-        cases += 1;
-        let domain = data[i];
-        let expected = data[i + 2];
-        let url: Url? = parseUrl("https://${domain}/x") orelse null;
-        var problem = "";
-        if (url == null) {
-          problem = if (data[i + 1] == "y") { "failed to parse" } else { "" };
-        } else if (data[i + 1] == "n") {
-          problem = "parsed, but must fail, as ${url.host}";
-        } else if (
-          url.host != expected || url.hostname != expected || url.pathname != "/x" ||
-          url.href != "https://${expected}/x"
-        ) {
-          problem = "host is ${url.host}, not ${expected}";
-        } else if (data[i + 3] == "r") {
-          let unicode = domainToUnicode(expected);
-          let back = domainToAscii(unicode) orelse "(fails)";
-          if (back != expected) {
-            problem = "domain to Unicode gives ${unicode}, which goes back to ${back}";
-          }
-        }
-        if (problem != "") {
-          wrong += 1;
-          if (examples.length < 10) {
-            examples.add("${domain}: ${problem}");
-          }
-        }
-      }
-      assert(wrong == 0) {
-        "${wrong.toString()} of ${cases.toString()} cases differ, such as: ${examples.toList().join("; ") { e => e }}"
-      }
+      let problems = idnaProblems(toAsciiData());
+      assert(problems == "") { problems };
     }
 
     test("IDNA: web-platform-tests' IdnaTestV2.json") {
-      let data = idnaTestV2Data();
+      let problems = idnaProblems(idnaTestV2Data());
+      assert(problems == "") { problems };
+    }
+
+How many cases differ, and some examples, or empty if none do.
+
+    let idnaProblems(data: List<String>): String {
       var cases = 0;
       var wrong = 0;
       let examples = new ListBuilder<String>();
@@ -90,7 +62,9 @@ Unicode and back must give the host again, or `n`.
           }
         }
       }
-      assert(wrong == 0) {
+      if (wrong == 0) {
+        ""
+      } else {
         "${wrong.toString()} of ${cases.toString()} cases differ, such as: ${examples.toList().join("; ") { e => e }}"
       }
     }

@@ -472,33 +472,46 @@ hosts alone. The display form is never for security decisions, nor for
 handing on, and the docs on both say so.
 
 **Hosts.** Chromium ([IDN in Google
-Chrome](https://chromium.googlesource.com/chromium/src/+/main/docs/idn.md))
+Chrome](https://chromium.googlesource.com/chromium/src/+/main/docs/idn.md),
+and
+[`idn_spoof_checker.cc`](https://chromium.googlesource.com/chromium/src/+/main/components/url_formatter/spoof_checks/idn_spoof_checker.cc))
 and Firefox ([IDN display
 algorithm](https://wiki.mozilla.org/IDN_Display_Algorithm)) decide each
 label alone, showing Unicode only if it passes rules built on [UTS
-#39](https://www.unicode.org/reports/tr39/)'s restriction levels (Firefox's
-default is Moderately Restrictive; Chromium's is close, but never mixes
-Latin with Cyrillic or Greek), plus Chromium's own checks. What Hrefine
-does, rule by rule:
+#39](https://www.unicode.org/reports/tr39/)'s restriction levels, plus
+Chromium's own checks. Both now use Highly Restrictive: Chromium's
+checker sets ICU's `USPOOF_HIGHLY_RESTRICTIVE`, and Firefox's
+`network.IDN.restriction_profile` has been `high` since [bug
+1399939](https://bugzilla.mozilla.org/show_bug.cgi?id=1399939) (2017),
+done with Chromium. Mozilla's wiki, and Chromium's doc on Firefox,
+still say Moderately Restrictive, from before then. What Hrefine does,
+rule by rule:
 
 | Rule | Source | Hrefine |
 |---|---|---|
 | Decide each label alone | both | yes |
 | Valid IDNA, in normal form: the label converts to Unicode and back to the same `xn--` | both (a label that doesn't round-trip stays Punycode) | yes |
-| Characters allowed in identifiers (UTS #39's Identifier Status) | both | in part: only IDNA-valid Latin letters, so no symbols, marks, or other scripts |
-| One script, or an allowed mix (Latin with Han and kana, Bopomofo, or Hangul, or with one other script but Cyrillic and Greek) | both, UTS #39 section 5.2 | in part: Latin only, so nothing mixes |
+| Characters allowed in identifiers (UTS #39's Identifier Status) | both | in part: only Latin letters of modern European languages and Vietnamese (Latin-1, Extended-A, and Extended Additional, and a few of Extended-B), so no symbols, marks, IPA, historic letters, or other scripts |
+| One script, or Latin with Han and kana, Han and Bopomofo, or Han and Hangul (Highly Restrictive) | both, UTS #39 section 5.2 | in part: Latin only, so nothing mixes |
 | No digits from mixed numbering systems | both | yes, since only ASCII digits pass |
 | No invisible characters or combining marks out of place | both, and Chromium's dot-above checks | yes, by allowing no combining marks at all |
 | Whole-script look-alikes (`аррӏе` in Cyrillic for `apple`) | Chromium, by script and top-level domain | yes, since Cyrillic labels keep `xn--` for now |
 | Latin look-alikes of ASCII letters (`ı`, `ɑ`, `ɡ`, `ĸ`, small capitals) | Unicode's confusables, as Chromium uses them, and Chromium's own additions (`ĸ`, `ħ`, `ŧ`, `ƅ`, `ŋ`) | a hand-picked list of 38, in `src/display.temper.md` |
-| Labels whose look-alike skeleton matches a top domain | Chromium, with its top-domains list | no: that needs the list, and the full confusables table |
+| Deviation characters (`ß`; and `ς` and the joiners, not Latin) keep `xn--` | Chromium | yes |
+| Thorn `þ` and eth `ð` only under `.is`, and the schwa `ə` only under `.az` | Chromium | yes (Chromium may also allow `.fo`; Hrefine doesn't) |
+| Labels whose look-alike skeleton, with accents removed, matches a popular domain (`gõogle.com`) | Chromium, with its top-domains list | no: that needs the list, and the full confusables table, so here Hrefine is looser than Chromium |
 
-So Latin labels show in Unicode (`bücher`, `münchen`, `café`, `faß`)
-unless they hold a look-alike, and all other scripts keep `xn--` for now:
-stricter than both browsers, never looser. Unicode's data for the rest
+So Latin labels of modern languages show in Unicode (`bücher`,
+`münchen`, `café`, `việt`, `țară`) unless they hold a look-alike or a
+letter Chromium limits, and all other scripts keep `xn--` for now:
+stricter than both browsers but for the top-domains check. Checked
+2026-10-30 against the pages linked here, through web search, since
+the dev container couldn't fetch them; Firefox's `high` default rests
+on bug 1399939's landed patch, and the `.fo` and look-alike details on
+summaries of Chromium's source. Unicode's data for the rest
 isn't pinned yet, and unicode.org isn't reachable from the dev
 container, so the Latin letters come from `UnicodeData.txt` (letters
-named `LATIN …`, a subset of the Latin script), through
+named `LATIN …` in those blocks, a subset of the Latin script), through
 `scripts/display_tables.py` and `unicode_data.py`'s pinned hashes. To
 show other scripts as browsers do, pin and use `Scripts.txt` and
 `ScriptExtensions.txt` (UCD), and `IdentifierStatus.txt`,
@@ -506,7 +519,8 @@ show other scripts as browsers do, pin and use `Scripts.txt` and
 then check the restriction level, mixed numbers, and whole-script
 look-alikes as above. The full `confusables.txt` is about 6,300
 mappings; only the look-alikes of ASCII letters, a few hundred, would
-need to ship, as a subset documented the same way.
+need to ship, as a subset documented the same way. Matching Chromium's
+top-domains check would need its list too, about 10,000 names.
 
 **Decoding.** A path, query, or fragment shows escapes of non-ASCII
 text decoded, as both browsers' address bars do, but only where it's
@@ -520,10 +534,19 @@ ASCII always stays escaped, so `%2F`, `%3F`, `%25`, and `%20` keep their
 meaning, and the display form parses back to the same `href` (the tests
 check this).
 
-**Options:** credentials, off by default, as browsers leave them out
-(Chromium's omnibox formats URLs with `url_formatter`'s
-`kFormatUrlOmitUsernamePassword`, and Firefox's address bar shows
-`nsIURIFixup.createExposableURI`'s form, without the user and password);
+**Options:** credentials, off by default, as the URL Standard's [URL
+rendering](https://url.spec.whatwg.org/#url-rendering) section says
+("browsers should not render a URL's username and password, as they can
+be mistaken for a URL's host"), and as browsers do: Chromium's
+[`url_formatter`](https://chromium.googlesource.com/chromium/src/+/main/components/url_formatter/url_formatter.h)
+has `kFormatUrlOmitUsernamePassword`, and Firefox's address bar shows
+`createExposableURI`'s form, without the user and password (on
+`nsIIOService` since [bug
+1621328](https://bugzilla.mozilla.org/show_bug.cgi?id=1621328), 2020;
+on `nsIURIFixup` before, from [bug
+157354](https://bugzilla.mozilla.org/show_bug.cgi?id=157354)), unless
+`browser.fixup.hide_user_pass` is turned off. Verified 2026-10-30,
+through web search, as above;
 with `withCredentials(true)`, the username is shown, but a password only
 ever as `***`; the fragment; and a path that's only `/`, with nothing
 after it, which special URLs read back the same. The scheme stays: dropping `https://` hides what the

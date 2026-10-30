@@ -327,13 +327,23 @@ formatting", for each rule's source):
 - it converts to Unicode and back to the same `xn--` label, so it's
   valid IDNA, in normal form;
 - every code point is an ASCII letter, digit, or hyphen, or a Latin
-  letter (`latinLetterRanges`), so it's in one script, Latin, which both
+  letter of modern European languages or Vietnamese
+  (`latinLetterRanges`), so it's in one script, Latin, which both
   browsers' profiles show, and has no combining marks, digits from other
-  scripts, or invisible characters. Labels in other scripts keep `xn--`
-  for now, until Hrefine has Unicode's Script and identifier data to
-  check mixed scripts and whole-script look-alikes as browsers do;
-- and it has no Latin letter that looks like a plain ASCII one
-  (`isLatinLookalike`), such as dotless `ı` or small capital `ᴏ`.
+  scripts, invisible characters, or IPA and historic letters. Labels in
+  other scripts keep `xn--` for now, until Hrefine has Unicode's Script
+  and identifier data to check mixed scripts and whole-script look-alikes
+  as browsers do;
+- it has no Latin letter that looks like a plain ASCII one
+  (`isLatinLookalike`), such as dotless `ı` or small capital `ᴏ`;
+- and it follows Chromium's rules for single letters: no `ß`, which
+  older IDNA mapped to `ss`, so the label could name another domain;
+  `þ` and `ð`, which look like `p` and `o`, only under `.is`; and the
+  schwa `ə` only under `.az`.
+
+Hrefine doesn't check labels against a list of popular domains, as
+Chromium does, so a Latin label can show in Unicode, such as
+`gõogle.com`, where Chromium keeps `xn--`.
 
 A domain that isn't valid stays as it is, lowercased.
 
@@ -343,29 +353,48 @@ A domain that isn't valid stays as it is, lowercased.
         return ascii;
       }
       let labels = ascii.split(".");
-      labels.join(".") { label => labelToDisplay(label) }
+      // The top-level domain, ignoring a trailing dot.
+      var tld = "";
+      for (var k = labels.length - 1; tld == "" && k >= 0; k -= 1) {
+        tld = labels[k];
+      }
+      labels.join(".") { label => labelToDisplay(label, tld) }
     }
 
-    let labelToDisplay(label: String): String {
+    let labelToDisplay(label: String, tld: String): String {
       if (!startsWithText(label, "xn--")) {
         return label;
       }
       let unicode = domainToUnicode(label);
       let back = domainToAscii(unicode) orelse "";
-      if (back == label && isShownLabel(unicode)) { unicode } else { label }
+      if (back == label && isShownLabel(unicode, tld)) { unicode } else { label }
     }
 
-    let isShownLabel(label: String): Boolean {
+    let isShownLabel(label: String, tld: String): Boolean {
       var shown = true;
       for (var i = String.begin; shown && label.hasIndex(i); i = label.next(i)) {
         let c = label[i];
         shown = if (c < 0x80) {
           (c >= char'a' && c <= char'z') || isDigit(c) || c == char'-'
         } else {
-          isLatinLetter(c) && !isLatinLookalike(c)
+          isLatinLetter(c) && !isLatinLookalike(c) && isShownForTld(c, tld)
         };
       }
       shown
+    }
+
+Chromium's rules for single Latin letters: `ß` (U+00DF), a deviation
+character, is never shown, since IDNA 2003 mapped it to `ss`; thorn `þ`
+and eth `ð` only under Iceland's `.is`; and the schwa `ə` only under
+Azerbaijan's `.az`.
+
+    let isShownForTld(c: Int, tld: String): Boolean {
+      when (c) {
+        0xDF -> false;
+        0xFE, 0xF0 -> tld == "is";
+        0x259 -> tld == "az";
+        else -> true;
+      }
     }
 
 Whether `c` is in `latinLetterRanges`, by binary search.
@@ -416,13 +445,14 @@ Domains as browsers would show them: Latin labels in Unicode, and the
 rest kept as `xn--`: Cyrillic `а` with Latin `pple` (mixed scripts),
 all-Cyrillic `аррӏе` (a whole-script spoof), Greek `ο` in `gοοgle`,
 Latin look-alikes of ASCII letters (dotless `ı`, small capital `ᴏ`,
-kra, and script `ɡ`), other scripts (for now), and a label that isn't in
-normal form.
+kra, and script `ɡ`), IPA `ɐ`, `ß`, `þ` and `ə` outside `.is` and
+`.az`, other scripts (for now), and a label that isn't in normal form.
 
     test("domains for display") {
       let shown = [
-        "bücher.example", "münchen.de", "café.example", "faß.de", "www.bücher.café",
-        "Bücher.Example", "Example.COM", "xn--a.example",
+        "bücher.example", "münchen.de", "café.example", "www.bücher.café",
+        "Bücher.Example", "Example.COM", "xn--a.example", "țară.ro", "việt.vn",
+        "þing.is", "əla.az", "əla.az.",
       ];
       for (var k = 0; k < shown.length; k += 1) {
         let lower = domainToUnicode(domainToAscii(shown[k]) orelse panic());
@@ -433,7 +463,8 @@ normal form.
       let kept = [
         "\u{430}pple.com", "\u{430}\u{440}\u{440}\u{4CF}\u{435}.com", "g\u{3BF}\u{3BF}gle.com",
         "l\u{131}nkedin.com", "g\u{1D0F}\u{1D0F}gle.com", "\u{138}ayak.com", "\u{261}ithub.com",
-        "日本語.jp", "пример.рф", "مثال.example",
+        "日本語.jp", "пример.рф", "مثال.example", "faß.de", "\u{250}pple.com", "þing.com",
+        "ðing.example", "əla.com",
       ];
       for (var k = 0; k < kept.length; k += 1) {
         let ascii = domainToAscii(kept[k]) orelse panic();
