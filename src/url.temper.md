@@ -83,7 +83,10 @@ included: `position`, where the standard's parser was when it noted the
 error, and `length`, how many code points it's about (`1` for one, the
 whole host or port for an error in a host or port, and `0` at the end of
 the input). Leading and trailing spaces and controls are each one error
-for the run, and tabs and newlines one at the first.
+for the run, and tabs and newlines one at the first. `toString` gives
+the name and position, as `domain-invalid-code-point at 8`, never the
+input, so it's safe to log; the input itself may contain credentials
+and other secrets.
 
     export class ValidationError {
       public name: String;
@@ -155,7 +158,11 @@ whether `parseUrl` would give a URL, without making one.
       }
 
 The [href](https://url.spec.whatwg.org/#dom-url-href): the whole URL,
-serialized. It's also what `toString` gives, and what `==` compares.
+serialized, credentials (the username and password written in the URL)
+and all, and what `==` compares. **Use `href` to hand the URL on** (to
+an HTTP client, a redirect, or storage), never `toString`, which masks
+the credentials. It may contain credentials and other secrets, as
+tokens in the query or fragment, so don't log it.
 
       public get href(): String {
         serializeUrl(
@@ -188,7 +195,26 @@ strict parsers such as Java's `URI`. It means the same URL.
         )
       }
 
-      public toString(): String { href }
+Redacted for logging; use `href` for the exact URL. It's `href` with
+the credentials (the username and password written in the URL, as in
+`https://user:pass@host/`; not cookies, headers, or tokens in the
+query) each shown as `***`, as `https://***:***@example.com/`, since
+logs, string interpolation, and debuggers use it. A username is masked
+too, since API tokens are often passed as one
+(`https://TOKEN@example.com/`). An empty one stays empty, as in
+`https://:***@example.com/`. `***` still parses, as a username of
+`***`, so a URL copied from a log won't authenticate. Never hand it on;
+use `href`. Hrefine can't tell which query parameters or fragments hold
+secrets (`?token=`, `#access_token=`), so don't log URLs that may carry
+tokens there; the [plan](../docs/plan.md), "Credentials", has a masking
+helper as a possible addition.
+
+      public toString(): String {
+        serializeUrl(
+          schemeValue, masked(usernameValue), masked(passwordValue), hostValue, portValue, pathValue,
+          query, fragment,
+        )
+      }
 
       @operator("==")
       public eq(other: Url): Boolean { href == other.href }
@@ -231,11 +257,25 @@ always lowercase.
       public get scheme(): String { schemeValue }
 
 The [username](https://url.spec.whatwg.org/#dom-url-username) and
-[password](https://url.spec.whatwg.org/#dom-url-password), percent-encoded.
+[password](https://url.spec.whatwg.org/#dom-url-password), percent-encoded:
+the standard's credentials, written in the URL, as in
+`https://user:pass@host/` (not cookies or headers, which JavaScript's
+`fetch` calls credentials). Don't log them.
 
       public get username(): String { usernameValue }
 
       public get password(): String { passwordValue }
+
+This URL without credentials: no username or password, all else the
+same, as `https://example.com/` for `https://user:pw@example.com/`.
+
+      public withoutCredentials(): Url {
+        if (usernameValue == "" && passwordValue == "") {
+          this
+        } else {
+          new Url(schemeValue, "", "", hostValue, portValue, pathValue, query, fragment, opaquePath)
+        }
+      }
 
 The [host](https://url.spec.whatwg.org/#dom-url-host), with the port if
 there is one, and the
@@ -1844,6 +1884,10 @@ Credentials, if any, go before the host, and a port after it. Without a
 host, a path starting with an empty segment gets `/.` in front, as in
 `web+demo:/.//not-a-host/`, so that it can't read back as a host.
 
+`***` for a credential that isn't empty, for `toString`.
+
+    let masked(s: String): String { if (s == "") { "" } else { "***" } }
+
     let serializeUrl(
       scheme: String, username: String, password: String, host: String?, port: Int,
       path: String, query: String?, fragment: String?,
@@ -2041,6 +2085,41 @@ The typed parts, origins, equality, and strings.
       assert(a == b);
       assert(a != (parseUrl("http://example.com/a#") orelse panic()));
       assert(a.toString() == "http://example.com/a");
+    }
+
+`toString` masks credentials; `href` keeps them, and `==` compares
+`href`s.
+
+    test("toString masks credentials") {
+      let cases = [
+        "https://user:pw@example.com/a?q#f", "https://***:***@example.com/a?q#f",
+        "https://user:pw@example.com/a?q#f",
+        "https://TOKEN@example.com/", "https://***@example.com/", "https://TOKEN@example.com/",
+        "https://:pw@example.com/", "https://:***@example.com/", "https://:pw@example.com/",
+        "https://user:@example.com/", "https://***@example.com/", "https://user@example.com/",
+        "https://:@example.com/", "https://example.com/", "https://example.com/",
+        "https://@example.com/", "https://example.com/", "https://example.com/",
+        "ftp://a%40b:c%3Ad@example.com:21/", "ftp://***:***@example.com/",
+        "ftp://a%40b:c%3Ad@example.com/",
+        "foo://u:p@h:9/x", "foo://***:***@h:9/x", "foo://u:p@h:9/x",
+        "mailto:user:pw@example.com", "mailto:user:pw@example.com", "mailto:user:pw@example.com",
+      ];
+      for (var k = 0; k < cases.length; k += 3) {
+        let url = parseUrl(cases[k]) orelse panic();
+        assert(url.toString() == cases[k + 1]) { "${cases[k]} as a string" };
+        assert(url.href == cases[k + 2]) { "${cases[k]} href" };
+      }
+      let secret = parseUrl("https://alice:hunter2@example.com/") orelse panic();
+      let text = secret.toString();
+      assert(text.split("alice").length == 1 && text.split("hunter2").length == 1) { "leaked" };
+      assert(secret == (parseUrl("https://alice:hunter2@example.com/") orelse panic()));
+      assert(secret != secret.withoutCredentials());
+      assert(secret.withoutCredentials().href == "https://example.com/");
+      assert(secret.withPassword("").toString() == "https://***@example.com/");
+      assert(secret.withUsername("").toString() == "https://:***@example.com/");
+      let plain = parseUrl("https://example.com/?token=abc") orelse panic();
+      assert(plain.withoutCredentials().href == plain.href);
+      assert(plain.toString() == plain.href) { "no credentials" };
     }
 
 Checking hosts, unlike domain to ASCII, which passes all of these.

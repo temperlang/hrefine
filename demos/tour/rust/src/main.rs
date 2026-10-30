@@ -158,9 +158,12 @@ fn main() {
         let url = parse_url(input, NO_BASE).expect("a URL");
         println!("{} -> {}", shown(input), url.href());
     }
-    // url.to_string() is href too, but Url has no Display, so format!("{url}")
-    // doesn't compile.
+    // url.to_string() masks credentials, for logs, but Url has no Display, so
+    // format!("{url}") doesn't compile. Hand on href(), which keeps them, or
+    // drop them first.
     println!("as a string: {}", url.to_string());
+    println!("href, to hand on: {}", url.href());
+    println!("without credentials: {}", url.without_credentials().href());
     // eq compares hrefs; there's no PartialEq, so == doesn't compile.
     let a = parse_url("HTTP://EXAMPLE.COM/a/./b/../c", NO_BASE).expect("a URL");
     let b = parse_url("http://example.com/a/c", NO_BASE).expect("a URL");
@@ -263,16 +266,18 @@ fn main() {
     section("9. Policies");
 
     // A policy does the checks of section 6 in one call, on the parsed URL.
-    // Build it once, a rule at a time, and use it for every URL: https only,
-    // no credentials, no private, loopback, or other special addresses or
-    // names, and example.com or its subdomains.
-    let policy = UrlPolicy::any().with_schemes([Arc::new("https".to_string())]).with_credentials(false)  // snippet: policy
-        .with_special_hosts(false).with_hosts([Arc::new("example.com".to_string())], true);  // snippet: policy
+    // Build it once, a rule at a time, and use it for every URL.
+    // UrlPolicy::fetch(), for URLs a server fetches, is https only, strict,
+    // with no credentials and no private, loopback, or other special
+    // addresses or names; this one adds example.com or its subdomains.
+    // Reasons never show credentials.
+    let policy = UrlPolicy::fetch().with_hosts([Arc::new("example.com".to_string())], true);  // snippet: policy
     let inputs = [
         "https://api.example.com/v1/items",
         "http://example.com/",
         "https://example.com@evil.example/",
         "https://127.1/",
+        "https://169.254.169.254/latest/meta-data/",
         "https://[::ffff:127.0.0.1]/",
         "https://localhost./",
         "https://ex\u{430}mple.com/",
@@ -316,7 +321,7 @@ fn main() {
     // where browsers would show them (not look-alikes such as Cyrillic а in
     // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
     // security decisions, nor for handing on: use href() for those.
-    let display = UrlDisplay::full().with_credentials(false).with_root_slash(false);  // snippet: display
+    let display = UrlDisplay::address_bar().with_root_slash(false);  // snippet: display
     for input in [  // snippet: display
         "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
         "https://xn--pple-43d.com/",  // snippet: display
@@ -324,6 +329,10 @@ fn main() {
         let url = parse_url(input, NO_BASE).expect("a URL");  // snippet: display
         println!("display: {}", display.format(url));  // snippet: display
     }  // snippet: display
+    // Credentials are left out, as address bars leave them out. Asked for, the
+    // username shows, but a password only as ***.
+    let login = parse_url("https://user:pass@example.com/", NO_BASE).expect("a URL");
+    println!("with credentials: {}", display.with_credentials(true).format(login));
 
     // The same URL, the same but for the fragment, or the same origin. All
     // compare canonical forms, so case and a default port don't matter.

@@ -197,7 +197,8 @@ people know, with JavaScript's names, revised after the tours
   `hostKind: HostKind?`; `resolve(ref): Url throws Bubble` and
   `tryResolve(ref): Url?`, against the parsed URL without reparsing it;
   `sameOrigin(other)`, false for opaque origins; `toString()` giving
-  `href`; and `==` comparing `href`s. Its constructor is private, so a
+  `href` with credentials masked (see "Credentials", below);
+  `withoutCredentials()`; and `==` comparing `href`s. Its constructor is private, so a
   `Url` comes only from the parser, but C#, JS, Python, Lua, and C++
   still make it public (only Java and Rust hide it).
 - `HostKind`: `domain`, `ipv4`, `ipv6`, `opaque`, and `empty`, as a
@@ -264,7 +265,8 @@ Hrefine's own, which stay open in Temper.
 - **Strings and equality:** `href` works everywhere, but `str()`
   (Python), `tostring` (Lua), `$"{url}"` (C#), `Display` (Rust), and `<<`
   (C++) don't give it, and no backend compares two `Url`s by value.
-  *Done in Temper:* `toString()` gives `href`, and `@operator("==")`
+  *Done in Temper:* `toString()` gives `href` (masking credentials since;
+  see "Credentials"), and `@operator("==")`
   compares `href`s. *Open in Temper:* backends still emit them as plain
   `toString`/`eq` methods, so only Java's string concatenation and JS
   templates use `toString`, and no language's own `==` or `equals`
@@ -459,10 +461,12 @@ policy with one more rule, and `policy.check(input)` giving a
 
 ## Display formatting
 
-Decided 2026-10-30, for step 5. `UrlDisplay.full.format(url)` formats a
-URL for people, built with `with` methods as policies are:
+Decided 2026-10-30, for step 5. `UrlDisplay.addressBar.format(url)`
+formats a URL for people, built with `with` methods as policies are:
 `withUnicodeHosts`, `withDecoding`, `withCredentials`, `withFragment`,
-and `withRootSlash`, each `false` to turn it off. `domainToDisplay` does
+and `withRootSlash`. It was `UrlDisplay.full`, until credentials were
+hidden by default (below): it's no longer every part, but it is what
+address bars show. `domainToDisplay` does
 hosts alone. The display form is never for security decisions, nor for
 handing on, and the docs on both say so.
 
@@ -515,10 +519,60 @@ ASCII always stays escaped, so `%2F`, `%3F`, `%25`, and `%20` keep their
 meaning, and the display form parses back to the same `href` (the tests
 check this).
 
-**Options:** credentials, as browsers leave them out; the fragment; and
-a path that's only `/`, with nothing after it, which special URLs read
-back the same. The scheme stays: dropping `https://` hides what the
+**Options:** credentials, off by default, as browsers leave them out
+(Chromium's omnibox formats URLs with `url_formatter`'s
+`kFormatUrlOmitUsernamePassword`, and Firefox's address bar shows
+`nsIURIFixup.createExposableURI`'s form, without the user and password);
+with `withCredentials(true)`, the username is shown, but a password only
+ever as `***`; the fragment; and a path that's only `/`, with nothing
+after it, which special URLs read back the same. The scheme stays: dropping `https://` hides what the
 connection is.
+
+## Credentials
+
+Decided 2026-10-30: credentials should be hard to expose, biased to
+secure. Credentials are the standard's term for the username and
+password written in the URL, as in `https://user:pass@host/`; not
+cookies, headers, or tokens in the query (JavaScript's `fetch` uses the
+word for cookies). Names say "credentials"; none say "secret", "safe",
+or "secure", which would promise more than Hrefine gives.
+
+- **`toString()` masks them** (its docs open "redacted for logging;
+  use `href` for the exact URL") as `***` each, keeping the structure
+  (`https://***:***@example.com/`, `https://***@example.com/`), since
+  logging, interpolation, and debuggers use it. The username too, since
+  API tokens are often passed as one (`https://TOKEN@host/`). An empty
+  one stays empty. `href` stays exact, as the standard requires, and is
+  what `==` compares and what to hand on. `***` still parses, as a
+  username of `***`, so a URL copied from a log won't authenticate.
+  JavaScript templates and
+  Java's concatenation use `toString`; other backends' own conversions
+  don't reach it yet, so they show no URL text at all.
+- **The display form hides them** (above), and never shows a password.
+- **Policy reasons never echo them,** saying "a username" or "a
+  password", nor the input. A reason may name a host, an origin, or a
+  well-known scheme; other schemes aren't named, since without `//`,
+  as in `admin:hunter2@example.com`, the username is the scheme.
+  Validation errors and `SourceSpan.toString` give names and positions,
+  never text.
+- **`UrlPolicy.fetch`,** a preset for URLs a server fetches on
+  someone's behalf (webhooks, link previews, imports), the classic SSRF
+  case: `https` only, no credentials, no special hosts, strict mode, and
+  at most 8,192 code points (common servers' request-line limit). Named
+  for that use, as the Fetch standard names getting a resource, rather
+  than "safe" or "strict", which would promise more than it can (it
+  can't see DNS). `UrlPolicy.any` stays the blank slate.
+- **`url.withoutCredentials()`** strips both in one call.
+- **Text as written** (`UrlSource.asWritten`, each `SourceSpan`'s) is
+  documented as possibly holding credentials and other secrets.
+
+Warnings say "credentials and other secrets", since tokens also turn up
+in queries (`?token=`, `?api_key=`) and fragments (`#access_token=`),
+and Hrefine can't tell which parameters hold them, so the docs say not
+to log URLs that may carry tokens there.
+A later addition could mask named query parameters, as
+`url.maskingParams(["token", "api_key"])` for a `toString` that masks
+their values too, or a display option; not built yet.
 
 ## Comparison
 

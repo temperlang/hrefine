@@ -5,13 +5,14 @@
 `tour/` shows Hrefine in each supported language: parsing and reading a
 URL's parts, typed ones too, resolving against a parsed base, failures
 and why (`checkUrl`'s validation errors), international domain names,
-serializing with `href` and its strict RFC 3986 form, using it safely
+serializing with `href` and its strict RFC 3986 form (and `toString`,
+which masks credentials, for logs), using it safely
 (deciding with Hrefine, by scheme, host kind, and origin, then handing
 on `href`, with that language's usual HTTP clients and servers shown in
 comments), changing parts with the setters (a port number too) and
 search parameters (from pairs too), running a few of
 web-platform-tests' cases, as the site's scoreboard does, policies:
-the same checks in one call, strict mode, and redirect targets, and
+the same checks in one call, from the `UrlPolicy.fetch` preset, strict mode, and redirect targets, and
 last, for people and tools: the display form, comparisons, and where
 each part and validation error was written. Every version
 prints the same text, `tour/expected.txt`, so the tours double as a

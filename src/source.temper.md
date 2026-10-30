@@ -11,6 +11,8 @@ The text as written is neither normalized nor checked: `EXAMPLE.com`,
 `0x7f.1`, `%65vil.example`, and a host with a tab in it are all as
 typed, and other parsers may read them otherwise. **Never use spans or
 `asWritten` for security decisions;** use `url`, as everywhere else.
+And the text as written may contain credentials and other secrets
+(passwords, or tokens in a query or fragment), so don't log it.
 Policies and strict mode take only input strings and `Url`s.
 
 The standard strips leading and trailing C0 controls and spaces, and
@@ -67,7 +69,8 @@ port's `:`, `?`, and `#`, but the path keeps its leading `/`, as
     export class UrlSource {
 
 The input, exactly as given: not normalized or checked. Never use it
-for security decisions; use `url`.
+for security decisions; use `url`. It may contain credentials and other
+secrets; don't log it.
 
       public asWritten: String;
 
@@ -77,9 +80,11 @@ This is the one for security decisions.
       public url: Url;
 
 Where each part was written, as written: not normalized or checked, so
-never for security decisions; use `url`'s parts. The username and
-password spans are split at the first `:` before the last `@`, as the
-parser splits them.
+never for security decisions; use `url`'s parts. Each span's
+`asWritten` may contain credentials and other secrets (the username and
+password spans are them); don't log it. The username and password spans
+are split at the first `:` before the last `@`, as the parser splits
+them.
 
       public schemeSpan: SourceSpan?;
       public usernameSpan: SourceSpan?;
@@ -110,9 +115,11 @@ parser splits them.
 
 A span of the input: its `start` and `length`, in code points of the
 input as given, and its text `asWritten`, which is neither normalized
-nor checked, so never for security decisions. It includes any tabs and
-newlines the parser removed inside it. `toString` gives it as
-`start+length`, such as `9+11`.
+nor checked, so never for security decisions, and may contain
+credentials and other secrets, so don't log it. It includes any tabs and
+newlines the parser removed inside it. `toString` gives only where it
+is, as `start+length`, such as `9+11`, never the text, so it's safe to
+log.
 
     export class SourceSpan {
       public start: Int;

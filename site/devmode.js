@@ -49,7 +49,7 @@ export const SPOTS = [
   {
     id: "display",
     title: "How people see it",
-    about: "`UrlDisplay.full` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), and decodes escaped non-ASCII text where that's safe; methods such as `withCredentials` leave parts out. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
+    about: "`UrlDisplay.addressBar` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), decodes escaped non-ASCII text where that's safe, and leaves out credentials (the username and password in the URL), as address bars do; methods such as `withRootSlash` change parts. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
     target: () => find("#hrefine-what .display-line"),
   },
   {
@@ -67,7 +67,7 @@ export const SPOTS = [
   {
     id: "policy",
     title: "A policy, in one call",
-    about: "Build a `UrlPolicy` once from `UrlPolicy.any`, adding a rule per method such as `withSchemes`, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are loopback too.",
+    about: "Build a `UrlPolicy` once from `UrlPolicy.fetch` (https only, strict, no credentials or private addresses), adding a rule per method such as `withHosts`, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, never echoing credentials, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are refused too.",
     target: () => find(".fix .policy-step"),
   },
   {
@@ -90,7 +90,7 @@ const PROPERTIES = new Set([
   "asWritten", "hostSpan", "position", "length",
 ]);
 // Static properties, such as `UrlPolicy.any`, which Rust reads with a call.
-const STATICS = new Set(["any", "full", "domain", "ipv4", "ipv6", "opaque", "empty"]);
+const STATICS = new Set(["any", "fetch", "addressBar", "domain", "ipv4", "ipv6", "opaque", "empty"]);
 
 /**
  * A Hrefine name, like `Url.parse` or `hostKind`, as `file`'s language

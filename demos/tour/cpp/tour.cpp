@@ -158,8 +158,11 @@ int main() {
                             " https://exa\tmple.com/\n"}) {
     std::cout << shown(input) << " -> " << parseUrl(input)->get_href() << "\n";
   }
-  // toString() is href too, but there's no operator<<.
+  // toString() masks credentials, for logs, but there's no operator<<. Hand
+  // on get_href(), which keeps them, or drop them first.
   std::cout << "as a string: " << url->toString() << "\n";
+  std::cout << "href, to hand on: " << url->get_href() << "\n";
+  std::cout << "without credentials: " << url->withoutCredentials()->get_href() << "\n";
   // eq compares hrefs; == compares pointers.
   std::cout << "same URL: "
             << (parseUrl("HTTP://EXAMPLE.COM/a/./b/../c")->eq(parseUrl("http://example.com/a/c")) ? "true" : "false")
@@ -263,14 +266,16 @@ int main() {
   section("9. Policies");
 
   // A policy does the checks of section 6 in one call, on the parsed URL.
-  // Build it once, a rule at a time, and use it for every URL: https only, no
-  // credentials, no private, loopback, or other special addresses or names,
-  // and example.com or its subdomains.
+  // Build it once, a rule at a time, and use it for every URL.
+  // UrlPolicy::fetch, for URLs a server fetches, is https only, strict, with
+  // no credentials and no private, loopback, or other special addresses or
+  // names; this one adds example.com or its subdomains. Reasons never show
+  // credentials.
   using Strings = std::vector<std::string>;  // snippet: policy
-  auto policy = UrlPolicy::any->withSchemes(std::make_shared<Strings>(Strings{"https"}))->withCredentials(false)  // snippet: policy
-                    ->withSpecialHosts(false)->withHosts(std::make_shared<Strings>(Strings{"example.com"}), true);  // snippet: policy
+  auto policy = UrlPolicy::fetch->withHosts(std::make_shared<Strings>(Strings{"example.com"}), true);  // snippet: policy
   std::vector<std::string> inputs = {"https://api.example.com/v1/items", "http://example.com/", "https://example.com@evil.example/",
-                                       "https://127.1/", "https://[::ffff:127.0.0.1]/", "https://localhost./",
+                                       "https://127.1/", "https://169.254.169.254/latest/meta-data/",
+                                       "https://[::ffff:127.0.0.1]/", "https://localhost./",
                                        "https://exаmple.com/"};
   for (auto const &input : inputs) {  // snippet: policy
     auto result = policy->check(input);  // snippet: policy
@@ -312,12 +317,15 @@ int main() {
   // where browsers would show them (not look-alikes such as Cyrillic а in
   // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
   // security decisions, nor for handing on: use get_href() for those.
-  auto display = UrlDisplay::full->withCredentials(false)->withRootSlash(false);  // snippet: display
+  auto display = UrlDisplay::addressBar->withRootSlash(false);  // snippet: display
   for (std::string input : {  // snippet: display
            "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
            "https://xn--pple-43d.com/"}) {  // snippet: display
     std::cout << "display: " << display->format(parseUrl(input)) << "\n";  // snippet: display
   }  // snippet: display
+  // Credentials are left out, as address bars leave them out. Asked for, the
+  // username shows, but a password only as ***.
+  std::cout << "with credentials: " << display->withCredentials(true)->format(parseUrl("https://user:pass@example.com/")) << "\n";
 
   // The same URL, the same but for the fragment, or the same origin. All
   // compare canonical forms, so case and a default port don't matter.

@@ -12,7 +12,7 @@ const { checkUrl, UrlDisplay } = hrefine;
 // How browsers' address bars would show a URL: hosts in Unicode where
 // they'd show it, escapes of non-ASCII text decoded, and no credentials or
 // lone "/" path. For people only, never for decisions.
-const display = UrlDisplay.full.withCredentials(false).withRootSlash(false);
+const display = UrlDisplay.addressBar.withRootSlash(false);
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -140,7 +140,10 @@ function update() {
   } else if (h.url) {
     const kind = h.url.hostKind === null ? "" : ` <span class="small-note">(${h.url.hostKind} host)</span>`;
     what = `<span class="host-line">${hostHtml(hHost)}${kind}</span><code>${shown(h.url.href)}</code>` +
-      `<span class="display-line">Shown to people as <code>${shown(display.format(h.url))}</code></span>`;
+      `<span class="display-line">Shown to people as <code>${shown(display.format(h.url))}</code></span>` +
+      (h.url.username !== "" || h.url.password !== ""
+        ? `<span class="display-line">Logged, by <code>toString()</code>, as <code>${shown(h.url.toString())}</code></span>`
+        : "");
   } else {
     const last = h.errors.at(-1);
     what = `<span class="host-line">Not a URL</span>${last ? `<code>${escapeHtml(last.name)}</code>` : ""}`;

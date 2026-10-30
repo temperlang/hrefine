@@ -123,8 +123,11 @@ for text in [
     " https://exa\tmple.com/\n",
 ]:
     print(f"{shown(text)} -> {parse_url(text).href}")
-# to_string() is href too, but str() isn't.
+# to_string() masks credentials, for logs (str() doesn't call it yet). Hand
+# on href, which keeps them, or drop them first.
 print(f"as a string: {url.to_string()}")
+print(f"href, to hand on: {url.href}")
+print(f"without credentials: {url.without_credentials().href}")
 # eq compares hrefs; == compares objects.
 print(f"same URL: {str(parse_url('HTTP://EXAMPLE.COM/a/./b/../c').eq(parse_url('http://example.com/a/c'))).lower()}")
 # strict_href also escapes what RFC 3986 parsers reject, for those that
@@ -236,18 +239,17 @@ for text, base, href in cases:  # snippet: scoreboard
 section("9. Policies")
 
 # A policy does the checks of section 6 in one call, on the parsed URL. Build
-# it once, a rule at a time, and use it for every URL: https only, no
-# credentials, no private, loopback, or other special addresses or names,
-# and example.com or its subdomains.
-policy = (  # snippet: policy
-    UrlPolicy.any.with_schemes(["https"]).with_credentials(False)  # snippet: policy
-    .with_special_hosts(False).with_hosts(["example.com"], True)  # snippet: policy
-)  # snippet: policy
+# it once, a rule at a time, and use it for every URL. UrlPolicy.fetch, for
+# URLs a server fetches, is https only, strict, with no credentials and no
+# private, loopback, or other special addresses or names; this one adds
+# example.com or its subdomains. Reasons never show credentials.
+policy = UrlPolicy.fetch.with_hosts(["example.com"], True)  # snippet: policy
 inputs = [
     "https://api.example.com/v1/items",
     "http://example.com/",
     "https://example.com@evil.example/",
     "https://127.1/",
+    "https://169.254.169.254/latest/meta-data/",
     "https://[::ffff:127.0.0.1]/",
     "https://localhost./",
     "https://ex\u0430mple.com/",
@@ -284,12 +286,15 @@ section("10. Showing, comparing, and spans")
 # where browsers would show them (not look-alikes such as Cyrillic а in
 # xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
 # security decisions, nor for handing on: use href for those.
-display = UrlDisplay.full.with_credentials(False).with_root_slash(False)  # snippet: display
+display = UrlDisplay.address_bar.with_root_slash(False)  # snippet: display
 for text in [  # snippet: display
     "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  # snippet: display
     "https://xn--pple-43d.com/",  # snippet: display
 ]:  # snippet: display
     print(f"display: {display.format(parse_url(text))}")  # snippet: display
+# Credentials are left out, as address bars leave them out. Asked for, the
+# username shows, but a password only as ***.
+print(f"with credentials: {display.with_credentials(True).format(parse_url('https://user:pass@example.com/'))}")
 
 # The same URL, the same but for the fragment, or the same origin. All
 # compare canonical forms, so case and a default port don't matter.

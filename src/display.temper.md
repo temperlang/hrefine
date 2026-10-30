@@ -2,23 +2,26 @@
 
 A URL formatted for people to read, as browsers' address bars show it:
 international domain names in Unicode where browsers would show them,
-escapes of non-ASCII text decoded, and, if asked, without the
-credentials, the fragment, or a lone `/` path.
+escapes of non-ASCII text decoded, and no credentials (the username and
+password written in the URL, as in `https://user:pass@host/`); and, if asked, a username, but never a password, and without
+the fragment or a lone `/` path.
 
 **The display form is never for security decisions,** nor for handing
 on: it may drop parts, and it shows Unicode that can look like other
-text. Decide on `Url` and its `href`, and show this.
+text. Decide on `Url` and its `href`, and show this. It may still
+contain other secrets, such as `?token=` in a query, so don't log it.
 
 ```temper inert
-let shown = UrlDisplay.full.withCredentials(false).withRootSlash(false);
+let shown = UrlDisplay.addressBar.withRootSlash(false);
 shown.format(parseUrl("https://user@xn--bcher-kva.example/") orelse panic()); // "https://bücher.example"
 shown.format(parseUrl("https://xn--pple-43d.com/caf%C3%A9") orelse panic()); // "https://xn--pple-43d.com/café"
 ```
 
 ## Formatting
 
-A display format, built from `UrlDisplay.full` with `with` methods, as
-policies are, each giving a new format with one option changed.
+A display format, built from `UrlDisplay.addressBar` with `with`
+methods, as policies are, each giving a new format with one option
+changed.
 
     export class UrlDisplay {
       private unicodeHosts: Boolean;
@@ -38,10 +41,11 @@ policies are, each giving a new format with one option changed.
         this.rootSlash = rootSlash;
       }
 
-Every part shown, domains in Unicode where browsers would show them
-(`domainToDisplay`), and escapes decoded where that's safe.
+As browsers' address bars show a URL: every part but the credentials,
+which browsers leave out, domains in Unicode where browsers would show
+them (`domainToDisplay`), and escapes decoded where that's safe.
 
-      public static full: UrlDisplay = new UrlDisplay(true, true, true, true, true);
+      public static addressBar: UrlDisplay = new UrlDisplay(true, true, false, true, true);
 
 **Unicode hosts:** with `false`, domains stay as in `href`, with `xn--`
 labels.
@@ -65,8 +69,12 @@ the same `href`.
         new UrlDisplay(unicodeHosts, shown, credentials, fragment, rootSlash)
       }
 
-**Credentials:** with `false`, any username and password are left out,
-as browsers' address bars leave them out.
+**Credentials:** with `true`, the username is shown, and a password
+only as `***`, never itself, as `https://user:***@example.com/`, so a
+display can say that a URL has them. With `false`, the default, both
+are left out, as browsers' address bars leave them out. A username can
+be a secret too, such as an API token, so show it only where that's
+safe.
 
       public withCredentials(shown: Boolean): UrlDisplay {
         new UrlDisplay(unicodeHosts, decoding, shown, fragment, rootSlash)
@@ -102,8 +110,7 @@ handing on: use `url.href` for those.
           if (credentials && (url.username != "" || url.password != "")) {
             out.append(url.username);
             if (url.password != "") {
-              out.append(":");
-              out.append(url.password);
+              out.append(":***");
             }
             out.append("@");
           }
@@ -446,8 +453,8 @@ Formatting a URL, with each option.
 
     test("display format") {
       let cases = [
-        "https://user:pw@xn--bcher-kva.example:8080/caf%C3%A9?q=%E6%97%A5%E6%9C%AC#%C3%BC",
-        "https://user:pw@bücher.example:8080/café?q=日本#ü",
+        "https://xn--bcher-kva.example:8080/caf%C3%A9?q=%E6%97%A5%E6%9C%AC#%C3%BC",
+        "https://bücher.example:8080/café?q=日本#ü",
         "https://xn--pple-43d.com/",
         "https://xn--pple-43d.com/",
         "https://example.com/a%2Fb%20c%25d?x=%3D",
@@ -469,28 +476,54 @@ Formatting a URL, with each option.
       ];
       for (var k = 0; k < cases.length; k += 2) {
         let url = parseUrl(cases[k]) orelse panic();
-        let got = UrlDisplay.full.format(url);
+        let got = UrlDisplay.addressBar.format(url);
         assert(got == cases[k + 1]) { "${cases[k]}: ${got}" };
         let back = parseUrl(got) orelse panic();
         assert(back.href == url.href) { "${got} parses back to ${back.href}" };
       }
       let withAll = parseUrl("https://user:pw@xn--bcher-kva.example/?#top") orelse panic();
       let bare = parseUrl("https://xn--bcher-kva.example/#top") orelse panic();
-      let quiet = UrlDisplay.full.withCredentials(false).withFragment(false).withRootSlash(false);
+      let quiet = UrlDisplay.addressBar.withFragment(false).withRootSlash(false);
       assert(quiet.format(withAll) == "https://bücher.example/?");
       assert(quiet.format(bare) == "https://bücher.example");
-      assert(UrlDisplay.full.withRootSlash(false).format(bare) == "https://bücher.example/#top");
-      let ascii = UrlDisplay.full.withUnicodeHosts(false).withDecoding(false);
+      assert(UrlDisplay.addressBar.withRootSlash(false).format(bare) == "https://bücher.example/#top");
+      let ascii = UrlDisplay.addressBar.withUnicodeHosts(false).withDecoding(false);
       let encoded = parseUrl("https://xn--bcher-kva.example/caf%C3%A9") orelse panic();
       assert(ascii.format(encoded) == encoded.href);
       let opaque = parseUrl("foo:x") orelse panic();
-      assert(UrlDisplay.full.withRootSlash(false).format(opaque) == "foo:x") { "opaque" };
+      assert(UrlDisplay.addressBar.withRootSlash(false).format(opaque) == "foo:x") { "opaque" };
+    }
+
+Credentials: never by default, and with them, the username but never
+the password.
+
+    test("display hides credentials") {
+      let cases = [
+        "https://alice:hunter2@example.com/", "https://example.com/", "https://alice:***@example.com/",
+        "https://TOKEN@example.com/", "https://example.com/", "https://TOKEN@example.com/",
+        "https://:hunter2@example.com/", "https://example.com/", "https://:***@example.com/",
+        "https://:@example.com/", "https://example.com/", "https://example.com/",
+        "foo://alice:hunter2@h/", "foo://h/", "foo://alice:***@h/",
+      ];
+      let shown = UrlDisplay.addressBar.withCredentials(true);
+      for (var k = 0; k < cases.length; k += 3) {
+        let url = parseUrl(cases[k]) orelse panic();
+        let hidden = UrlDisplay.addressBar.format(url);
+        assert(hidden == cases[k + 1]) { "${cases[k + 1]} hidden" };
+        assert(shown.format(url) == cases[k + 2]) { "${cases[k + 2]} shown" };
+        assert(shown.withCredentials(false).format(url) == hidden) { "off again" };
+        let all = shown.withUnicodeHosts(false).withDecoding(false).format(url);
+        assert(all.split("hunter2").length == 1) { "never the password" };
+        assert(hidden.split("alice").length == 1 && hidden.split("TOKEN").length == 1) {
+          "no username by default"
+        };
+      }
     }
 
 The README's examples.
 
     test("README display examples") {
-      let shown = UrlDisplay.full.withCredentials(false).withRootSlash(false);
+      let shown = UrlDisplay.addressBar.withRootSlash(false);
       let url = parseUrl("https://user@xn--bcher-kva.example/") orelse panic();
       assert(shown.format(url) == "https://bücher.example");
       assert(domainToDisplay("xn--pple-43d.com") == "xn--pple-43d.com");
@@ -503,4 +536,12 @@ The README's examples.
       let host = source.hostSpan;
       assert(host != null && host.asWritten == "EXAMPLE.com" && host.start == 9 && host.length == 11);
       assert(source.url.href == "https://example.com/ab") { "decisions use url" };
+      assert(page.toString() == "https://***@example.com/b?q=1#top");
+      assert(page.withoutCredentials().href == "https://example.com/b?q=1#top");
+      let policy = UrlPolicy.fetch.withHosts(["example.com"], true);
+      assert(policy.check("https://api.example.com/").url != null);
+      assert(
+        policy.check("https://127.0.0.1/").toString() ==
+          "specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8"
+      );
     }

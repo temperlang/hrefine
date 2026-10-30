@@ -13,9 +13,12 @@ parses passes, adding one rule per `with` method, and applied to many
 URLs. It's immutable, as `Url` is, so each `with` method gives a new
 policy, and a policy can be shared between threads:
 
+For a URL your server fetches on someone's behalf, start from
+`UrlPolicy.fetch`, which has the usual rules already, and add an
+allowlist if you have one:
+
 ```temper inert
-let policy = UrlPolicy.any.withSchemes(["https"]).withCredentials(false)
-  .withSpecialHosts(false).withHosts(["example.com"], true);
+let policy = UrlPolicy.fetch.withHosts(["example.com"], true);
 let result = policy.check(input);
 if (result.url != null) { fetchUrl(result.url.href) } else { log(result.toString()) }
 ```
@@ -57,10 +60,29 @@ constructors public.
         this.pathOnly = pathOnly;
       }
 
-No rules: every URL that parses passes.
+No rules: every URL that parses passes. The blank slate, for building
+a policy rule by rule.
 
       public static any: UrlPolicy = new UrlPolicy(
         false, -1, null, null, true, true, true, null, false, null, false,
+      );
+
+For a URL a server fetches on someone's behalf, as for webhooks, link
+previews, image proxies, and imports, the classic case for server-side
+request forgery: `https` only, no credentials, no special hosts (private,
+loopback, and the rest, however they're written), strict mode, and at
+most 8,192 code points, the request-line limit of common servers, so
+longer URLs would fail there anyway. Named for that use, as the Fetch
+standard names getting a resource, not as safe for every use: add an
+allowlist with `withHosts` where you have one, and still check the
+address your client connects to. It's `UrlPolicy.any` with those
+rules, so any can be changed, such as `withSchemes(["http", "https"])`.
+It refuses credentials in the URL, but can't tell which query
+parameters or fragments hold secrets (`?token=`), so don't log URLs
+that may carry tokens there.
+
+      public static fetch: UrlPolicy = new UrlPolicy(
+        true, 8192, null, ["https"], false, true, false, null, false, null, false,
       );
 
 **Strict:** with `true`, the parse must note no validation error that
@@ -115,8 +137,10 @@ limit.
         )
       }
 
-**Credentials:** with `false`, the URL may have no username or
-password, as in `https://good.example@evil.example/`, whose host is
+**Credentials:** with `false`, the URL may have no credentials: the
+username and password written in the URL, as in
+`https://user:pass@host/` (not cookies, headers, or tokens in the
+query), or as in `https://good.example@evil.example/`, whose host is
 `evil.example`.
 
       public withCredentials(allowed: Boolean): UrlPolicy {
@@ -260,9 +284,9 @@ read that way fails the host rules.
         if (maxLength >= 0 && href.hasAtLeast(String.begin, href.end, maxLength + 1)) {
           refuse(PolicyRule.maxLength, "href longer than ${maxLength.toString()}")
         } else if (allowedSchemes != null && !hasString(allowedSchemes, url.scheme)) {
-          refuse(PolicyRule.scheme, url.scheme)
+          refuse(PolicyRule.scheme, schemeReason(url.scheme))
         } else if (!credentials && (url.username != "" || url.password != "")) {
-          refuse(PolicyRule.credentials, if (url.username != "") { "user ${url.username}" } else { "a password" })
+          refuse(PolicyRule.credentials, credentialsReason(url))
         } else if (!ipHosts && (kind == HostKind.ipv4 || kind == HostKind.ipv6)) {
           refuse(PolicyRule.ipHost, "${host}, ${kindName(kind)}")
         } else if (special != null) {
@@ -282,6 +306,34 @@ read that way fails the host rules.
     let refuse(rule: PolicyRule, reason: String): PolicyCheck { new PolicyCheck(null, rule, reason) }
 
     let kindName(kind: HostKind?): String { if (kind == null) { "no" } else { kind.name } }
+
+Reasons go to logs, so they never echo credentials: they say which kind
+was there, never what. A scheme is named only if it's well known, since
+in `admin:hunter2@example.com`, which has no `//`, the scheme is
+`admin`, a username.
+
+    let credentialsReason(url: Url): String {
+      if (url.username == "") {
+        "a password"
+      } else if (url.password == "") {
+        "a username"
+      } else {
+        "a username and a password"
+      }
+    }
+
+    let schemeReason(scheme: String): String {
+      if (isSpecialScheme(scheme) || hasString(wellKnownSchemes, scheme)) {
+        scheme
+      } else {
+        "one that isn't well known, so not named"
+      }
+    }
+
+    let wellKnownSchemes: List<String> = [
+      "about", "blob", "data", "dict", "gopher", "jar", "javascript", "ldap", "ldaps", "mailto",
+      "netdoc", "sftp", "sms", "smb", "ssh", "tel", "telnet", "view-source",
+    ];
 
     let hasString(list: List<String>, s: String): Boolean {
       var found = false;
@@ -353,7 +405,9 @@ but not for `//host/` or an absolute URL, even to the base's own host.
 
 What a policy found: the URL, if it passed every rule, or else null,
 with the rule it failed first and why, for logs, as
-`specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8`.
+`specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8`. A
+reason may name a host, a well-known scheme, or an origin, but never
+credentials or the input, so it's safe to log; the URL isn't.
 
     export class PolicyCheck {
       public url: Url?;
@@ -645,6 +699,12 @@ since Temper's Java backend compares list elements as boxed objects.
         "not a URL", "parse",
       ]);
       assert(policyResult(UrlPolicy.any.withSchemes([]), "https://example.com/") == "scheme: https");
+      assert(policyResult(schemes, "javascript:alert(1)") == "scheme: javascript");
+      // Without "//", the username is the scheme, so it isn't named.
+      assert(
+        policyResult(schemes, "admin:hunter2@example.com") ==
+          "scheme: one that isn't well known, so not named"
+      );
       let noCredentials = UrlPolicy.any.withCredentials(false);
       expectPolicy(noCredentials, [
         "https://example.com/", "passed https://example.com/",
@@ -656,6 +716,19 @@ since Temper's Java backend compares list elements as boxed objects.
         "https://evil.example#@good.example/", "passed https://evil.example/#@good.example/",
         "https://good.example%40evil.example/", "parse",
       ]);
+      // Reasons say which credentials were there, never what they are.
+      let reasons = [
+        "https://alice:hunter2@example.com/", "credentials: a username and a password",
+        "https://alice@example.com/", "credentials: a username",
+        "https://alice:@example.com/", "credentials: a username",
+        "https://:hunter2@example.com/", "credentials: a password",
+      ];
+      for (var k = 0; k < reasons.length; k += 2) {
+        let result = noCredentials.check(reasons[k]);
+        assert(result.toString() == reasons[k + 1] && result.reason.split("alice").length == 1) {
+          reasons[k + 1]
+        };
+      }
       let short = UrlPolicy.any.withMaxLength(24);
       expectPolicy(short, [
         "https://example.com/", "passed https://example.com/",
@@ -888,8 +961,8 @@ Redirect targets, against a site: same origin, or a path only.
 
 The recorded corpus's inputs, the gallery's and the table's on the site
 (`site/gallery.json`), against a policy for fetching from one host:
-strict, `https` only, no credentials or special hosts, and
-`good.example` and its subdomains. Each input, its base or "" for none,
+`UrlPolicy.fetch` (strict, `https` only, no credentials or special
+hosts), and `good.example` and its subdomains. Each input, its base or "" for none,
 and the rule it fails, or the `href` it passes with.
 
     test("Policies: the recorded corpus") {
@@ -906,8 +979,7 @@ and the rule it fails, or the `href` it passes with.
         }
       }
       let site = parseUrl("https://good.example/") orelse panic();
-      let policy = UrlPolicy.any.withStrict(true).withSchemes(["https"]).withCredentials(false)
-        .withSpecialHosts(false).withHosts(["good.example"], true).withMaxLength(2048);
+      let policy = UrlPolicy.fetch.withHosts(["good.example"], true);
       let relative = policy.withBase(site);
       let cases = [
         "https://example.com\\@evil.example/", "strict",
@@ -979,4 +1051,71 @@ and the rule it fails, or the `href` it passes with.
         "https:evil.example/", "strict",
         "/account", "passed https://good.example/account",
       ]);
+    }
+
+The preset for fetching refuses every credentials and SSRF case above,
+for one rule or another, and never echoes credentials in its reasons.
+
+    test("Policies: the fetch preset") {
+      let refused = [
+        "https://good.example@evil.example/", "https://user@good.example@evil.example/",
+        "https://good.example:443@evil.example/", "https://:pass@example.com/",
+        "https://alice:hunter2@example.com/", "https://alice@example.com/",
+        "https://hunter2@example.com/", "admin:hunter2@example.com",
+        "http://127.0.0.1/", "http://127.1/", "http://0x7f.1/", "http://0x7f000001/",
+        "http://0177.0.0.1/", "http://127.000.000.001/", "http://2130706433/",
+        "http://127.0.0.1./", "http://%31%32%37.1/", "http://１２７.0.0.1/", "http://0/",
+        "http://0.0.0.0/", "http://10.1.2.3/", "http://172.16.0.1/", "http://192.168.1.1/",
+        "http://169.254.169.254/latest/meta-data/", "http://100.64.0.1/", "http://224.0.0.1/",
+        "http://255.255.255.255/", "http://[::1]/", "http://[::]/", "http://[0:0:0:0:0:0:0:1]/",
+        "http://[::ffff:127.0.0.1]/", "http://[::ffff:7f00:1]/", "http://[::ffff:8.8.8.8]/",
+        "http://[::127.0.0.1]/", "http://[64:ff9b::7f00:1]/", "http://[2002:7f00:1::]/",
+        "http://[fe80::1]/", "http://[fc00::1]/", "http://[fd12:3456::1]/", "http://[fec0::1]/",
+        "http://[ff02::1]/", "http://[2001:db8::1]/", "http://localhost/", "http://localhost./",
+        "http://LOCALHOST/", "http://a.b.localhost/", "http://printer.local/",
+        "http://router.home.arpa/", "http://metadata.google.internal/", "file:///etc/passwd",
+        "file://localhost/etc/passwd", "gopher://127.0.0.1:6379/_INFO", "gopher://%31%32%37.1/",
+        "foo://[::1]/", "foo://exa%zzmple/", "mailto:a@127.0.0.1", "javascript:alert(1)",
+      ];
+      for (let input of refused) {
+        let result = UrlPolicy.fetch.check(input);
+        assert(result.url == null) { "the preset must refuse ${input}" };
+        let text = result.toString();
+        assert(
+          text.split("alice").length == 1 && text.split("hunter2").length == 1 &&
+            text.split("good.example@").length == 1 && text.split("user").length == 1 &&
+            text.split("pass").length == 1 && text.split("admin").length == 1
+        ) { "the reason for ${input} echoes credentials" };
+      }
+      // Each of the specialHost cases fails the same way as https.
+      for (let input of refused) {
+        let plain = Url.parse(input);
+        let secure = if (plain == null) { "" } else { plain.withProtocol("https").href };
+        if (secure.split("https:").length == 2) {
+          let result = UrlPolicy.fetch.check(secure);
+          assert(result.url == null) { "the preset must refuse ${input} as https" };
+        }
+      }
+      let ok = UrlPolicy.fetch.check("https://example.com/a?b#c");
+      assert(ok.url != null && ok.toString() == "passed");
+      let rules = [
+        "https://alice:hunter2@example.com/", "strict: invalid-credentials at 21",
+        "https://127.0.0.1/", "specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8",
+        "https://127.1/", "strict: IPv4-non-canonical at 8",
+        "http://example.com/", "scheme: http",
+        "https://example.com/a\\b", "strict: invalid-reverse-solidus at 21",
+      ];
+      for (var k = 0; k < rules.length; k += 2) {
+        let text = UrlPolicy.fetch.check(rules[k]).toString();
+        assert(text == rules[k + 1]) { "${rules[k + 1]}, not ${text}" };
+      }
+      let long = new StringBuilder();
+      long.append("https://example.com/");
+      for (var k = 0; k < 8172; k += 1) {
+        long.append("a");
+      }
+      assert(UrlPolicy.fetch.check(long.toString()).url != null) { "at the limit" };
+      long.append("a");
+      assert(UrlPolicy.fetch.check(long.toString()).rule == PolicyRule.maxLength) { "max length" };
+      assert(UrlPolicy.fetch.withSchemes(["http"]).check("http://example.com/").url != null);
     }
