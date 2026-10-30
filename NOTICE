@@ -28,13 +28,15 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ==============================================================================
-Unicode Character Database and UTS #46 (IDNA) data
+Unicode Character Database, UTS #46 (IDNA), and UTS #39 data
 ==============================================================================
 
 This software includes data derived from Unicode 18.0.0's data files
 (https://www.unicode.org/Public/18.0.0/): IdnaMappingTable.txt,
-UnicodeData.txt, DerivedNormalizationProps.txt, DerivedBidiClass.txt, and
-DerivedJoiningType.txt, in the tables generated from them in src/. The
+UnicodeData.txt, DerivedNormalizationProps.txt, DerivedBidiClass.txt,
+DerivedJoiningType.txt, Scripts.txt, and ScriptExtensions.txt, and the
+security data of UTS #39 (Unicode Security Mechanisms): IdentifierStatus.txt
+and confusables.txt, in the tables generated from them in src/. The
 files themselves aren't included; scripts/unicode_data.py downloads them.
 They are covered by the following license.
 

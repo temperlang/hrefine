@@ -320,30 +320,44 @@ look-alike spoofs such as `xn--pple-43d.com`, which is Cyrillic `а` and
 Latin `pple`. **Never for security decisions:** a label shown in
 Unicode can still look like another; decide on the ASCII form.
 
-A label is shown in Unicode if, as Chromium's and Firefox's IDN display
-policies decide each label (see the [plan](../docs/plan.md), "Display
-formatting", for each rule's source):
+A label is shown in Unicode, as Chromium's IDN display policy decides
+each label (Firefox's is much the same; see the
+[plan](../docs/plan.md), "Display formatting", for each rule's source),
+only if:
 
 - it converts to Unicode and back to the same `xn--` label, so it's
   valid IDNA, in normal form;
-- every code point is an ASCII letter, digit, or hyphen, or a Latin
-  letter of modern European languages or Vietnamese
-  (`latinLetterRanges`), so it's in one script, Latin, which both
-  browsers' profiles show, and has no combining marks, digits from other
-  scripts, invisible characters, or IPA and historic letters. Labels in
-  other scripts keep `xn--` for now, until Hrefine has Unicode's Script
-  and identifier data to check mixed scripts and whole-script look-alikes
-  as browsers do;
-- it has no Latin letter that looks like a plain ASCII one
-  (`isLatinLookalike`), such as dotless `ı` or small capital `ᴏ`;
-- and it follows Chromium's rules for single letters: no `ß`, which
-  older IDNA mapped to `ss`, so the label could name another domain;
-  `þ` and `ð`, which look like `p` and `o`, only under `.is`; and the
-  schwa `ə` only under `.az`.
+- every code point is allowed in identifiers (Unicode's Identifier
+  Status), less what Chromium leaves out (such as Pinyin, Greek
+  Extended, and the deviation characters `ß`, `ς`, and the joiners,
+  which older IDNA mapped differently);
+- it's in one script, or Latin with Han and kana, or Latin with Han and
+  Hangul (UTS #39's Highly Restrictive), with each code point's
+  Script Extensions, and Common and Inherited code points going with any
+  script;
+- its decimal digits are from one numbering system, and no mark is
+  repeated;
+- it has no Latin letter that looks like an ASCII one, such as dotless
+  `ı`, and isn't all letters of another script that look like ASCII
+  letters and digits (a whole-script look-alike, such as Cyrillic
+  `аррӏе`), unless its top-level domain is in that script, or is one
+  Chromium allows for it, such as `.ru` for Cyrillic;
+- a Latin letter beyond ASCII mixes only with Latin, Greek, and Cyrillic
+  (so only with ASCII digits, hyphens, and marks);
+- it has none of Chromium's dangerous patterns: Katakana `ノ`, `ン`, `ソ`,
+  and `ゾ`, and Han `丶`, `乀`, `乁`, and `丿`, which look like slashes,
+  beside no Japanese; the prolonged sound mark `ー` after no kana; the
+  middle dot `・` beside an ASCII letter; dot above after `i`, `j`, `l`,
+  or `ı`; the combining kana voicing marks; and a combining accent after
+  a letter other than Latin, Greek, or Cyrillic;
+- and thorn `þ` and eth `ð`, which look like `p` and `o`, are only under
+  `.is`, and the schwa `ə` only under `.az`.
 
-Hrefine doesn't check labels against a list of popular domains, as
-Chromium does, so a Latin label can show in Unicode, such as
-`gõogle.com`, where Chromium keeps `xn--`.
+The tables of scripts, identifier status, and look-alikes are generated
+from Unicode's data (see `display-tables.temper.md`). Hrefine doesn't
+check labels against a list of popular domains, as Chromium does, so a
+label can show in Unicode, such as `gõogle.com`, where Chromium keeps
+`xn--`.
 
 A domain that isn't valid stays as it is, lowercased.
 
@@ -370,100 +384,318 @@ A domain that isn't valid stays as it is, lowercased.
       if (back == label && isShownLabel(unicode, tld)) { unicode } else { label }
     }
 
+The checks, on the label's code points and their kinds from the tables.
+
     let isShownLabel(label: String, tld: String): Boolean {
-      var shown = true;
-      for (var i = String.begin; shown && label.hasIndex(i); i = label.next(i)) {
+      let codes = new ListBuilder<Int>();
+      let masks = new ListBuilder<Int>();
+      let flags = new ListBuilder<Int>();
+      for (var i = String.begin; label.hasIndex(i); i = label.next(i)) {
         let c = label[i];
-        shown = if (c < 0x80) {
-          (c >= char'a' && c <= char'z') || isDigit(c) || c == char'-'
-        } else {
-          isLatinLetter(c) && !isLatinLookalike(c) && isShownForTld(c, tld)
-        };
+        let kind = displayKind(c);
+        if (kind == 0 || !isShownForTld(c, tld)) {
+          return false;
+        }
+        codes.add(c);
+        masks.add(displayKinds[kind * 2]);
+        flags.add(displayKinds[kind * 2 + 1]);
       }
-      shown
+      let scripts = resolvedScripts(masks.toList());
+      if (scripts == 0) {
+        return false;
+      }
+      let codeList = codes.toList();
+      let maskList = masks.toList();
+      let flagList = flags.toList();
+      !hasMixedNumbers(codeList, flagList) &&
+        !hasLookalikes(codeList, maskList, flagList, scripts, tld) &&
+        !mixesLatin(codeList, maskList) &&
+        ((scripts > 0 && !hasJapaneseOrMarks(codeList)) || !hasDangerousPattern(codeList, maskList))
     }
 
-Chromium's rules for single Latin letters: `ß` (U+00DF), a deviation
-character, is never shown, since IDNA 2003 mapped it to `ss`; thorn `þ`
-and eth `ð` only under Iceland's `.is`; and the schwa `ə` only under
-Azerbaijan's `.az`.
+Thorn `þ` and eth `ð` only under Iceland's `.is`, and the schwa `ə` only
+under Azerbaijan's `.az`, as Chromium allows them.
 
     let isShownForTld(c: Int, tld: String): Boolean {
       when (c) {
-        0xDF -> false;
         0xFE, 0xF0 -> tld == "is";
         0x259 -> tld == "az";
         else -> true;
       }
     }
 
-Whether `c` is in `latinLetterRanges`, by binary search.
+UTS #39's Highly Restrictive level, from each code point's scripts as
+bits (0 for any script): the scripts all the code points share, as a
+positive number of bits, if any (Han, kana, and Hangul code points have
+bits for Japanese or Korean writing too, so Han and kana share
+Japanese); or else -1 if the label is Latin with Han and kana, or Latin
+with Han and Hangul; or else 0, for a label that isn't shown. (UTS #39's
+third set, Latin with Han and Bopomofo, adds nothing, since Unicode 18
+doesn't allow Bopomofo letters in identifiers.)
 
-    let isLatinLetter(c: Int): Boolean {
-      let ranges = latinLetterRanges;
-      var low = 0;
-      var high = ranges.length / 2;
-      while (low < high) {
-        let middle = (low + high) / 2;
-        let last = ranges[middle * 2 + 1];
-        if (c > last) {
-          low = middle + 1;
-        } else {
-          high = middle;
+    let resolvedScripts(masks: List<Int>): Int {
+      var shared = 0x3FFFFFFF;
+      var japanese = true;
+      var korean = true;
+      let base = scriptLatin | scriptHan;
+      for (var k = 0; k < masks.length; k += 1) {
+        let mask = masks[k];
+        if (mask != 0) {
+          shared = shared & mask;
+          japanese = japanese && (mask & (base | scriptHiragana | scriptKatakana)) != 0;
+          korean = korean && (mask & (base | scriptHangul)) != 0;
         }
       }
-      if (low * 2 < ranges.length) {
-        let first = ranges[low * 2];
-        c >= first
+      if (shared != 0) {
+        shared
+      } else if (japanese || korean) {
+        -1
       } else {
-        false
+        0
       }
     }
 
-Latin letters that look like a plain ASCII letter, so a label with one
-keeps `xn--`. A small, hand-picked list, since Hrefine doesn't have
-Unicode's confusables data: dotless `ı` and `ȷ`; `ɑ`, `ɡ`, and `ɩ`,
-which look like `a`, `g`, and `i`; the clicks `ǀ`, `ǁ`, and `ǃ`, which
-look like `l`, `ll`, and `!`; `ĸ`, `ħ`, `ŧ`, `ƅ`, and `ŋ`, which
-Chromium adds to Unicode's look-alikes of `k`, `h`, `t`, `b`, and `n`;
-and the small capitals, which look like capital ASCII letters.
+Whether the label has decimal digits from two numbering systems, such
+as ASCII `1` and Arabic-Indic `٢`, or a mark twice in a row, which can
+draw as one (ICU's mixed numbers and invisible checks).
 
-    let isLatinLookalike(c: Int): Boolean {
-      when (c) {
-        0x0131, 0x0237, 0x0251, 0x0261, 0x0269, 0x01C0, 0x01C1, 0x01C3,
-        0x0138, 0x0127, 0x0167, 0x0185, 0x014B,
-        0x1D00, 0x0299, 0x1D04, 0x1D05, 0x1D07, 0xA730, 0x0262, 0x029C, 0x026A, 0x1D0A,
-        0x1D0B, 0x029F, 0x1D0D, 0x0274, 0x1D0F, 0x1D18, 0xA7AF, 0x0280, 0xA731, 0x1D1B,
-        0x1D1C, 0x1D20, 0x1D21, 0x028F, 0x1D22 -> true;
-        else -> false;
+    let hasMixedNumbers(codes: List<Int>, flags: List<Int>): Boolean {
+      var zero = 0;
+      for (var k = 0; k < codes.length; k += 1) {
+        let digit = flags[k] >> 2;
+        if (digit != 0) {
+          if (zero != 0 && zero != digit) {
+            return true;
+          }
+          zero = digit;
+        }
+        if (k > 0 && (flags[k] & 2) != 0 && codes[k] == codes[k - 1]) {
+          return true;
+        }
       }
+      false
+    }
+
+Whether the label has a Latin letter that looks like an ASCII one, or is
+a whole-script look-alike: in one script but Latin, with every code
+point but ASCII digits and hyphens looking like ASCII letters or digits,
+under a top-level domain not in that script nor one Chromium allows for
+it. Chromium checks whole scripts for Armenian, Cyrillic, Ethiopic,
+Georgian, Greek, Hebrew, and Thai, and digit look-alikes for any script,
+and the tables mark look-alikes to match.
+
+    let hasLookalikes(
+      codes: List<Int>, masks: List<Int>, flags: List<Int>, scripts: Int, tld: String,
+    ): Boolean {
+      var all = true;
+      var any = false;
+      for (var k = 0; k < codes.length; k += 1) {
+        if ((flags[k] & 1) != 0) {
+          if ((masks[k] & scriptLatin) != 0) {
+            return true;
+          }
+          any = true;
+        } else if (!isDigit(codes[k]) && codes[k] != char'-') {
+          all = false;
+        }
+      }
+      all && any && scripts > 0 && (scripts & scriptLatin) == 0 &&
+        !isTldForScripts(tld, scripts)
+    }
+
+    let isTldForScripts(tld: String, scripts: Int): Boolean {
+      let unicode = domainToUnicode(tld);
+      for (var i = String.begin; unicode.hasIndex(i); i = unicode.next(i)) {
+        let kind = displayKind(unicode[i]);
+        if (kind != 0 && (displayKinds[kind * 2] & scripts) != 0) {
+          return true;
+        }
+      }
+      for (var k = 0; k < wholeScriptTldScripts.length; k += 1) {
+        if ((scripts & wholeScriptTldScripts[k]) != 0) {
+          let tlds = wholeScriptTlds[k];
+          for (var j = 0; j < tlds.length; j += 1) {
+            if (tlds[j] == tld) {
+              return true;
+            }
+          }
+        }
+      }
+      false
+    }
+
+The top-level domains Chromium allows whole-script look-alikes under,
+for each script it checks.
+
+    let wholeScriptTldScripts: List<Int> = [
+      scriptArmenian, scriptCyrillic, scriptEthiopic, scriptGeorgian, scriptGreek,
+      scriptHebrew, scriptThai,
+    ];
+    let wholeScriptTlds: List<List<String>> = [
+      ["am"], ["bg", "by", "kz", "pyc", "ru", "su", "ua", "uz"], ["er", "et"], ["ge"], ["gr"],
+      ["il"], ["th"],
+    ];
+
+
+Whether a Latin letter beyond ASCII mixes with anything but Latin,
+Greek, Cyrillic, ASCII digits, hyphens, and the accents U+0300 to U+0339.
+
+    let mixesLatin(codes: List<Int>, masks: List<Int>): Boolean {
+      var latin = false;
+      var other = false;
+      let lgc = scriptLatin | scriptGreek | scriptCyrillic;
+      for (var k = 0; k < codes.length; k += 1) {
+        let c = codes[k];
+        let mask = masks[k];
+        if (c >= 0x80 && mask == scriptLatin) {
+          latin = true;
+        } else if (
+          !isDigit(c) && c != char'-' && (c < 0x300 || c > 0x339) &&
+          (mask == 0 || (mask & lgc) != mask)
+        ) {
+          other = true;
+        }
+      }
+      latin && other
+    }
+
+Chromium looks for dangerous patterns only in labels of more than one
+script, or with kana that can look like other things, or with accents.
+
+    let hasJapaneseOrMarks(codes: List<Int>): Boolean {
+      for (var k = 0; k < codes.length; k += 1) {
+        let c = codes[k];
+        if (
+          (c >= 0x3078 && c <= 0x307A) || (c >= 0x30D8 && c <= 0x30DA) ||
+          (c >= 0x30FB && c <= 0x30FE) || (c >= 0x300 && c <= 0x339)
+        ) {
+          return true;
+        }
+      }
+      false
+    }
+
+    let hasDangerousPattern(codes: List<Int>, masks: List<Int>): Boolean {
+      let japanese = scriptHiragana | scriptKatakana | scriptHan;
+      let lgc = scriptLatin | scriptGreek | scriptCyrillic;
+      let last = codes.length - 1;
+      for (var k = 0; k <= last; k += 1) {
+        let c = codes[k];
+        let before = if (k > 0) { codes[k - 1] } else { -1 };
+        let beforeMask = if (k > 0) { masks[k - 1] } else { 0 };
+        let after = if (k < last) { codes[k + 1] } else { -1 };
+        let afterMask = if (k < last) { masks[k + 1] } else { 0 };
+        let dangerous = when (c) {
+          // Katakana and Han that look like slashes, beside no Japanese.
+          0x30CE, 0x30F3, 0x30BD, 0x30BE, 0x4E36, 0x4E40, 0x4E41, 0x4E3F ->
+            (beforeMask & japanese) == 0 && (afterMask & japanese) == 0;
+          0x30FC -> (beforeMask & (scriptHiragana | scriptKatakana)) == 0;
+          0x30FB -> isAsciiLower(before) || isAsciiLower(after);
+          0x3099, 0x309A -> true;
+          0x307 ->
+            before == char'i' || before == char'j' || before == char'l' || before == 0x131 ||
+              (beforeMask & lgc) == 0;
+          else -> c >= 0x300 && c <= 0x339 && (beforeMask & lgc) == 0;
+        };
+        if (dangerous) {
+          return true;
+        }
+      }
+      false
+    }
+
+    let isAsciiLower(c: Int): Boolean { c >= char'a' && c <= char'z' }
+
+The kind of code point `c`, from the tables: 0 if a label holding it
+isn't shown, and otherwise an index into `displayKinds`, read where the
+tables are, a block at a time. A block's string holds runs of a length
+and a kind, base 32 digits as in the IDNA tables, and the last run's
+length is 0.
+
+    let displayKind(c: Int): Int {
+      let b = c >> displayBlockShift;
+      if (b >= displayBlocks.length) {
+        return 0;
+      }
+      let entry = displayBlocks[b];
+      if (entry >= 0) {
+        return entry;
+      }
+      let text = displayRuns[-1 - entry];
+      var offset = c & ((1 << displayBlockShift) - 1);
+      var i = String.begin;
+      var value = 0;
+      var length = -1;
+      var result = -1;
+      while (result < 0) {
+        let d = text[i];
+        i = text.next(i);
+        value = (value << 5) | (d & 0x1F);
+        if (d < 0x60) {
+          if (length < 0) {
+            length = value;
+          } else if (length == 0 || offset < length) {
+            result = value;
+          } else {
+            offset -= length;
+            length = -1;
+          }
+          value = 0;
+        }
+      }
+      result
     }
 
 ## Tests
 
-Domains as browsers would show them: Latin labels in Unicode, and the
-rest kept as `xn--`: Cyrillic `а` with Latin `pple` (mixed scripts),
-all-Cyrillic `аррӏе` (a whole-script spoof), Greek `ο` in `gοοgle`,
-Latin look-alikes of ASCII letters (dotless `ı`, small capital `ᴏ`,
-kra, and script `ɡ`), IPA `ɐ`, `ß`, `þ` and `ə` outside `.is` and
-`.az`, other scripts (for now), and a label that isn't in normal form.
+Domains as browsers would show them, a rule at a time. Shown: Latin
+labels of modern languages; Japanese (Han, kana, and Latin with kana),
+Chinese, and Korean; Cyrillic `пример`; Greek, Armenian, Georgian,
+Arabic, Hebrew, Hindi, and Thai, and Arabic-Indic digits; a whole-script
+look-alike under its own script's top-level domain or one Chromium
+allows (`.рф`, `.ru`); and `þ` under `.is` and `ə` under `.az`.
 
     test("domains for display") {
       let shown = [
         "bücher.example", "münchen.de", "café.example", "www.bücher.café",
         "Bücher.Example", "Example.COM", "xn--a.example", "țară.ro", "việt.vn",
-        "þing.is", "əla.az", "əla.az.",
+        "þing.is", "əla.az", "əla.az.", "日本語.jp", "ひらがな.jp", "カタカナ.jp",
+        "日本ひらがな.jp", "abcカタカナ.jp", "sony日本.jp", "中文.cn",
+        "한국어.kr", "abc한국어.kr", "пример.рф", "пример.com", "ελληνικά.gr",
+        "հայերեն.am", "ქართული.ge", "مثال.example", "مثال١٢٣.example", "שלום.il",
+        "हिन्दी.in", "ไทย.th", "\u{430}\u{440}\u{440}\u{4CF}\u{435}.рф",
+        "\u{430}\u{440}\u{440}\u{4CF}\u{435}.ru", "bücher-123.example",
       ];
       for (var k = 0; k < shown.length; k += 1) {
         let lower = domainToUnicode(domainToAscii(shown[k]) orelse panic());
         let got = domainToDisplay(shown[k]);
         assert(got == lower) { "${shown[k]}: ${got}" };
-        assert(domainToDisplay(domainToAscii(shown[k]) orelse panic()) == lower);
+        assert(domainToDisplay(domainToAscii(shown[k]) orelse panic()) == lower) { shown[k] };
       }
+
+Kept as `xn--`, by rule: mixed scripts (Cyrillic `а` with Latin
+`pple`, Greek `ο` in `gοοgle`, Latin with Cyrillic or Greek, Hangul
+with kana, and Arabic with Hebrew); whole-script look-alikes
+(Cyrillic `аррӏе` and `ѕсоре`, Greek `ναι`, and Bengali digit
+look-alikes); Latin look-alikes of ASCII letters (dotless `ı`, and
+Chromium's `ħ`); code points not allowed in identifiers (small capital
+`ᴏ`, kra, script `ɡ`, IPA `ɐ`, the symbol `♥`, and Bopomofo, which
+Unicode 18 limits) or that Chromium leaves out (Pinyin's `ǎ`, Latin
+Extended Additional's `ḿ`, and Greek Extended's `ἀ`); the deviation `ß`, and `ς`; digits from two numbering
+systems; a non-ASCII Latin letter with kana; Chromium's dangerous
+patterns (Katakana `ノ` beside Latin, `ー` after Latin, `・` beside a
+Latin letter, and a dot above after `i`, or an accent after Han); `þ` and
+`ə` outside `.is` and `.az`; and a label that isn't in normal form.
+
       let kept = [
         "\u{430}pple.com", "\u{430}\u{440}\u{440}\u{4CF}\u{435}.com", "g\u{3BF}\u{3BF}gle.com",
-        "l\u{131}nkedin.com", "g\u{1D0F}\u{1D0F}gle.com", "\u{138}ayak.com", "\u{261}ithub.com",
-        "日本語.jp", "пример.рф", "مثال.example", "faß.de", "\u{250}pple.com", "þing.com",
+        "abcпример.com", "abcελληνικά.com", "ひらがな한국.example", "مثالשלום.example",
+        "\u{455}\u{441}\u{43E}\u{440}\u{435}.com", "\u{3BD}\u{3B1}\u{3B9}.com", "\u{9EA}\u{9ED}.com",
+        "l\u{131}nkedin.com", "\u{127}otel.com", "g\u{1D0F}\u{1D0F}gle.com", "\u{138}ayak.com",
+        "\u{261}ithub.com", "\u{250}pple.com", "i\u{2665}u.com", "注音ㄅㄆ.tw", "p\u{1CE}nyin.cn",
+        "\u{1E3F}a.com", "\u{1F00}\u{3B8}\u{3B7}\u{3BD}\u{3B1}.gr", "faß.de", "\u{3C3}\u{3BF}\u{3C6}\u{3CC}\u{3C2}.gr",
+        "\u{939}\u{93F}1\u{967}.in", "caféカタカナ.jp", "abc\u{30CE}def.com", "abc\u{30FC}.com",
+        "abc\u{30FB}def.jp", "\u{30AB}\u{30BF}i\u{307}.jp", "日本\u{301}.jp", "þing.com",
         "ðing.example", "əla.com",
       ];
       for (var k = 0; k < kept.length; k += 1) {
@@ -471,7 +703,7 @@ kra, and script `ɡ`), IPA `ɐ`, `ß`, `þ` and `ə` outside `.is` and
         assert(domainToDisplay(kept[k]) == ascii) { "${kept[k]}: ${domainToDisplay(kept[k])}" };
       }
       assert(domainToDisplay("xn--pple-43d.com") == "xn--pple-43d.com");
-      assert(domainToDisplay("bücher.\u{440}\u{444}") == "bücher.xn--p1ai");
+      assert(domainToDisplay("bücher.\u{440}\u{444}") == "bücher.рф");
       // A label not in normal form, e and a combining acute, keeps xn--.
       let decomposed = new StringBuilder();
       decomposed.append("xn--");

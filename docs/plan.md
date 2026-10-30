@@ -485,42 +485,43 @@ checker sets ICU's `USPOOF_HIGHLY_RESTRICTIVE`, and Firefox's
 1399939](https://bugzilla.mozilla.org/show_bug.cgi?id=1399939) (2017),
 done with Chromium. Mozilla's wiki, and Chromium's doc on Firefox,
 still say Moderately Restrictive, from before then. What Hrefine does,
-rule by rule:
+rule by rule, from Unicode 18's data (`Scripts.txt`,
+`ScriptExtensions.txt`, `IdentifierStatus.txt`, and `confusables.txt`,
+through `scripts/display_tables.py`):
 
 | Rule | Source | Hrefine |
 |---|---|---|
 | Decide each label alone | both | yes |
 | Valid IDNA, in normal form: the label converts to Unicode and back to the same `xn--` | both (a label that doesn't round-trip stays Punycode) | yes |
-| Characters allowed in identifiers (UTS #39's Identifier Status) | both | in part: only Latin letters of modern European languages and Vietnamese (Latin-1, Extended-A, and Extended Additional, and a few of Extended-B), so no symbols, marks, IPA, historic letters, or other scripts |
-| One script, or Latin with Han and kana, Han and Bopomofo, or Han and Hangul (Highly Restrictive) | both, UTS #39 section 5.2 | in part: Latin only, so nothing mixes |
-| No digits from mixed numbering systems | both | yes, since only ASCII digits pass |
-| No invisible characters or combining marks out of place | both, and Chromium's dot-above checks | yes, by allowing no combining marks at all |
-| Whole-script look-alikes (`аррӏе` in Cyrillic for `apple`) | Chromium, by script and top-level domain | yes, since Cyrillic labels keep `xn--` for now |
-| Latin look-alikes of ASCII letters (`ı`, `ɑ`, `ɡ`, `ĸ`, small capitals) | Unicode's confusables, as Chromium uses them, and Chromium's own additions (`ĸ`, `ħ`, `ŧ`, `ƅ`, `ŋ`) | a hand-picked list of 38, in `src/display.temper.md` |
-| Deviation characters (`ß`; and `ς` and the joiners, not Latin) keep `xn--` | Chromium | yes |
+| Code points allowed in identifiers: Identifier Status Allowed | both; Chromium takes ICU's recommended and inclusion sets (Identifier Type Recommended and Inclusion, the same code points) | yes |
+| Less Chromium's removals: `U+0338`, hyphens and quote-like marks (`֊`, `‐`, `’`, `‧`, `゠`, `ʻ`, `ʼ`, `˭`), Pinyin's letters, Latin Extended Additional but Vietnamese, Greek Extended, Cyrillic Extended-B and -C, and Latin Extended-D | Chromium's `SetAllowedUnicodeSet` | yes, but its macOS-only removals |
+| Deviation characters (`ß`, `ς`, and the joiners) keep `xn--` | Chromium | yes |
+| One script, or Latin with Han and kana, Han and Bopomofo, or Han and Hangul (Highly Restrictive), by Script Extensions, resolved as UTS #39 section 5.1 says (Han with kana is Japanese, Han with Hangul Korean), Common and Inherited going with any | both, UTS #39 section 5.2 | yes; Bopomofo isn't allowed in Unicode 18 (Limited Use), so its set adds nothing, and scripts with no allowed letters are dropped from extensions |
+| No digits from mixed numbering systems | both (ICU's mixed numbers check) | yes |
+| No mark repeated (ICU's invisible check) | both | in part: on the NFC label, not decomposed |
+| Whole-script look-alikes (`аррӏе` in Cyrillic for `apple`), unless the top-level domain is in that script or one Chromium lists (`.ru`, `.bg`, `.am`, `.gr`, and so on) | Chromium's `kWholeScriptConfusables`, for Armenian, Cyrillic, Ethiopic, Georgian, Greek, Hebrew, and Thai, with its own letter lists | yes, with letters whose `confusables.txt` prototype is ASCII letters and digits, plus Chromium's Cyrillic list |
+| Digit look-alikes (a label of only digits and letters like `৪`) | Chromium | yes, any script, by prototypes that are ASCII digits |
+| Latin look-alikes of ASCII letters (`ı`, `ɩ`, `ƒ`) | Unicode's confusables, as Chromium's skeletons use them, and Chromium's additions (`ĸ`, `ħ`, `ŧ`, `ƅ`, `ŋ`) | yes, stricter: keeps `xn--` for any such letter, standing in for the top-domains check below |
+| Non-ASCII Latin letters only with Latin, Greek, and Cyrillic | Chromium | yes, by Script Extensions |
+| Dangerous patterns: Katakana and Han slash look-alikes by no Japanese, `ー` after no kana, `・` by an ASCII letter, dot above after `i`, `j`, `l`, or `ı`, the combining kana voicing marks, and an accent after a letter other than Latin, Greek, or Cyrillic | Chromium (checked on labels of more than one script, or with certain kana or accents) | yes; not its few other patterns, which need script mixing the rules above already reject |
 | Thorn `þ` and eth `ð` only under `.is`, and the schwa `ə` only under `.az` | Chromium | yes (Chromium may also allow `.fo`; Hrefine doesn't) |
-| Labels whose look-alike skeleton, with accents removed, matches a popular domain (`gõogle.com`) | Chromium, with its top-domains list | no: that needs the list, and the full confusables table, so here Hrefine is looser than Chromium |
+| Labels whose look-alike skeleton, with accents removed, matches a popular domain (`gõogle.com`) | Chromium, with its top-domains list | no: that needs the list, about 10,000 names, and the full confusables table, so here Hrefine is looser than Chromium |
 
-So Latin labels of modern languages show in Unicode (`bücher`,
-`münchen`, `café`, `việt`, `țară`) unless they hold a look-alike or a
-letter Chromium limits, and all other scripts keep `xn--` for now:
-stricter than both browsers but for the top-domains check. Checked
-2026-10-30 against the pages linked here, through web search, since
-the dev container couldn't fetch them; Firefox's `high` default rests
-on bug 1399939's landed patch, and the `.fo` and look-alike details on
-summaries of Chromium's source. Unicode's data for the rest
-isn't pinned yet, and unicode.org isn't reachable from the dev
-container, so the Latin letters come from `UnicodeData.txt` (letters
-named `LATIN …` in those blocks, a subset of the Latin script), through
-`scripts/display_tables.py` and `unicode_data.py`'s pinned hashes. To
-show other scripts as browsers do, pin and use `Scripts.txt` and
-`ScriptExtensions.txt` (UCD), and `IdentifierStatus.txt`,
-`IdentifierType.txt`, and `confusables.txt` (Unicode's security data),
-then check the restriction level, mixed numbers, and whole-script
-look-alikes as above. The full `confusables.txt` is about 6,300
-mappings; only the look-alikes of ASCII letters, a few hundred, would
-need to ship, as a subset documented the same way. Matching Chromium's
-top-domains check would need its list too, about 10,000 names.
+So labels show in Unicode in every script both browsers show (`bücher`,
+`日本語`, `пример`, `한국어`, `مثال`), and spoofs keep `xn--`, as in
+Chromium but for the top-domains check, and stricter for Latin
+look-alikes. The tables, ranges of code points read where they are, and
+the checks add about 5 KB gzipped to the site's JS (74.3 to 79.3 KB);
+about 1.7 KB of it is the 1,300 Han ideographs that Unicode doesn't
+allow, scattered through the CJK block, which a looser Han rule would
+save. Rules
+checked 2026-10-30 against the pages linked here, through web search,
+since the dev container couldn't fetch them; Firefox's `high` default
+rests on bug 1399939's landed patch, and the `.fo`, look-alike, removed
+blocks, whole-script TLDs, and dangerous patterns on summaries of
+Chromium's source, so recheck them against it where it can be read.
+Hrefine doesn't use `IdentifierType.txt` beyond what Identifier Status
+already gives, since Chromium doesn't.
 
 **Decoding.** A path, query, or fragment shows escapes of non-ASCII
 text decoded, as both browsers' address bars do, but only where it's

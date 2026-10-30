@@ -216,10 +216,11 @@ identical output.
   `withUnicodeHosts(false)`, and `withDecoding(false)`; then
   `display.format(url)`.
   `domainToDisplay(domain)` does a host alone: each label in Unicode
-  only where browsers would show it, else `xn--`. For now that's Latin
-  labels of modern European languages and Vietnamese, without
-  look-alikes of ASCII letters; other scripts keep `xn--` until Hrefine
-  has Unicode's script data. Hrefine doesn't yet check labels against
+  only where browsers would show it, else `xn--`: code points allowed
+  in identifiers, one script (or Latin with Chinese, Japanese, or
+  Korean), no look-alikes of ASCII letters or whole-script look-alikes
+  (such as Cyrillic `аррӏе`), and Chromium's other rules, from Unicode's
+  script and security data. Hrefine doesn't yet check labels against
   popular domains, as Chromium does (see the [plan](docs/plan.md),
   "Display formatting").
 - `parseUrlSource(input, base?)`: a `UrlSource`, with the input
@@ -364,10 +365,12 @@ own URL cases, the ones browsers are checked against, vendored in
   tests. Only the UTF-8 answers apply; the rest are for pages in legacy
   encodings, which the `URL` API never uses.
 
-[Display](src/display.temper.md)'s tests try Latin names browsers show
-in Unicode, and spoofs they don't (mixed scripts, whole-script
-look-alikes, Latin look-alikes of ASCII letters, and Chromium's rules
-for `ß`, `þ`, `ð`, and `ə`), all hand-written,
+[Display](src/display.temper.md)'s tests try names in many scripts
+that browsers show in Unicode, and spoofs and other labels they don't
+(each rule: restricted code points, mixed scripts and numbers,
+whole-script look-alikes, Latin look-alikes of ASCII letters, Chromium's
+dangerous patterns, and its rules for `ß`, `þ`, `ð`, and `ə`), all
+hand-written,
 since neither browser's IDN test data is in web-platform-tests; and
 decoding for display, checking that each display form parses back to the
 same `href`. [Source](src/source.temper.md)'s tests try spans through
@@ -513,10 +516,10 @@ See the [plan](docs/plan.md) for details.
 
 - **Done:** parsing and serializing, international domain names (IDNA),
   setters and search parameters, the strict RFC 3986 form, strict mode
-  and policies, display formatting, comparison, source spans, the
+  and policies, display formatting (with Unicode's script and security
+  data), comparison, source spans, the
   tours, and the site.
-- **Next:** Unicode's script and security data, so display shows other
-  scripts in Unicode as browsers do; lossless editing, designed in the
+- **Next:** lossless editing, designed in the
   plan, once its span and edit model is settled with a lossless
   Markdown and HTML library.
 - **Before 1.0:** trademark checks, a minified site bundle, and
