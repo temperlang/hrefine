@@ -15,7 +15,8 @@ install; the cost is size (see `sizes.json`).
 Renders the opening, the trick gallery, and the table of more
 disagreements into the page from `site/gallery.json` and
 `site/recorded.json` (other parsers' answers, which `site/record/record.py`
-records), so they show before any script runs. Each of the table's rows
+records), so they show before any script runs. A card of hosts shows each
+as the tours print it with `domainToDisplay`, so every language agrees. Each of the table's rows
 has its full answers in `tables.json`, which the tester fetches only when
 one is tried. The
 fix's code comes from each tour's "Using it safely" section, which CI runs
@@ -294,10 +295,55 @@ def summary(row):
     return f'<p class="tally">{esc(", and ".join(parts))}.</p>'
 
 
-def cards(gallery, recorded):
+def recorded_items(gallery):
+    """The inputs with other parsers' answers recorded, in order: all but
+    the cards that show hosts, which no other parser displays."""
+    cards = [c for c in gallery["cards"] if "hosts" not in c]
+    return gallery["hero"] + cards + [i for group in gallery["corpus"] for i in group["items"]]
+
+
+def shown_hosts(card, expected):
+    """A card of hosts, each as Hrefine displays it: the line every tour
+    prints for it, `host: shown`, so all seven languages agree. The first
+    host heads the card; all of them, with why, go in its details."""
+    rows = []
+    shown_first = None
+    for item in card["hosts"]:
+        host = item["host"]
+        found = [line[len(host) + 2 :] for line in expected.splitlines() if line.startswith(f"{host}: ")]
+        if len(found) != 1:
+            raise SystemExit(f"The tours don't print {host!r} with domainToDisplay, for the {card['id']!r} card.")
+        shown_as = found[0]
+        shown_first = shown_first or shown_as
+        kept = shown_as.startswith("xn--") or ".xn--" in shown_as
+        tag = "kept as <code>xn--</code>" if kept else "shown in Unicode"
+        rows.append(
+            f'<li class="{"kept" if kept else "unicode"}" data-host="{esc(host)}">'
+            f'<span class="pair"><code class="typed">{esc(host)}</code><span class="to" aria-hidden="true">→</span>'
+            f'<code class="shown-as">{esc(shown_as)}</code></span>'
+            f'<span class="tag">{tag}</span><span class="note">{item["note"]}</span></li>'
+        )
+    first = card["hosts"][0]["host"]
+    return (
+        f'<article class="card hosts-card" id="trick-{card["id"]}" data-input="{esc(card["try"])}" data-title="{esc(card["title"])}">'
+        f'<h3>{esc(card["title"])}</h3>'
+        f'<p class="card-input" data-host="{esc(first)}"><code>{esc(first)}</code>'
+        f' <span class="to">shows as</span> <code class="shown-as">{esc(shown_first)}</code></p>'
+        f'<p class="explain">{card["explain"]}</p>'
+        f'<details><summary>Other hosts, and why</summary><ul class="shown-hosts">{"".join(rows)}</ul>'
+        f'<p class="why">{card["why"]}</p></details>'
+        f'<button type="button" class="try" data-try="{card["id"]}">Try it above</button>'
+        "</article>"
+    )
+
+
+def cards(gallery, recorded, expected):
     rows = {(r["input"], r.get("base")): r for r in recorded["results"]}
     out = []
     for card in gallery["cards"]:
+        if "hosts" in card:
+            out.append(shown_hosts(card, expected))
+            continue
         row = rows[(card["input"], card.get("base"))]
         base = f'<p class="base">against <code>{shown(card["base"])}</code></p>' if card.get("base") else ""
         base_attr = f' data-base="{esc(card["base"])}"' if card.get("base") else ""
@@ -513,7 +559,8 @@ def main():
         raise SystemExit("Build the JS library first: temper build -b js")
     gallery = json.loads((SITE / "gallery.json").read_text(encoding="utf-8"))
     recorded = json.loads((SITE / "recorded.json").read_text(encoding="utf-8"))
-    items = gallery["hero"] + gallery["cards"] + [i for group in gallery["corpus"] for i in group["items"]]
+    expected = (TOUR / "expected.txt").read_text(encoding="utf-8")
+    items = recorded_items(gallery)
     if [row_key(r) for r in recorded["results"]] != [row_key(i) for i in items]:
         raise SystemExit("recorded.json is for other inputs; run: uv run site/record/record.py")
 
@@ -547,7 +594,6 @@ def main():
     (OUT / "tour").mkdir(parents=True, exist_ok=True)
     for ext, text in sources.items():
         (OUT / "tour" / f"tour.{ext}").write_text(text, encoding="utf-8")
-    expected = (TOUR / "expected.txt").read_text(encoding="utf-8")
     copy(TOUR / "expected.txt", OUT / "tour" / "expected.txt")
     check_tour_run(expected)
     check_card_names()
@@ -559,7 +605,7 @@ def main():
     page = (SITE / "index.html").read_text(encoding="utf-8")
     parts = {
         "HERO": hero(gallery, recorded),
-        "CARDS": cards(gallery, recorded),
+        "CARDS": cards(gallery, recorded, expected),
         "FIXES": fixes,
         "MORE": more,
         "MORE_COUNT": str(more_count),

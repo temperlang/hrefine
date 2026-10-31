@@ -8,6 +8,7 @@ local Url, HostKind, parseUrl, checkUrl = hrefine.Url, hrefine.HostKind, hrefine
 local UrlSearchParams, UrlPolicy = hrefine.UrlSearchParams, hrefine.UrlPolicy
 local parseHost, domainToAscii, domainToUnicode = hrefine.parseHost, hrefine.domainToAscii, hrefine.domainToUnicode
 local UrlDisplay, parseUrlSource = hrefine.UrlDisplay, hrefine.parseUrlSource
+local domainToDisplay = hrefine.domainToDisplay
 -- Temper's runtime gives temper.null, not nil, for no value, so null_to_nil
 -- turns it into nil.
 local temper = require("temper-core")
@@ -320,9 +321,20 @@ local display = UrlDisplay.addressBar:withRootSlash(false)  -- snippet: display
 for _, input in ipairs({  -- snippet: display
   "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  -- snippet: display
   "https://xn--pple-43d.com/",  -- snippet: display
+  "https://пример.рф/",  -- snippet: display
+  "https://аррӏе.com/",  -- snippet: display
 }) do  -- snippet: display
   print("display: " .. display:format(parseUrl(input)))  -- snippet: display
 end  -- snippet: display
+-- href stays ASCII, to hand on.
+print("to hand on: " .. parseUrl("https://пример.рф/").href)
+-- Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+-- data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+-- unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+-- letters always does. The rest show in Unicode.
+for _, host in ipairs({ "аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp" }) do  -- snippet: lookalike
+  print(host .. ": " .. domainToDisplay(host))  -- snippet: lookalike
+end  -- snippet: lookalike
 -- Credentials are left out, as address bars leave them out. Asked for, the
 -- username shows, but a password only as ***.
 print("with credentials: " .. display:withCredentials(true):format(parseUrl("https://user:pass@example.com/")))

@@ -7,7 +7,7 @@ import * as temperCore from "@temperlang/core";
 import { initDevMode } from "./devmode.js";
 import { runTour } from "./tourrun.js";
 
-const { checkUrl, UrlDisplay } = hrefine;
+const { checkUrl, domainToDisplay, UrlDisplay } = hrefine;
 
 // How browsers' address bars would show a URL: hosts in Unicode where
 // they'd show it, escapes of non-ASCII text decoded, and no credentials or
@@ -96,6 +96,17 @@ for (const row of document.querySelectorAll("[data-parser=hrefine]")) {
       cell.innerHTML = live;
       cell.setAttribute("title", "Live; differs from the recorded answer.");
     }
+  }
+}
+
+// The look-alike hosts card: each host as Hrefine shows it, live, in place
+// of the tours' output, which the build put there.
+for (const item of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".hosts-card [data-host]"))) {
+  const cell = item.querySelector(".shown-as");
+  const live = domainToDisplay(item.dataset.host ?? "");
+  if (cell && cell.textContent !== live) {
+    cell.textContent = live;
+    cell.setAttribute("title", "Live; differs from the tours' output.");
   }
 }
 

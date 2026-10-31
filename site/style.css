@@ -666,6 +666,78 @@ tbody th {
   margin-top: auto;
 }
 
+/* The look-alike hosts card: each host, as typed and as shown. */
+.hosts-card .card-input .to {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Never broken at a hyphen of xn--. */
+.hosts-card .card-input code {
+  white-space: nowrap;
+}
+
+.shown-hosts {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.shown-hosts li {
+  --tone: var(--same);
+  --tone-bg: var(--same-bg);
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--tone);
+  border-radius: 0.3rem;
+  background: var(--tone-bg);
+  font-size: 0.9rem;
+}
+
+.shown-hosts li.kept {
+  --tone: var(--bad);
+  --tone-bg: var(--bad-bg);
+}
+
+.shown-hosts .pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.4rem;
+}
+
+.shown-hosts code {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.shown-hosts .to {
+  color: var(--muted);
+}
+
+.shown-hosts .shown-as {
+  font-weight: 600;
+}
+
+.shown-hosts .tag {
+  display: block;
+  color: var(--tone);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.shown-hosts .note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.hosts-card .why {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+}
+
 .compare {
   font-size: 0.82rem;
   margin-top: 0.4rem;

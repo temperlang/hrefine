@@ -65,6 +65,12 @@ export const SPOTS = [
     target: () => find(".cards .card"),
   },
   {
+    id: "lookalike",
+    title: "Look-alike hosts",
+    about: "`domainToDisplay` gives a host as Chrome shows it: in Unicode only where it can't pass for another name, else as xn--. `UrlDisplay.addressBar` does the same for whole URLs. Both are for people only: decide, and hand on, with `href`, which is always ASCII.",
+    target: () => find(".hosts-card .card-input"),
+  },
+  {
     id: "policy",
     title: "A policy, in one call",
     about: "Build a `UrlPolicy` once from `UrlPolicy.fetch` (https only, strict, no credentials or private addresses), adding a rule per method such as `withHosts`, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, never echoing credentials, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are refused too.",

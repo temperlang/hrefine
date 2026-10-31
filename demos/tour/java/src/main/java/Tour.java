@@ -5,6 +5,7 @@
 
 import static hrefine.HrefineGlobal.checkUrl;
 import static hrefine.HrefineGlobal.domainToAscii;
+import static hrefine.HrefineGlobal.domainToDisplay;
 import static hrefine.HrefineGlobal.domainToUnicode;
 import static hrefine.HrefineGlobal.parseHost;
 import static hrefine.HrefineGlobal.parseUrl;
@@ -337,9 +338,20 @@ public final class Tour {
         UrlDisplay display = UrlDisplay.addressBar.withRootSlash(false);  // snippet: display
         for (String input : List.of(  // snippet: display
                 "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
-                "https://xn--pple-43d.com/")) {  // snippet: display
+                "https://xn--pple-43d.com/",  // snippet: display
+                "https://пример.рф/",  // snippet: display
+                "https://аррӏе.com/")) {  // snippet: display
             System.out.println("display: " + display.format(parseUrl(input)));  // snippet: display
         }  // snippet: display
+        // getHref() stays ASCII, to hand on.
+        System.out.println("to hand on: " + parseUrl("https://пример.рф/").getHref());
+        // Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+        // data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+        // unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+        // letters always does. The rest show in Unicode.
+        for (String host : List.of("аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp")) {  // snippet: lookalike
+            System.out.println(host + ": " + domainToDisplay(host));  // snippet: lookalike
+        }  // snippet: lookalike
         // Credentials are left out, as address bars leave them out. Asked
         // for, the username shows, but a password only as ***.
         System.out.println("with credentials: " + display.withCredentials(true).format(parseUrl("https://user:pass@example.com/")));

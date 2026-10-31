@@ -208,7 +208,9 @@ def main():
         raise SystemExit("Build Hrefine's JS first: temper build -b js")
     gallery = json.loads(GALLERY.read_text(encoding="utf-8"))
     corpus = [item for group in gallery["corpus"] for item in group["items"]]
-    inputs = [{"input": i["input"], "base": i.get("base")} for i in gallery["hero"] + gallery["cards"] + corpus]
+    # Cards of hosts show Hrefine's display form, which no other parser has.
+    cards = [c for c in gallery["cards"] if "hosts" not in c]
+    inputs = [{"input": i["input"], "base": i.get("base")} for i in gallery["hero"] + cards + corpus]
     results, versions, missing = record(inputs)
 
     # The fix, checked: each parser given Hrefine's URL (hrefWithCredentials)

@@ -122,6 +122,14 @@ next=https://example.com/: refuse, pathOnly: not just a path, query, or fragment
 ## 10. Showing, comparing, and spans
 display: https://bücher.example/café?q=日本
 display: https://xn--pple-43d.com
+display: https://пример.рф
+display: https://xn--80ak6aa92e.com
+to hand on: https://xn--e1afmkfd.xn--p1ai/
+аррӏе.com: xn--80ak6aa92e.com
+аррӏе.рф: аррӏе.рф
+аpple.com: xn--pple-43d.com
+пример.рф: пример.рф
+日本語.jp: 日本語.jp
 with credentials: https://user:***@example.com
 same URL: false
 same document: true

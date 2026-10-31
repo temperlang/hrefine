@@ -4,8 +4,8 @@
 //! print the same text. See demos/README.md for how to run them.
 
 use hrefine::{
-    check_url, domain_to_ascii, domain_to_unicode, parse_host, parse_url, parse_url_source,
-    HostKind, Url, UrlDisplay, UrlPolicy, UrlSearchParams,
+    check_url, domain_to_ascii, domain_to_display, domain_to_unicode, parse_host, parse_url,
+    parse_url_source, HostKind, Url, UrlDisplay, UrlPolicy, UrlSearchParams,
 };
 use std::sync::Arc;
 
@@ -331,10 +331,22 @@ fn main() {
     for input in [  // snippet: display
         "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
         "https://xn--pple-43d.com/",  // snippet: display
+        "https://пример.рф/",  // snippet: display
+        "https://аррӏе.com/",  // snippet: display
     ] {  // snippet: display
         let url = parse_url(input, NO_BASE).expect("a URL");  // snippet: display
         println!("display: {}", display.format(url));  // snippet: display
     }  // snippet: display
+    // href() stays ASCII, to hand on.
+    let russian = parse_url("https://пример.рф/", NO_BASE).expect("a URL");
+    println!("to hand on: {}", russian.href());
+    // Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+    // data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+    // unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+    // letters always does. The rest show in Unicode.
+    for host in ["аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp"] {  // snippet: lookalike
+        println!("{host}: {}", domain_to_display(host));  // snippet: lookalike
+    }  // snippet: lookalike
     // Credentials are left out, as address bars leave them out. Asked for, the
     // username shows, but a password only as ***.
     let login = parse_url("https://user:pass@example.com/", NO_BASE).expect("a URL");

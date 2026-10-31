@@ -14,6 +14,7 @@ from hrefine import (
     UrlSearchParams,
     check_url,
     domain_to_ascii,
+    domain_to_display,
     domain_to_unicode,
     parse_host,
     parse_url,
@@ -296,8 +297,18 @@ display = UrlDisplay.address_bar.with_root_slash(False)  # snippet: display
 for text in [  # snippet: display
     "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  # snippet: display
     "https://xn--pple-43d.com/",  # snippet: display
+    "https://пример.рф/",  # snippet: display
+    "https://аррӏе.com/",  # snippet: display
 ]:  # snippet: display
     print(f"display: {display.format(parse_url(text))}")  # snippet: display
+# href stays ASCII, to hand on.
+print(f"to hand on: {parse_url('https://пример.рф/').href}")
+# Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+# data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+# unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+# letters always does. The rest show in Unicode.
+for host in ["аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp"]:  # snippet: lookalike
+    print(f"{host}: {domain_to_display(host)}")  # snippet: lookalike
 # Credentials are left out, as address bars leave them out. Asked for, the
 # username shows, but a password only as ***.
 print(f"with credentials: {display.with_credentials(True).format(parse_url('https://user:pass@example.com/'))}")

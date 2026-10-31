@@ -1,5 +1,5 @@
 {
-  "_comment": "The page's opening URL, trick gallery, and table of more disagreements (corpus: groups of inputs, each with a short HTML note, and compare: \"path\" for path tricks, else hosts are compared). site/record/record.py records other parsers' answers for these inputs into site/recorded.json; site/build.py renders them. The explanations are HTML.",
+  "_comment": "The page's opening URL, trick gallery (a card with hosts shows how Hrefine displays them, as the tours print it, with no recorded parsers), and table of more disagreements (corpus: groups of inputs, each with a short HTML note, and compare: \"path\" for path tricks, else hosts are compared). site/record/record.py records other parsers' answers for these inputs into site/recorded.json; site/build.py renders them. The explanations are HTML.",
   "hero": [
     {
       "input": "https://example.com\\@evil.example/"
@@ -66,6 +66,35 @@
       "title": "Look-alike letters",
       "input": "https://аpple.com/",
       "explain": "The first letter is Cyrillic <code>а</code>, so browsers send <code>xn--pple-43d.com</code>, which isn't <code>apple.com</code>. Some parsers keep the Unicode, so a check and a request can see different names. This is the long-known IDN homograph trick."
+    },
+    {
+      "id": "look-alike-hosts",
+      "title": "Look-alike hosts",
+      "try": "https://аррӏе.com/",
+      "explain": "Every letter is Cyrillic, but each looks Latin, so browsers show the <code>xn--</code> form instead. Hrefine's display form decides as Chrome does, from Unicode's data.",
+      "hosts": [
+        {
+          "host": "аррӏе.com",
+          "note": "All Cyrillic, but every letter looks Latin: a whole-script look-alike of <code>apple.com</code>."
+        },
+        {
+          "host": "аррӏе.рф",
+          "note": "The same letters under <code>.рф</code>, a Cyrillic top-level domain, where readers expect Cyrillic."
+        },
+        {
+          "host": "аpple.com",
+          "note": "One Cyrillic <code>а</code> among Latin letters: mixed scripts."
+        },
+        {
+          "host": "пример.рф",
+          "note": "Russian for “example”, with Cyrillic letters that don't look Latin."
+        },
+        {
+          "host": "日本語.jp",
+          "note": "Japanese, in one script."
+        }
+      ],
+      "why": "Anyone can register names like these, so browsers check each label's letters against Unicode's data. Its scripts must go together: one script, or the mixes Chinese, Japanese, and Korean use. And a label whose every letter looks Latin keeps <code>xn--</code> unless the top-level domain is in its own script. <code>UrlDisplay.addressBar</code> and <code>domainToDisplay</code> follow these rules. Show people that form, but decide, and hand on, with <code>href</code>, which is always ASCII."
     },
     {
       "id": "ideographic-dot",

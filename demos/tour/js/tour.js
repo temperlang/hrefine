@@ -5,7 +5,7 @@
 
 import { Pair } from "@temperlang/core";
 import {
-  HostKind, Url, UrlDisplay, UrlPolicy, UrlSearchParams, checkUrl, domainToAscii, domainToUnicode, parseHost, parseUrl,
+  HostKind, Url, UrlDisplay, UrlPolicy, UrlSearchParams, checkUrl, domainToAscii, domainToDisplay, domainToUnicode, parseHost, parseUrl,
   parseUrlSource,
 } from "hrefine";
 
@@ -296,9 +296,20 @@ const display = UrlDisplay.addressBar.withRootSlash(false);  // snippet: display
 for (const input of [  // snippet: display
   "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
   "https://xn--pple-43d.com/",  // snippet: display
+  "https://пример.рф/",  // snippet: display
+  "https://аррӏе.com/",  // snippet: display
 ]) {  // snippet: display
   console.log(`display: ${display.format(parseUrl(input))}`);  // snippet: display
 }  // snippet: display
+// href stays ASCII, to hand on.
+console.log(`to hand on: ${parseUrl("https://пример.рф/").href}`);
+// Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+// data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+// unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+// letters always does. The rest show in Unicode.
+for (const host of ["аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp"]) {  // snippet: lookalike
+  console.log(`${host}: ${domainToDisplay(host)}`);  // snippet: lookalike
+}  // snippet: lookalike
 // Credentials are left out, as address bars leave them out. Asked for, the
 // username shows, but a password only as ***.
 console.log(`with credentials: ${display.withCredentials(true).format(parseUrl("https://user:pass@example.com/"))}`);

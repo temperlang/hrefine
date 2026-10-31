@@ -332,10 +332,22 @@ var display = UrlDisplay.AddressBar.WithRootSlash(false);  // snippet: display
 foreach (var input in new[] {  // snippet: display
     "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
     "https://xn--pple-43d.com/",  // snippet: display
+    "https://пример.рф/",  // snippet: display
+    "https://аррӏе.com/",  // snippet: display
 })  // snippet: display
 {  // snippet: display
     Console.WriteLine($"display: {display.Format(ParseUrl(input))}");  // snippet: display
 }  // snippet: display
+// Href stays ASCII, to hand on.
+Console.WriteLine($"to hand on: {ParseUrl("https://пример.рф/").Href}");
+// Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+// data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+// unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+// letters always does. The rest show in Unicode.
+foreach (var host in new[] { "аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp" })  // snippet: lookalike
+{  // snippet: lookalike
+    Console.WriteLine($"{host}: {DomainToDisplay(host)}");  // snippet: lookalike
+}  // snippet: lookalike
 // Credentials are left out, as address bars leave them out. Asked for, the
 // username shows, but a password only as ***.
 Console.WriteLine($"with credentials: {display.WithCredentials(true).Format(ParseUrl("https://user:pass@example.com/"))}");

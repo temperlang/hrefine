@@ -18,6 +18,7 @@ using hrefine::UrlPolicy;
 using hrefine::UrlSearchParams;
 using hrefine::checkUrl;
 using hrefine::domainToAscii;
+using hrefine::domainToDisplay;
 using hrefine::domainToUnicode;
 using hrefine::parseHost;
 using hrefine::parseUrl;
@@ -326,9 +327,20 @@ int main() {
   auto display = UrlDisplay::addressBar()->withRootSlash(false);  // snippet: display
   for (std::string input : {  // snippet: display
            "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
-           "https://xn--pple-43d.com/"}) {  // snippet: display
+           "https://xn--pple-43d.com/",  // snippet: display
+           "https://пример.рф/",  // snippet: display
+           "https://аррӏе.com/"}) {  // snippet: display
     std::cout << "display: " << display->format(parseUrl(input)) << "\n";  // snippet: display
   }  // snippet: display
+  // get_href() stays ASCII, to hand on.
+  std::cout << "to hand on: " << parseUrl("https://пример.рф/")->get_href() << "\n";
+  // Hosts alone, as Chrome shows them, by Unicode's script and look-alike
+  // data: all Cyrillic, but every letter like a Latin one, keeps xn--,
+  // unless the top-level domain is Cyrillic too; Cyrillic а among Latin
+  // letters always does. The rest show in Unicode.
+  for (std::string host : {"аррӏе.com", "аррӏе.рф", "аpple.com", "пример.рф", "日本語.jp"}) {  // snippet: lookalike
+    std::cout << host << ": " << domainToDisplay(host) << "\n";  // snippet: lookalike
+  }  // snippet: lookalike
   // Credentials are left out, as address bars leave them out. Asked for, the
   // username shows, but a password only as ***.
   std::cout << "with credentials: " << display->withCredentials(true)->format(parseUrl("https://user:pass@example.com/")) << "\n";

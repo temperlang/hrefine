@@ -120,7 +120,8 @@ site that makes the point.
    Ordable's sites.
    *Started* (2026-10-30): `site/`, led by the security angle (the user,
    2026-10-29): one URL and each parser's host, then the live tester,
-   13 gallery cards, the fix from the tours, the proof, and the tours.
+   13 gallery cards (14 since), the fix from the tours, the proof, and
+   the tours.
    `site/record/record.py` records Python, Java (`URI` and `URL`), C#,
    Go, libcurl, and Node, and Hrefine's JS and Python builds, which must
    agree. A table of 47 more disagreements (2026-10-30; 48 since), by kind
@@ -155,6 +156,13 @@ site that makes the point.
    gained a few WPT cases for the scoreboard's). The page shows no search
    parameters, so they have no badge. The build also runs the JS tour in
    Node the way the page's "Run in your browser" does.
+   A "Look-alike hosts" card (2026-10-30) shows `аррӏе.com` kept as
+   `xn--`, as `domainToDisplay` shows it, and in its details four more
+   hosts and why: a mixed-script spoof keeps `xn--`, and the same
+   Cyrillic letters under `.рф`, Russian, and Japanese show in Unicode. The build takes each from the line every
+   tour prints for it, so all seven languages agree, and the page
+   recomputes them live. It has no parser table, since other parsers
+   don't display hosts, and a dev-mode badge.
    `site.yml` deploys from `main`, untested until it runs on GitHub. Not
    yet: PHP (no binary here), a minified bundle (Ordable uses esbuild,
    which needs approval here).
