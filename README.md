@@ -368,9 +368,9 @@ own URL cases, the ones browsers are checked against, vendored in
 [Display](src/display.temper.md)'s tests try names in many scripts
 that browsers show in Unicode, and spoofs and other labels they don't
 (each rule: restricted code points, mixed scripts and numbers,
-whole-script look-alikes, Latin look-alikes of ASCII letters, Chromium's
-dangerous patterns, and its rules for `ß`, `þ`, `ð`, and `ə`), all
-hand-written,
+whole-script and digit look-alikes, Latin look-alikes of ASCII letters,
+Chromium's dangerous patterns, and its rules for `ß`, `þ`, `ð`, `ə`, and
+`·`, each checked against Chromium's source), all hand-written,
 since neither browser's IDN test data is in web-platform-tests; and
 decoding for display, checking that each display form parses back to the
 same `href`. [Source](src/source.temper.md)'s tests try spans through

@@ -9,8 +9,9 @@ scripts/unicode_data.py gets and pins.
 
 For each code point, the tables give a kind: 0 if a label holding it keeps
 `xn--`, or else an index into `displayKinds`, which gives the code point's
-scripts and three flags. The data, and what Hrefine changes, after
-Chromium's `idn_spoof_checker.cc` (see docs/plan.md, "Display formatting"):
+scripts and its flags. The data, and what Hrefine changes, after
+Chromium's `idn_spoof_checker.cc` and `skeleton_generator.cc`, at the
+commit in CHROMIUM_COMMIT (see docs/plan.md, "Display formatting"):
 
 - Shown at all: Identifier_Status Allowed (IdentifierStatus.txt; Chromium
   takes ICU's recommended and inclusion sets, Identifier_Type Recommended
@@ -26,17 +27,21 @@ Chromium's `idn_spoof_checker.cc` (see docs/plan.md, "Display formatting"):
   Bopomofo, which would add a third, has no Allowed letters in Unicode 18
   (they're Limited_Use), nor does Grantha but for three marks Tamil
   shares.
-- Look-alike: the code point looks like ASCII letters or digits, by
-  confusables.txt's mapping (its prototype): Latin letters whose prototype
-  is one ASCII letter or digit, and Chromium's additions; letters of the
-  scripts Chromium checks for whole-script look-alikes
-  (WHOLE_SCRIPT_SCRIPTS) whose prototype is ASCII letters and digits, and
-  Chromium's Cyrillic additions; and any code point whose prototype is an
-  ASCII digit, for Chromium's digit look-alike check. Thorn `þ` looks
-  like `p`, but display allows it under `.is`, as Chromium does.
-- Mark: general category M, for repeated marks.
-- Digit: for general category Nd, the code point of its zero, so digits
-  of two numbering systems can't mix.
+- Look-alike (flag 1): the code point looks like ASCII letters or
+  digits. Latin letters whose confusables.txt prototype is one ASCII
+  letter or digit, and those Chromium's skeletons add
+  (CHROMIUM_LATIN_LOOKALIKES); and letters of the scripts Chromium checks
+  for whole-script look-alikes, in Chromium's list for that script
+  (WHOLE_SCRIPT_LOOKALIKES), or whose prototype is ASCII letters and
+  digits. Thorn `þ` looks like `p`, but display allows it under `.is` and
+  `.fo`, as Chromium does.
+- Mark (flag 2): general category M, for repeated marks.
+- Digit look-alike (flag 4): in Chromium's list (DIGIT_LOOKALIKES), or
+  with an ASCII digit as its prototype.
+- Common (flag 8): Script Common or Inherited, which whole-script
+  look-alikes ignore, as Chromium's do.
+- Digit: for general category Nd, the code point of its zero, times 16,
+  so digits of two numbering systems can't mix.
 
 The tables are read where they are, with no decoding ahead and nothing
 kept between calls, as the IDNA tables are. Code points that aren't valid
@@ -81,40 +86,67 @@ LONG = {"Latin": "Latn", "Greek": "Grek", "Cyrillic": "Cyrl", "Armenian": "Armn"
         "Ethiopic": "Ethi", "Khmer": "Khmr", "Hiragana": "Hira", "Katakana": "Kana",
         "Bopomofo": "Bopo", "Han": "Hani", "Grantha": "Gran"}
 
+# The Chromium source these rules were checked against, on GitHub's
+# mirror (github.com/chromium/chromium), in
+# components/url_formatter/spoof_checks/ and components/url_formatter/.
+CHROMIUM_COMMIT = "71eb2d8d6c1e036e26c3b1a912242cb11c5d019c"
+
 # What Chromium's IDNSpoofChecker::SetAllowedUnicodeSet removes from the
 # allowed set: U+0338, a long solidus overlay; Armenian hyphen, hyphen,
 # right single quotation mark, hyphenation point, and the Katakana-Hiragana
 # double hyphen; the modifier letters turned comma, apostrophe, and
-# voicing; and rarely used blocks: Pinyin's letters in Latin Extended-B,
-# Cyrillic Extended-C, Latin Extended Additional but Vietnamese, Greek
-# Extended, Cyrillic Extended-B, and Latin Extended-D. (It also removes
-# kra, which isn't Allowed, and on macOS a few letters its font shows
-# blank, which Hrefine doesn't.)
+# voicing (U+02EC); and rarely used blocks: Pinyin's letters in Latin
+# Extended-B, Cyrillic Extended-C, Latin Extended Additional but
+# Vietnamese, Greek Extended, Cyrillic Extended-B, and Latin Extended-D.
+# (It also removes kra, which isn't Allowed, and on macOS a few letters
+# its font shows blank, which Hrefine doesn't.)
 CHROMIUM_REMOVED = [
     (0x0338, 0x0338), (0x058A, 0x058A), (0x2010, 0x2010), (0x2019, 0x2019), (0x2027, 0x2027),
-    (0x30A0, 0x30A0), (0x02BB, 0x02BC), (0x02ED, 0x02ED),
+    (0x30A0, 0x30A0), (0x02BB, 0x02BC), (0x02EC, 0x02EC),
     (0x01CD, 0x01DC), (0x1C80, 0x1C8F), (0x1E00, 0x1E9B), (0x1F00, 0x1FFF), (0xA640, 0xA69F),
     (0xA720, 0xA7FF),
 ]
 # Deviation characters, which IDNA 2003 mapped differently: ß, final sigma,
-# and the zero-width joiners. Chromium never shows them.
+# and the zero-width joiners. Chromium never shows them: its url_formatter
+# decodes labels with UTS #46's transitional processing, which rejects them.
 DEVIATIONS = [0x00DF, 0x03C2, 0x200C, 0x200D]
 
-# The scripts Chromium checks for whole-script look-alikes of Latin
-# (kWholeScriptConfusables): Armenian, Cyrillic, Ethiopic, Georgian, Greek,
-# Hebrew, and Thai.
-WHOLE_SCRIPT_SCRIPTS = {"Armn", "Cyrl", "Ethi", "Geor", "Grek", "Hebr", "Thai"}
-# Chromium's own additions: Latin letters its skeletons map to ASCII (kra,
-# h, t, and b with stroke or topbar, and eng; kra and ƅ aren't Allowed),
-# and the Cyrillic letters in its Latin look-alike set that confusables.txt
-# doesn't map to ASCII.
+# The scripts Chromium checks for whole-script look-alikes of Latin, each
+# with its letters that look like ASCII ones, from kWholeScriptConfusables
+# in idn_spoof_checker.cc. For Thai, its Linux list, the longest. Letters
+# that Unicode doesn't allow are in Chromium's lists but don't matter here.
+WHOLE_SCRIPT_LOOKALIKES = {
+    "Armn": "ագզէլհյոսւօՙ",
+    "Cyrl": "аысԁеԍһіюкјӏморԗԛѕтԝхуъьҽпгѵѡ",
+    "Ethi": "ሀሠሰስበነተከዐዕዘጠፐꬅ",
+    "Geor": "იოყძხჽჿ",
+    "Grek": "αικνρυωηοτ",
+    "Hebr": "דוחיןסװײ׳ﬦ",
+    "Beng": "০৭",
+    "Deva": "ऽ०ॱ",
+    "Gujr": "ડટ૦૧",
+    "Guru": "੦੧",
+    "Knda": "ಽ೦೧",
+    "Mlym": "ടഠധനറ൦",
+    "Orya": "ଠ୦୮",
+    "Taml": "டப௦",
+    "Telu": "౦౧",
+    "Mymr": "ခဂငထပဝ၀၂ၔၜ\u1090\u1091\u1095\u1096\u1097",
+    "Thai": "ทนบพรหเแ๐ดลปฟม",
+}
+# Latin letters Chromium's skeletons map to one ASCII letter that
+# confusables.txt doesn't (extra_confusable_mapper_ in
+# skeleton_generator.cc): kra, h, t, and b with stroke or topbar, and eng.
+# Kra and ƅ aren't Allowed.
 CHROMIUM_LATIN_LOOKALIKES = "ĸħŧƅŋ"
-CHROMIUM_CYRILLIC_LOOKALIKES = "асԁеһіјӏорԗԛѕԝхуъҽпгѵѡ"
+# Chromium's digit look-alikes (digit_lookalikes_ in idn_spoof_checker.cc).
+DIGIT_LOOKALIKES = "θ२২੨૨೩೭շзҙӡउওਤ੩૩౩ဒვპੜკ੫丩ㄐճ৪੪୫૭୨౨"
 # Prototypes that are ASCII digits, for digit look-alikes in any script.
 # (0 and 1 aren't prototypes: they map to O and l.)
 DIGIT_PROTOTYPES = set("0123456789")
 
-LOOKALIKE, MARK = 1, 2
+LOOKALIKE, MARK, DIGIT_LOOKALIKE, COMMON = 1, 2, 4, 8
+ZERO_SHIFT = 4
 
 
 class Data:
@@ -186,17 +218,16 @@ class Data:
             return False
         char, script = chr(c), self.short_script(c)
         proto = self.prototype.get(c, "")
-        if proto in DIGIT_PROTOTYPES:
-            return True
         if script == "Latn":
             if char == "þ":
-                return False  # Allowed only under .is, in display.temper.md
+                return False  # Allowed only under .is and .fo, in display.temper.md
             return char in CHROMIUM_LATIN_LOOKALIKES or re.fullmatch("[a-z0-9]", proto) is not None
-        if script in WHOLE_SCRIPT_SCRIPTS:
-            if script == "Cyrl" and char in CHROMIUM_CYRILLIC_LOOKALIKES:
-                return True
-            return re.fullmatch("[a-z0-9]+", proto) is not None
+        if script in WHOLE_SCRIPT_LOOKALIKES:
+            return char in WHOLE_SCRIPT_LOOKALIKES[script] or re.fullmatch("[a-z0-9]+", proto) is not None
         return False
+
+    def digit_lookalike(self, c: int) -> bool:
+        return c >= 0x80 and (chr(c) in DIGIT_LOOKALIKES or self.prototype.get(c, "") in DIGIT_PROTOTYPES)
 
     def kind(self, c: int) -> tuple[int, int] | None:
         """(scripts, flags) for a shown code point, or None."""
@@ -206,7 +237,9 @@ class Data:
         if mask == 0 and self.script[c] not in ("Common", "Inherited"):
             return None  # only in scripts that have no Allowed letters
         flags = (LOOKALIKE if self.lookalike(c) else 0) | (MARK if self.category[c][0] == "M" else 0)
-        flags |= self.zero.get(c, 0) << 2
+        flags |= DIGIT_LOOKALIKE if self.digit_lookalike(c) else 0
+        flags |= COMMON if self.script[c] in ("Common", "Inherited") else 0
+        flags |= self.zero.get(c, 0) << ZERO_SHIFT
         return mask, flags
 
 
@@ -289,7 +322,16 @@ def check(tables: Tables, data: Data) -> None:
     assert kind("ü") == (latin, 0) and kind("ß") is None and kind("ĸ") is None
     assert kind("ɐ") is None and kind("ı")[1] & LOOKALIKE and kind("а")[1] & LOOKALIKE
     assert kind("п")[1] & LOOKALIKE and not kind("ж")[1] & LOOKALIKE
-    assert kind("7")[1] >> 2 == 0x30 and kind("٣")[1] >> 2 == 0x660
+    assert kind("7")[1] >> ZERO_SHIFT == 0x30 and kind("٣")[1] >> ZERO_SHIFT == 0x660
+    assert kind("к")[1] & LOOKALIKE and kind("บ")[1] & LOOKALIKE and kind("ခ")[1] & LOOKALIKE
+    assert kind("৪")[1] & DIGIT_LOOKALIKE and kind("з")[1] & DIGIT_LOOKALIKE
+    assert not kind("ж")[1] & DIGIT_LOOKALIKE and kind("·")[1] & COMMON and kind("-")[1] & COMMON
+    # Chromium's dangerous patterns treat Bopomofo as Japanese and Chinese
+    # writing; no shown code point is Bopomofo without Han or kana.
+    for c in range(N):
+        ext = data.extensions.get(c, [])
+        if data.valid[c] and data.kind(c) is not None and "Bopo" in ext:
+            assert set(ext) & {"Hani", "Hira", "Kana"}, hex(c)
     bit = lambda *names: sum(1 << SCRIPTS.index(n) for n in names)  # noqa: E731
     assert kind("ー")[0] == bit("Hira", "Kana", "Jpan") and kind("日")[0] == bit("Hani", "Jpan", "Kore")
     assert kind("한")[0] == bit("Hang", "Kore") and kind("ㄅ") is None
@@ -297,7 +339,7 @@ def check(tables: Tables, data: Data) -> None:
     for c in range(N):
         if data.valid[c] and data.allowed[c] and data.script[c] not in ("Common", "Inherited"):
             assert data.mask(c) != 0 or data.short_script(c) == "Bopo", hex(c)
-    assert kind("\u0301") == (0b111, MARK) and kind("\u0670")[1] & MARK
+    assert kind("\u0301") == (0b111, MARK | COMMON) and kind("\u0670")[1] & MARK
     assert all(kind(s) is not None for s in "日本語ひらがなカタカナ中文한국어примерשלוםمثال")
 
 
@@ -319,7 +361,7 @@ def write(version: str, tables: Tables) -> None:
         f"    let script{name}: Int = 0x{1 << SCRIPTS.index(code):X};"
         for name, code in [("Latin", "Latn"), ("Greek", "Grek"), ("Cyrillic", "Cyrl"),
                            ("Armenian", "Armn"), ("Hebrew", "Hebr"), ("Thai", "Thai"),
-                           ("Georgian", "Geor"), ("Ethiopic", "Ethi"), ("Hiragana", "Hira"),
+                           ("Georgian", "Geor"), ("Myanmar", "Mymr"), ("Ethiopic", "Ethi"), ("Hiragana", "Hira"),
                            ("Katakana", "Kana"), ("Han", "Hani"), ("Hangul", "Hang"),
                            ("Japanese", "Jpan"), ("Korean", "Kore")])
     OUT.write_text(f"""# Display Tables
@@ -333,8 +375,9 @@ edit by hand. The script says what each part holds.
 
 {script_bits}
 
-Each kind's scripts (0 for any) and flags (1 for a look-alike of ASCII,
-2 for a mark, and the zero of a decimal digit times 4), two numbers per
+Each kind's scripts (0 for any) and flags (1 for a look-alike of ASCII
+letters, 2 for a mark, 4 for a look-alike of a digit, 8 for Common or
+Inherited, and the zero of a decimal digit times 16), two numbers per
 kind, from kind 1; kind 0 isn't shown.
 
     let displayKinds: List<Int> = [
