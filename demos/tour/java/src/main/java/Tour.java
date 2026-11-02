@@ -20,6 +20,7 @@ import hrefine.UrlSearchParams;
 import hrefine.UrlCheck;
 import hrefine.UrlDisplay;
 import hrefine.UrlSource;
+import hrefine.SourceSpan;
 import hrefine.ValidationError;
 import java.util.List;
 import java.util.Map;
@@ -311,8 +312,8 @@ public final class Tour {
         // withPorts allows ports beyond the default, and withHosts takes
         // exact hosts. A bad entry, such as a host with a port, throws,
         // rather than matching nothing.
-        Url more = policy.withPorts(List.of(8443)).check("https://example.com:8443/").getUrl();
-        System.out.println("with port 8443: " + more.getHref());
+        PolicyCheck more = policy.withPorts(List.of(8443)).check("https://example.com:8443/");
+        System.out.println("with port 8443: " + (more.getUrl() != null ? more.getUrl().getHref() : "refuse, " + more.toString()));
         try {
             UrlPolicy.fetch.withHosts(List.of("example.com:443"));
             System.out.println("allowlist example.com:443: taken");
@@ -383,8 +384,11 @@ public final class Tour {
         // security decisions, which use getUrl(). Spans count code points.
         UrlSource source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
         System.out.println("href: " + source.getUrl().getHref());
-        System.out.println("host as written: " + source.getHostSpan().getAsWritten() + ", at " + source.getHostSpan().toString());
-        System.out.println("path as written: " + source.getPathSpan().getAsWritten());
+        SourceSpan host = source.getHostSpan(), path = source.getPathSpan();  // null where not written
+        if (host != null && path != null) {
+            System.out.println("host as written: " + host.getAsWritten() + ", at " + host.toString());
+            System.out.println("path as written: " + path.getAsWritten());
+        }
         for (ValidationError error : checkUrl("https://exa mple.com").getErrors()) {
             System.out.println(error.getName() + ": from " + error.getPosition() + ", " + error.getLength() + " long");
         }

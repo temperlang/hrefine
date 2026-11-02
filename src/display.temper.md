@@ -4,7 +4,7 @@ A URL formatted for people to read, as browsers' address bars show it:
 international domain names in Unicode where browsers would show them,
 escapes of non-ASCII text decoded, and no credentials (the username and
 password written in the URL, as in `https://user:pass@host/`), nor a
-path that's only `/`; and, if asked, a username, but never a password,
+path that's only `/` but in a `file:` URL; and, if asked, a username, but never a password,
 the lone `/`, or no fragment.
 
 **The display form is never for security decisions,** nor for handing
@@ -43,8 +43,8 @@ changed.
       }
 
 As browsers' address bars show a URL: every part but the credentials,
-which browsers leave out, and a path that's only `/`, as Chromium's
-address bar leaves it out, with domains in Unicode where browsers would
+which browsers leave out, and a path that's only `/` but in a `file:`
+URL, as Chromium's address bar leaves it out, with domains in Unicode where browsers would
 show them (`domainToDisplay`), and escapes decoded where that's safe.
 
       public static addressBar: UrlDisplay = new UrlDisplay(true, true, false, true, false);
@@ -90,8 +90,10 @@ safe.
 
 **Root slash:** with `false`, the default, a path that's only `/`, with
 nothing shown after it, is left out, as `https://example.com`, which
-every special URL's parser reads back with the `/`. With `true`, it's
-shown, as `https://example.com/`.
+every special URL's parser reads back with the `/`. A `file:` URL
+keeps it, as `file:///`, as Chromium keeps it, since there it's the
+root of a file system, not just the end of a host. With `true`, it's
+always shown, as `https://example.com/`.
 
       public withRootSlash(shown: Boolean): UrlDisplay {
         new UrlDisplay(unicodeHosts, decoding, credentials, fragment, shown)
@@ -133,8 +135,8 @@ handing on: use `url.href` for those.
         if (kind == null && startsWithText(path, "//")) {
           out.append("/.");
         }
-        let special = isSpecialScheme(url.scheme);
-        if (!(path == "/" && special && !rootSlash && !hasQuery && !hasFragment)) {
+        let bareHost = isSpecialScheme(url.scheme) && url.scheme != "file";
+        if (!(path == "/" && bareHost && !rootSlash && !hasQuery && !hasFragment)) {
           out.append(shownText(path, decoding));
         }
         if (hasQuery) {
@@ -902,6 +904,12 @@ Formatting a URL, with each option.
         "web+demo:/.//not-a-host/",
         "http://[::1]:8080/",
         "http://[::1]:8080",
+        "file:///",
+        "file:///",
+        "file://xn--bcher-kva.example/",
+        "file://bücher.example/",
+        "file:///C:/",
+        "file:///C:/",
       ];
       for (var k = 0; k < cases.length; k += 2) {
         let url = parseUrl(cases[k]) orelse panic();

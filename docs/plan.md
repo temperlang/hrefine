@@ -585,7 +585,9 @@ ever as `***`; the fragment; and a path that's only `/`, with nothing
 after it, which special URLs read back the same. That's left out by
 default (decided 2026-11-02), as Chromium's address bar leaves it out
 (`kFormatUrlOmitTrailingSlashOnBareHostname`), and `withRootSlash(true)`
-shows it. The scheme stays: dropping `https://` hides what the
+shows it. A `file:` URL keeps it, as `file:///`, as Chromium's does
+(its `CanStripTrailingSlash` skips `file:`; checked 2026-11-02), since
+there it's the root of a file system. The scheme stays: dropping `https://` hides what the
 connection is.
 
 ## Credentials
@@ -651,8 +653,10 @@ or "secure", which would promise more than Hrefine gives.
 So: `href` to hand on, store, or compare as text; `withoutCredentials()`
 for a `Url`; `hrefWithCredentials()` only to send credentials
 deliberately; and `toString()` for logs.
-- **Text as written** (`UrlSource.asWritten`, each `SourceSpan`'s) is
-  documented as possibly holding credentials and other secrets.
+- **Text as written** (`UrlSource.asWritten()`, each `SourceSpan`'s) is
+  documented as possibly holding credentials and other secrets. The
+  input and the username and password spans are methods (decided
+  2026-11-02), so serializers that read getters skip them.
 
 Warnings say "credentials and other secrets", since tokens also turn up
 in queries (`?token=`, `?api_key=`) and fragments (`#access_token=`),
@@ -685,8 +689,8 @@ equal that browsers and servers treat as different; comparing
 ## Source spans
 
 Decided 2026-10-30, for step 5. `parseUrlSource(input, base?)` gives a
-`UrlSource`: the input `asWritten`, the parsed `url`, and a `SourceSpan`
-per part (`schemeSpan`, `usernameSpan`, `passwordSpan`, `hostSpan`,
+`UrlSource`: the input `asWritten()`, the parsed `url`, and a `SourceSpan`
+per part (`schemeSpan`, `usernameSpan()`, `passwordSpan()`, `hostSpan`,
 `portSpan`, `pathSpan`, `querySpan`, and `fragmentSpan`), each with its
 `start` and `length` in code points of the input as given, and its text
 `asWritten`. A part the input didn't write (from the base, or absent)

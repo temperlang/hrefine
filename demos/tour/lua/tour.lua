@@ -291,7 +291,8 @@ end  -- snippet: policy
 -- withPorts allows ports beyond the default, and withHosts takes exact
 -- hosts. A bad entry, such as a host with a port, raises an error, which
 -- pcall catches, rather than matching nothing.
-print("with port 8443: " .. policy:withPorts({ 8443 }):check("https://example.com:8443/").url.href)
+local more = policy:withPorts({ 8443 }):check("https://example.com:8443/")
+print("with port 8443: " .. (more.passed and more.url.href or "refuse, " .. more:toString()))
 if pcall(function() return UrlPolicy.fetch:withHosts({ "example.com:443" }) end) then
   print("allowlist example.com:443: taken")
 else
@@ -364,8 +365,11 @@ print("same origin: " .. tostring(intro:sameOrigin(parseUrl("https://example.com
 -- decisions, which use source.url. Spans count code points.
 local source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1")
 print("href: " .. source.url.href)
-print("host as written: " .. source.hostSpan.asWritten .. ", at " .. source.hostSpan:toString())
-print("path as written: " .. source.pathSpan.asWritten)
+local host, path = null_to_nil(source.hostSpan), null_to_nil(source.pathSpan) -- nil where not written
+if host and path then
+  print("host as written: " .. host.asWritten .. ", at " .. host:toString())
+  print("path as written: " .. path.asWritten)
+end
 for _, error in ipairs(checkUrl("https://exa mple.com").errors) do
   print(error.name .. ": from " .. error.position .. ", " .. error.length .. " long")
 end

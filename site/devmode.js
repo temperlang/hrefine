@@ -49,7 +49,7 @@ export const SPOTS = [
   {
     id: "display",
     title: "How people see it",
-    about: "`UrlDisplay.addressBar` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), decodes escaped non-ASCII text where that's safe, and leaves out credentials (the username and password in the URL), and a lone `/` path, as address bars do; methods such as `withCredentials` change parts. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
+    about: "`UrlDisplay.addressBar` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), decodes escaped non-ASCII text where that's safe, and leaves out credentials (the username and password in the URL), and a lone `/` path but in file URLs, as address bars do; methods such as `withCredentials` change parts. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
     target: () => find("#hrefine-what .display-line"),
   },
   {

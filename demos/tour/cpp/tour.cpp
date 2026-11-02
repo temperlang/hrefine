@@ -294,8 +294,9 @@ int main() {
   // withPorts allows ports beyond the default, and withHosts takes exact
   // hosts. A bad entry, such as a host with a port, throws, rather than
   // matching nothing.
-  auto more = policy->withPorts(std::make_shared<std::vector<int32_t>>(std::vector<int32_t>{8443}));
-  std::cout << "with port 8443: " << more->check("https://example.com:8443/")->get_url()->get_href() << "\n";
+  auto more = policy->withPorts(std::make_shared<std::vector<int32_t>>(std::vector<int32_t>{8443}))->check("https://example.com:8443/");
+  auto passed = more->get_url();
+  std::cout << "with port 8443: " << (passed ? passed->get_href() : "refuse, " + more->toString()) << "\n";
   try {
     UrlPolicy::fetch()->withHosts(std::make_shared<Strings>(Strings{"example.com:443"}));
     std::cout << "allowlist example.com:443: taken\n";
@@ -367,9 +368,11 @@ int main() {
   // decisions, which use get_url(). Spans count code points.
   auto source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
   std::cout << "href: " << source->get_url()->get_href() << "\n";
-  std::cout << "host as written: " << source->get_hostSpan()->get_asWritten() << ", at "
-            << source->get_hostSpan()->toString() << "\n";
-  std::cout << "path as written: " << source->get_pathSpan()->get_asWritten() << "\n";
+  auto host = source->get_hostSpan(), path = source->get_pathSpan();  // null where not written
+  if (host && path) {
+    std::cout << "host as written: " << host->get_asWritten() << ", at " << host->toString() << "\n";
+    std::cout << "path as written: " << path->get_asWritten() << "\n";
+  }
   // Keep the check in a variable: a range-for over a temporary's list
   // would outlive it.
   auto check = checkUrl("https://exa mple.com");

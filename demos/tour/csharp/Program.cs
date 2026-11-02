@@ -301,8 +301,8 @@ foreach (var input in inputs)  // snippet: policy
 // WithPorts allows ports beyond the default, and WithHosts takes exact
 // hosts. A bad entry, such as a host with a port, throws, rather than
 // matching nothing.
-var more = policy.WithPorts(new[] { 8443 }).Check("https://example.com:8443/").Url;
-Console.WriteLine($"with port 8443: {more?.Href}");
+var more = policy.WithPorts(new[] { 8443 }).Check("https://example.com:8443/");
+Console.WriteLine($"with port 8443: {(more.Url is Url passed ? passed.Href : "refuse, " + more.ToString())}");
 try
 {
     UrlPolicy.Fetch.WithHosts(new[] { "example.com:443" });
@@ -381,8 +381,11 @@ Console.WriteLine($"same origin: {(intro.SameOrigin(ParseUrl("https://example.co
 // decisions, which use source.Url. Spans count code points.
 var source = ParseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
 Console.WriteLine($"href: {source.Url.Href}");
-Console.WriteLine($"host as written: {source.HostSpan!.AsWritten}, at {source.HostSpan.ToString()}");
-Console.WriteLine($"path as written: {source.PathSpan!.AsWritten}");
+if (source.HostSpan is SourceSpan hostSpan && source.PathSpan is SourceSpan pathSpan)  // null where not written
+{
+    Console.WriteLine($"host as written: {hostSpan.AsWritten}, at {hostSpan.ToString()}");
+    Console.WriteLine($"path as written: {pathSpan.AsWritten}");
+}
 foreach (var error in CheckUrl("https://exa mple.com").Errors)
 {
     Console.WriteLine($"{error.Name}: from {error.Position}, {error.Length} long");

@@ -10,7 +10,7 @@ the text as written by mistake.
 The text as written is neither normalized nor checked: `EXAMPLE.com`,
 `0x7f.1`, `%65vil.example`, and a host with a tab in it are all as
 typed, and other parsers may read them otherwise. **Never use spans or
-`asWritten` for security decisions;** use `url`, as everywhere else.
+`asWritten()` for security decisions;** use `url`, as everywhere else.
 And the text as written may contain credentials and other secrets
 (passwords, or tokens in a query or fragment), so don't log it.
 Policies and strict mode take only input strings and `Url`s.
@@ -70,9 +70,14 @@ port's `:`, `?`, and `#`, but the path keeps its leading `/`, as
 
 The input, exactly as given: not normalized or checked. Never use it
 for security decisions; use `url`. It may contain credentials and other
-secrets; don't log it.
+secrets; don't log it. It's a method, as are the username and password
+spans, as `Url`'s `hrefWithCredentials()` is, so serializers that read
+getters and properties, such as Java's Jackson and C#'s
+`System.Text.Json`, leave the credentials out.
 
-      public asWritten: String;
+      public asWritten(): String { asWrittenValue }
+
+      private asWrittenValue: String;
 
 The parsed URL, the standard's canonical form, as `parseUrl` gives it.
 This is the one for security decisions.
@@ -81,30 +86,36 @@ This is the one for security decisions.
 
 Where each part was written, as written: not normalized or checked, so
 never for security decisions; use `url`'s parts. Each span's
-`asWritten` may contain credentials and other secrets (the username and
-password spans are them); don't log it. The username and password spans
-are split at the first `:` before the last `@`, as the parser splits
-them.
+`asWritten` may contain secrets, such as tokens in a query or fragment;
+don't log it. The username and password spans are credentials, so
+they're methods; the parser splits them at the first `:` before the
+last `@`.
 
       public schemeSpan: SourceSpan?;
-      public usernameSpan: SourceSpan?;
-      public passwordSpan: SourceSpan?;
+
+      public usernameSpan(): SourceSpan? { usernameSpanValue }
+
+      public passwordSpan(): SourceSpan? { passwordSpanValue }
+
       public hostSpan: SourceSpan?;
       public portSpan: SourceSpan?;
       public pathSpan: SourceSpan?;
       public querySpan: SourceSpan?;
       public fragmentSpan: SourceSpan?;
 
+      private usernameSpanValue: SourceSpan?;
+      private passwordSpanValue: SourceSpan?;
+
       private constructor(
         asWritten: String, url: Url, schemeSpan: SourceSpan?, usernameSpan: SourceSpan?,
         passwordSpan: SourceSpan?, hostSpan: SourceSpan?, portSpan: SourceSpan?,
         pathSpan: SourceSpan?, querySpan: SourceSpan?, fragmentSpan: SourceSpan?,
       ) {
-        this.asWritten = asWritten;
+        this.asWrittenValue = asWritten;
         this.url = url;
         this.schemeSpan = schemeSpan;
-        this.usernameSpan = usernameSpan;
-        this.passwordSpan = passwordSpan;
+        this.usernameSpanValue = usernameSpan;
+        this.passwordSpanValue = passwordSpan;
         this.hostSpan = hostSpan;
         this.portSpan = portSpan;
         this.pathSpan = pathSpan;
@@ -173,7 +184,7 @@ parts, which spans keep.
 
     let spansOf(source: UrlSource): String {
       let parts = [
-        source.schemeSpan, source.usernameSpan, source.passwordSpan, source.hostSpan,
+        source.schemeSpan, source.usernameSpan(), source.passwordSpan(), source.hostSpan,
         source.portSpan, source.pathSpan, source.querySpan, source.fragmentSpan,
       ];
       parts.join(" ") { span =>
@@ -233,7 +244,7 @@ Against a base, parts the input didn't write have no span.
       let relative = parseUrlSource("../c", base) orelse panic();
       assert(relative.url.hrefWithCredentials() == "https://user@example.com/c");
       assert(relative.url.href == "https://example.com/c");
-      assert(relative.asWritten == "../c");
+      assert(relative.asWritten() == "../c");
       let rejected: UrlSource? = parseUrlSource("https://exa mple.com") orelse null;
       assert(rejected == null) { "a URL that fails to parse bubbles" };
     }

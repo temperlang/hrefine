@@ -226,13 +226,12 @@ identical output.
 - `UrlDisplay`: a URL formatted for people, as browsers' address bars
   show it, never for security decisions or handing on. Start from
   `UrlDisplay.addressBar` (no credentials, as address bars leave them
-  out, nor a path that's only `/`, hosts in Unicode where browsers would
-  show them, and escapes of non-ASCII text decoded where that's safe),
-  and change parts with `withCredentials(true)` (the username, and a
-  password only as `***`), `withFragment(false)`, `withRootSlash(true)`
-  (a lone `/` path),
-  `withUnicodeHosts(false)`, and `withDecoding(false)`; then
-  `display.format(url)`.
+  out, nor a path that's only `/` but in `file:` URLs, hosts in Unicode
+  where browsers would show them, and escapes of non-ASCII text decoded
+  where that's safe), and change parts with `withCredentials(true)` (the
+  username, and a password only as `***`), `withFragment(false)`,
+  `withRootSlash(true)` (a lone `/` path), `withUnicodeHosts(false)`,
+  and `withDecoding(false)`; then `display.format(url)`.
   `domainToDisplay(domain)` does a host alone: each label in Unicode
   only where browsers would show it, else `xn--`: code points allowed
   in identifiers, one script (or Latin with Chinese, Japanese, or
@@ -242,14 +241,16 @@ identical output.
   popular domains, as Chromium does (see the [plan](docs/plan.md),
   "Display formatting").
 - `parseUrlSource(input, base?)`: a `UrlSource`, with the input
-  `asWritten`, the parsed `url`, and where each part was written:
-  `schemeSpan`, `usernameSpan`, `passwordSpan`, `hostSpan`, `portSpan`,
-  `pathSpan`, `querySpan`, and `fragmentSpan`, each a `SourceSpan`
-  (`start`, `length`, in code points of the input as given, and
-  `asWritten`), or null where the input didn't write that part. For
+  `asWritten()`, the parsed `url`, and where each part was written:
+  `schemeSpan`, `usernameSpan()`, `passwordSpan()`, `hostSpan`,
+  `portSpan`, `pathSpan`, `querySpan`, and `fragmentSpan`, each a
+  `SourceSpan` (`start`, `length`, in code points of the input as given,
+  and `asWritten`), or null where the input didn't write that part. For
   editors and linters: the text as written isn't normalized or checked,
   so never use it for security decisions; use `url`. It may contain
-  credentials and other secrets, so don't log it.
+  credentials and other secrets, so don't log it. The input and the
+  credential spans are methods, as `hrefWithCredentials()` is, so
+  serializers leave them out.
 - `parseHost(input)`: checks a host, as in `https://input/`, giving a
   `Host` with its `kind` and `serialized` form, or bubbles.
 - `domainToAscii(domain)` and `domainToUnicode(domain)`: the standard's

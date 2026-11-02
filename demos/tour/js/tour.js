@@ -270,7 +270,8 @@ for (const input of inputs) {  // snippet: policy
 // withPorts allows ports beyond the default, and withHosts takes exact
 // hosts. A bad entry, such as a host with a port, throws, rather than
 // matching nothing.
-console.log(`with port 8443: ${policy.withPorts([8443]).check("https://example.com:8443/").url?.href}`);
+const more = policy.withPorts([8443]).check("https://example.com:8443/");
+console.log(`with port 8443: ${more.url !== null ? more.url.href : `refuse, ${more.toString()}`}`);
 try {
   UrlPolicy.fetch.withHosts(["example.com:443"]);
   console.log("allowlist example.com:443: taken");
@@ -340,8 +341,11 @@ console.log(`same origin: ${intro.sameOrigin(parseUrl("https://example.com/about
 // decisions, which use source.url. Spans count code points.
 const source = parseUrlSource(" https://EXAMPLE.com:443/a/../b?q=1");
 console.log(`href: ${source.url.href}`);
-console.log(`host as written: ${source.hostSpan.asWritten}, at ${source.hostSpan.toString()}`);
-console.log(`path as written: ${source.pathSpan.asWritten}`);
+const { hostSpan: host, pathSpan: path } = source;  // null where not written
+if (host !== null && path !== null) {
+  console.log(`host as written: ${host.asWritten}, at ${host.toString()}`);
+  console.log(`path as written: ${path.asWritten}`);
+}
 for (const error of checkUrl("https://exa mple.com").errors) {
   console.log(`${error.name}: from ${error.position}, ${error.length} long`);
 }

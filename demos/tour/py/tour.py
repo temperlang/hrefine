@@ -274,7 +274,8 @@ for text in inputs:  # snippet: policy
 # with_ports allows ports beyond the default, and with_hosts takes exact
 # hosts. A bad entry, such as a host with a port, raises, rather than
 # matching nothing.
-print(f"with port 8443: {policy.with_ports([8443]).check('https://example.com:8443/').url.href}")
+more = policy.with_ports([8443]).check("https://example.com:8443/")
+print(f"with port 8443: {more.url.href if more.url is not None else 'refuse, ' + more.to_string()}")
 try:
     UrlPolicy.fetch.with_hosts(["example.com:443"])
     print("allowlist example.com:443: taken")
@@ -338,7 +339,9 @@ print(f"same origin: {str(intro.same_origin(parse_url('https://example.com/about
 # decisions, which use source.url. Spans count code points.
 source = parse_url_source(" https://EXAMPLE.com:443/a/../b?q=1")
 print(f"href: {source.url.href}")
-print(f"host as written: {source.host_span.as_written}, at {source.host_span.to_string()}")
-print(f"path as written: {source.path_span.as_written}")
+host, path = source.host_span, source.path_span  # None where not written
+if host is not None and path is not None:
+    print(f"host as written: {host.as_written}, at {host.to_string()}")
+    print(f"path as written: {path.as_written}")
 for error in check_url("https://exa mple.com").errors:
     print(f"{error.name}: from {error.position}, {error.length} long")

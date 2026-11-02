@@ -296,9 +296,11 @@ fn main() {
     // with_ports allows ports beyond the default, and with_hosts takes exact
     // hosts. A bad entry, such as a host with a port, is an Err, rather than
     // matching nothing.
-    let more = policy.with_ports([8443]).expect("a port");
-    let passed = more.check("https://example.com:8443/").url().expect("allowed");
-    println!("with port 8443: {}", passed.href());
+    let more = policy.with_ports([8443]).expect("a port").check("https://example.com:8443/");
+    match more.url() {
+        Some(passed) => println!("with port 8443: {}", passed.href()),
+        None => println!("with port 8443: refuse, {}", more.to_string()),
+    }
     match UrlPolicy::fetch().with_hosts([Arc::new("example.com:443".to_string())]) {
         Ok(_) => println!("allowlist example.com:443: taken"),
         Err(_) => println!("allowlist example.com:443: throws"),
@@ -373,9 +375,11 @@ fn main() {
     // security decisions, which use url(). Spans count code points.
     let source = parse_url_source(" https://EXAMPLE.com:443/a/../b?q=1", NO_BASE).expect("a URL");
     println!("href: {}", source.url().href());
-    let host = source.host_span().expect("a host");
-    println!("host as written: {}, at {}", host.as_written(), host.to_string());
-    println!("path as written: {}", source.path_span().expect("a path").as_written());
+    // None where not written.
+    if let (Some(host), Some(path)) = (source.host_span(), source.path_span()) {
+        println!("host as written: {}, at {}", host.as_written(), host.to_string());
+        println!("path as written: {}", path.as_written());
+    }
     let check = check_url("https://exa mple.com", NO_BASE).expect("no base to fail");
     for error in check.errors().iter() {
         println!("{}: from {}, {} long", error.name(), error.position(), error.length());
