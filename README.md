@@ -555,3 +555,7 @@ from Unicode's (which `scripts/unicode_data.py` downloads and checks):
     uv run scripts/wpt_search_params_tests.py
     uv run scripts/idna_tables.py
     uv run scripts/display_tables.py
+
+## License
+
+Apache-2.0 OR MIT, at your option, as Temper is; see [COPYRIGHT](COPYRIGHT). Third-party material, with its notices, is in [NOTICE](NOTICE).
