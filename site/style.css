@@ -939,6 +939,12 @@ pre.output {
   font-weight: 600;
 }
 
+/* Secondary: outlined, as where the button switches to JavaScript first. */
+.primary.outline {
+  background: transparent;
+  color: var(--accent);
+}
+
 .primary:disabled {
   opacity: 0.5;
   cursor: default;

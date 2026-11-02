@@ -76,6 +76,7 @@ int main(int argc, char** argv) {
   std::string folder = argv[2];
   if (argc > 3) seconds = std::stod(argv[3]);
   auto t0 = Clock::now();
+  // Loads the library's tables now, to time it.
   hrefine::global_init_init();
   double load = since(t0);
   std::vector<Pair> urls;

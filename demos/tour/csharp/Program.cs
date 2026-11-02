@@ -133,10 +133,9 @@ foreach (var input in new[] {
 }
 // Href has no credentials, by design, unlike JavaScript's URL.href, so it's
 // the one to hand on, store, or compare as text. url.ToString() masks them,
-// for logs, but it hides object.ToString rather than overriding it, so
-// $"{url}" gives "Hrefine.Url". WithoutCredentials() gives a Url without
-// them. Only to send them deliberately, there's HrefWithCredentials, which
-// has the password: never log it.
+// for logs ($"{url}" gives it too), and WithoutCredentials() gives a Url
+// without them. Only to send them deliberately, there's
+// HrefWithCredentials, which has the password: never log it.
 Console.WriteLine($"href, to hand on: {url.Href}");
 Console.WriteLine($"as a string: {url.ToString()}");
 Console.WriteLine($"without credentials: {url.WithoutCredentials().ToString()}");

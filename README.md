@@ -1,15 +1,15 @@
 # Hrefine
 
 Parses and serializes URLs exactly as the [WHATWG URL
-Standard](https://url.spec.whatwg.org/) says, as browsers do, with the
-same results in every language.
+Standard](https://url.spec.whatwg.org/) says, which browsers follow,
+with the same results in every language.
 
 Most languages' own URL parsers follow older rules, or their own, so
 the same URL can name a different host in Python, Java, C#, and the
 browser. Those gaps have caused real security holes: server-side
 request forgery and allowlist bypasses, where a check reads a URL one
-way and the request goes another. This library reads every URL as a
-browser does, in every language it supports, checked against the
+way and the request goes another. This library reads every URL as the
+standard says, in every language it supports, checked against the
 browsers' own test cases.
 
 Parsing and serializing work on every backend, international domain
@@ -110,7 +110,8 @@ identical output.
 - `checkUrl(input, base?)`: a `UrlCheck`, with the `url` (or null) and
   the standard's validation errors, each with its `name` (such as
   `invalid-URL-unit` or `host-invalid-code-point`) and `position`, in
-  code points. Where parsing fails, the last error says why. Most
+  code points. Where parsing fails, the last error says why, but a
+  `base` that isn't a URL bubbles, as in `parseUrl`. Most
   errors don't stop a URL from parsing, as browsers accept it. Parsing
   notes errors only when asked, so `parseUrl` is no slower for them.
   For strict mode, `strictErrors` are the ones it counts, and
@@ -160,7 +161,8 @@ identical output.
     Hand on `href`, never `toString()`.
   - `==` in Temper (`eq` in other languages) compares whole URLs,
     `hrefWithCredentials`, so credentials count; compare `href`s to
-    leave them out.
+    leave them out. Other languages' own `==` compares objects, not
+    URLs (see [Known limits by language](#known-limits-by-language)).
   - `url.withoutCredentials()`: the URL without its username and
     password, for when a `Url` is wanted.
   - The standard's setters, as methods that give a new `Url`:
@@ -238,22 +240,37 @@ identical output.
   domain to ASCII and to Unicode (IDNA), as in Node's `url` module, for
   converting and showing names. They aren't checks: domain to ASCII
   passes `exa mple.com`, `0x7f.1`, and `[::1]` as they are, as the
-  standard says. Use `parseHost` to check a host.
+  standard says. Use `parseHost` to check a host. Where the standard's
+  algorithm fails, as for a lone zero-width joiner, `domainToAscii`
+  bubbles, where Node's gives `""`.
 
 `Url` is immutable, unlike JavaScript's `URL`, so a URL that passed a
-check can't change after, it compares and hashes by value safely, and
-threads can share it. So the setters give a new `Url`, and the search
+check can't change after, and threads can share it (but see Lua and C++
+below). So the setters give a new `Url`, and the search
 parameters aren't tied to a URL: JavaScript's `url.searchParams.append(…)`
 is two steps here, reading `searchParams` and handing them back with
 `withSearchParams`.
 
 Every language gets these names in its own style (`parse_url` and
 `url.host_kind` in Python and Rust, `ParseUrl` and `url.HostKind` in C#,
-`getHref()` and `getHrefWithCredentials()` in Java). Some don't yet carry everything over from Temper:
-`toString` and `==` reach only some languages' own string conversion
-(JavaScript's templates and Java's concatenation, which mask credentials
-too) and equality, and only Java and Rust keep `Url`'s constructor
-private; see the tour for each.
+`getHref()` and `getHrefWithCredentials()` in Java); see the tour for
+each.
+
+### Known limits by language
+
+Temper doesn't yet carry everything over to each language. In all of
+them, the language's own `==` compares objects, not URLs, so use `eq`
+(`Eq` in C#), and nothing hashes a `Url` by value. And:
+
+| Language | As a string | Also |
+|---|---|---|
+| C++ | `url->toString()`; `<<` doesn't take a `Url` | Fields are public and writable, so nothing is immutable, and the header shows every internal. Constructors are public, so a `Url` or a passing `PolicyCheck` needn't come from the library. A missing number is Temper's `NullableParam`, with `has_value`. |
+| C# | `ToString()` and `$"{url}"` mask credentials | Functions are on `HrefineGlobal`. Constructors are public. JSON serializers, such as `System.Text.Json`, write the credentials. |
+| Java | `toString()` and `+` mask credentials | Functions are on `HrefineGlobal`. JSON serializers, such as Jackson and Gson, write the credentials. |
+| JavaScript | `toString()` and templates mask credentials | Constructors are public. |
+| Lua | `url:toString()`; `tostring(url)` gives a table | A missing value is `temper.null`, a table, so it's truthy: `if Url.parse(input) then` passes for every input. Use `temper.null_to_nil(…)`, or a check's `passed`. Fields are writable, so nothing is immutable, and `pairs(url)` lists the password. Constructors are public. |
+| Python | `str(url)` masks credentials | Arguments are positional only (`base=` fails). Constructors are public. |
+| Rust | `url.to_string()`; `Url` has no `Display` | `None::<&str>` for no base, and `.as_str()` to compare parts. |
 
 ### Coming from JavaScript's `URL`
 
@@ -430,8 +447,9 @@ Hrefine's own test does (each case must fail, or give the expected
 `href` and every part), leaving out cases with unpaired surrogates, of
 which this file has none. `site/scoreboard.js` holds the scoring, and the
 build runs the same module in Node (`site/scoreboard-node.mjs`), showing
-Node's score beside the visitor's, and failing unless Hrefine passes
-every case.
+Node's score, with that Node's version, beside the visitor's, and failing
+unless Hrefine passes every case. It warns if that Node isn't the one in
+`recorded.json`.
 
 Build the site, with Temper, Python, and Node 24 or later, and preview
 it:
@@ -441,7 +459,7 @@ it:
     python3 -m http.server --bind 127.0.0.1 -d site/build
 
 The build copies the JS library and Temper's runtime as plain ES modules
-(no bundler, so about 60 KB gzipped), renders the opening, the gallery,
+(no bundler, so about 80 KB gzipped), renders the opening, the gallery,
 and the table from the recorded answers (each table row's full answers go
 in `tables.json`, which the tester fetches only when one is tried), and takes the fix's code from each tour's
 "Using it safely" section, failing if it can't find it. It also runs the

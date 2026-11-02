@@ -50,10 +50,6 @@ fn check(input: &str) -> String {  // snippet: card
 }  // snippet: card
 
 fn main() {
-    // Sets up Hrefine and Temper's runtime. Call it once before anything
-    // else.
-    hrefine::init(None).expect("hrefine::init");
-
     println!("# Hrefine tour");
 
     section("1. Parsing and reading parts");
@@ -120,8 +116,8 @@ fn main() {
     let nothing = Url::parse("setup.html", NO_BASE).is_none();
     println!("nullable parse: {}", if nothing { "nothing" } else { "a URL" });
     println!("can parse: {}", Url::can_parse("setup.html", NO_BASE));
-    // parse_url's Err(temper_core::Error) says nothing of why, and can't be
-    // shown: its Display calls itself. So check_url says why.
+    // parse_url's Err(temper_core::Error) says nothing of why: it shows as
+    // "bubble". So check_url says why.
     match parse_url("setup.html", NO_BASE) {
         Ok(_) => println!("throwing parse: parsed"),
         Err(_) => println!("throwing parse: throws"),

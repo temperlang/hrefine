@@ -56,9 +56,6 @@ std::string check(std::string const &input) {  // snippet: card
 }  // snippet: card
 
 int main() {
-  // Sets up Hrefine. Call it once before anything else.
-  hrefine::global_init_init();
-
   std::cout << "# Hrefine tour\n";
 
   section("1. Parsing and reading parts");

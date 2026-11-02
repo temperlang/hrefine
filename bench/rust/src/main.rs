@@ -64,6 +64,7 @@ fn main() {
         unsafe { SECONDS = s.parse().unwrap() };
     }
     let t0 = Instant::now();
+    // Loads the library's tables now, to time it.
     hrefine::init(None).unwrap();
     let load = t0.elapsed().as_secs_f64();
     let urls: Vec<(String, Option<String>)> = read_lines(folder, "urls.txt")

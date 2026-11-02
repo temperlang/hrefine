@@ -466,10 +466,9 @@ library has no module-level `var`, only `let`s, which are set once as it
 loads and only read after. That matters most in C++, where Temper makes
 a module-level `var` a plain `static std::shared_ptr`, so two threads
 setting one lazily, as these tables once were, race (undefined
-behavior). Its `let`s are set in `hrefine::global_init_init()`, which a
-program must call before using the library, so before any threads do,
-and then only read, and many threads may read, and so copy, the same
-`shared_ptr` at once. (Rust, Java, and C# make module-level state safe
+behavior). Its `let`s are set once, under a lock, before any thread
+reads them, and then only read, and many threads may read, and so copy,
+the same `shared_ptr` at once. (Rust, Java, and C# make module-level state safe
 on their own, if not as cheaply: Rust locks it.) Keep it that way: any
 cache here would need a lock that Temper can't yet write portably.
 

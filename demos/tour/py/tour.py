@@ -127,8 +127,8 @@ for text in [
     print(f"{shown(text)} -> {parse_url(text).href}")
 # href has no credentials, by design, unlike JavaScript's URL.href, so it's
 # the one to hand on, store, or compare as text. to_string() masks them, for
-# logs (str() doesn't call it yet), and without_credentials() gives a Url
-# without them. Only to send them deliberately, there's
+# logs (str() and f-strings give it too), and without_credentials() gives a
+# Url without them. Only to send them deliberately, there's
 # href_with_credentials, which has the password: never log it.
 print(f"href, to hand on: {url.href}")
 print(f"as a string: {url.to_string()}")

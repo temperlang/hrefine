@@ -411,7 +411,7 @@ for (const pre of /** @type {NodeListOf<HTMLElement>} */ (document.querySelector
   code.innerHTML = highlight(code.textContent ?? "", lang?.[3] ?? "//");
 }
 
-/** @type {Map<string, string>} */
+/** @type {Map<string, Promise<string>>} */
 const sources = new Map();
 let selected = DEFAULT_LANGUAGE;
 const tabRows = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll("[data-tabs]"))];
@@ -436,17 +436,40 @@ async function selectLanguage(file) {
   }
   for (const span of document.querySelectorAll(".lang-name")) span.textContent = name;
   $("run-command").textContent = run;
-  /** @type {HTMLButtonElement} */ ($("tour-run")).disabled = file !== "js";
+  // Only JavaScript runs here; on another tab, the button switches to it.
+  const runButton = $("tour-run");
+  runButton.textContent = file === "js" ? "Run in your browser" : "Run the JavaScript tour";
+  runButton.classList.toggle("outline", file !== "js");
   $("tour-output").hidden = true;
   $("tour-run-note").textContent =
     file === "js"
       ? "Runs the JavaScript tour in this page."
       : "Only JavaScript runs in this page. Every language runs in CI; run this one locally with the command above.";
-  if (!sources.has(file)) {
-    const response = await fetch(`tour/tour.${file}`);
-    sources.set(file, response.ok ? await response.text() : "// Couldn't load this tour.");
+  const source = await loadSource(file).catch(() => "// Couldn't load this tour.");
+  if (selected === file) $("tour-source").innerHTML = highlight(source, comment);
+}
+
+/**
+ * A tour's source, fetched once, or again after a failure.
+ *
+ * @param {string} file
+ * @returns {Promise<string>}
+ */
+function loadSource(file) {
+  let source = sources.get(file);
+  if (!source) {
+    source = fetch(`tour/tour.${file}`)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Couldn't load the tour (${response.status}).`);
+        return response.text();
+      })
+      .catch((error) => {
+        sources.delete(file);
+        throw error;
+      });
+    sources.set(file, source);
   }
-  if (selected === file) $("tour-source").innerHTML = highlight(sources.get(file) ?? "", comment);
+  return source;
 }
 
 for (const row of tabRows) {
@@ -489,12 +512,14 @@ devMode = initDevMode({
 // language's tour prints.
 
 $("tour-run").addEventListener("click", async () => {
+  if (selected !== "js") selectLanguage("js");
   const output = $("tour-output");
   const note = $("tour-run-note");
   output.hidden = false;
   output.textContent = "Running…";
   try {
-    const out = await runTour(sources.get("js") ?? "", { hrefine, "@temperlang/core": temperCore });
+    // Waits for the source, in case the click beat it.
+    const out = await runTour(await loadSource("js"), { hrefine, "@temperlang/core": temperCore });
     output.textContent = out;
     const expected = await (await fetch("tour/expected.txt")).text();
     note.textContent =

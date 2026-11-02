@@ -276,22 +276,22 @@ Hrefine's own, which stay open in Temper.
   (C++) don't give it, and no backend compares two `Url`s by value.
   *Done in Temper:* `toString()` gives the URL (masking credentials since;
   see "Credentials"), and `@operator("==")`
-  compares whole URLs, credentials included (`hrefWithCredentials`). *Open in Temper:* backends still emit them as plain
-  `toString`/`eq` methods, so only Java's string concatenation and JS
-  templates use `toString`, and no language's own `==` or `equals`
-  compares by value (Python, C#, Rust, C++, and Lua get no `__eq__`,
-  `Equals`, `PartialEq`, `operator==`, or `__eq`).
-- **Per language:** Rust needs `None::<&str>` for no base, `.as_str()`
-  to compare parts, and `init` first (else a bare `unwrap` panic); Python
-  takes no keywords (`base=` fails); C++ needs `global_init_init()` and
-  Temper's `NullableParam` for an optional base (and now for
-  `portNumber`), and its header shows every internal, with `Url`'s
-  fields public and mutable; C#, JS, Python, Lua, and C++ make private
-  constructors public, so a `Url` needn't come from the parser; Java and
-  C# reach the functions through a `HrefineGlobal` class; and Lua gives
-  `temper.null`, not `nil`, for a null result (`Url.parse`,
-  `portNumber`), so the tour uses `temper.null_to_nil`. All Temper's,
-  in `notes/temper-fixes.md`'s terms; still open.
+  compares whole URLs, credentials included (`hrefWithCredentials`).
+  *Since in Temper:* `toString` reaches Python's `str()` and C#'s
+  `ToString` too, beside Java's and JavaScript's. *Open in Temper:*
+  Rust gets no `Display`, nor Lua `__tostring` or C++ `<<`, and no
+  language's own `==` or `equals` compares by value (Python, C#, Rust,
+  C++, and Lua get no `__eq__`, `Equals`, `PartialEq`, `operator==`, or
+  `__eq`).
+- **Per language:** Rust needs `None::<&str>` for no base and
+  `.as_str()` to compare parts; Python takes no keywords (`base=`
+  fails); C++ needs Temper's `NullableParam` for `portNumber`, and its
+  header shows every internal, with `Url`'s fields public and mutable;
+  C#, JS, Python, Lua, and C++ make private constructors public, so a
+  `Url` needn't come from the parser; Java and C# reach the functions
+  through a `HrefineGlobal` class; and Lua gives `temper.null`, not
+  `nil`, for a null result (`Url.parse`, `portNumber`), which is truthy,
+  so the tour uses `temper.null_to_nil`. All Temper's; still open.
 
 ## Setters on an immutable URL
 

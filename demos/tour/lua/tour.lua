@@ -9,8 +9,9 @@ local UrlSearchParams, UrlPolicy = hrefine.UrlSearchParams, hrefine.UrlPolicy
 local parseHost, domainToAscii, domainToUnicode = hrefine.parseHost, hrefine.domainToAscii, hrefine.domainToUnicode
 local UrlDisplay, parseUrlSource = hrefine.UrlDisplay, hrefine.parseUrlSource
 local domainToDisplay = hrefine.domainToDisplay
--- Temper's runtime gives temper.null, not nil, for no value, so null_to_nil
--- turns it into nil.
+-- Temper's runtime gives temper.null, not nil, for no value. It's a table,
+-- so it's truthy: `if Url.parse(input) then` passes for every input. So
+-- null_to_nil turns it into nil, and a policy's check has `passed`.
 local temper = require("temper-core")
 local null_to_nil = temper.null_to_nil
 
@@ -277,9 +278,8 @@ local inputs = {
 }
 for _, input in ipairs(inputs) do  -- snippet: policy
   local result = policy:check(input)  -- snippet: policy
-  local fetched = null_to_nil(result.url)  -- snippet: policy
-  if fetched then  -- snippet: policy
-    print(input .. ": fetch " .. fetched.href)  -- snippet: policy
+  if result.passed then  -- snippet: policy
+    print(input .. ": fetch " .. result.url.href)  -- snippet: policy
   else  -- snippet: policy
     print(input .. ": refuse, " .. result:toString())  -- snippet: policy
   end  -- snippet: policy

@@ -39,6 +39,10 @@ into `wpt/` for the page's live scoreboard) in Node, through Node's `URL`
 and Hrefine's built JS, with the page's own scoring module
 (`scoreboard-node.mjs` and `scoreboard.js`). Node's score goes in the page
 beside the visitor's, and the build fails unless Hrefine passes every case.
+
+The page labels each Node result with the version that gave it: the
+recorded answers with the recorded Node, and the score with the build's.
+The build warns if the two differ.
 """
 
 import difflib
@@ -584,6 +588,9 @@ def main():
     copy(WPT, OUT / "wpt" / "urltestdata.json")
     copy(SITE / "scoreboard.js", OUT / "scoreboard.js")
     scores = node_scores()
+    recorded_node = next(p["version"] for p in recorded["parsers"] if p["id"] == "browser")
+    if recorded_node != f"Node v{scores['node']}":
+        print(f"Warning: the score is from Node {scores['node']}, and recorded.json from {recorded_node}.")
 
     more, tables, more_count = corpus(gallery, recorded)
     (OUT / "tables.json").write_text(json.dumps(tables, ensure_ascii=False) + "\n", encoding="utf-8")
