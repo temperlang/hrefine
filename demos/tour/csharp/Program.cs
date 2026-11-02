@@ -29,8 +29,10 @@ Console.WriteLine($"input: {text}");
 Console.WriteLine($"href: {url.Href}");  // snippet: parts
 Console.WriteLine($"origin: {url.Origin}");  // snippet: parts
 Console.WriteLine($"protocol: {url.Protocol}");  // snippet: parts
-Console.WriteLine($"username: {url.Username}");  // snippet: parts
-Console.WriteLine($"password: {url.Password}");  // snippet: parts
+// Username() and Password() are methods, not properties, as is
+// HrefWithCredentials(), so System.Text.Json leaves them out.
+Console.WriteLine($"username: {url.Username()}");  // snippet: parts
+Console.WriteLine($"password: {url.Password()}");  // snippet: parts
 Console.WriteLine($"host: {url.Host}");  // snippet: parts
 Console.WriteLine($"hostname: {url.Hostname}");  // snippet: parts, hero
 Console.WriteLine($"port: {url.Port}");  // snippet: parts
@@ -135,7 +137,7 @@ foreach (var input in new[] {
 // the one to hand on, store, or compare as text. url.ToString() masks them,
 // for logs ($"{url}" gives it too), and WithoutCredentials() gives a Url
 // without them. Only to send them deliberately, there's
-// HrefWithCredentials, which has the password: never log it.
+// HrefWithCredentials(), which has the password: never log it.
 Console.WriteLine($"href, to hand on: {url.Href}");
 Console.WriteLine($"as a string: {url.ToString()}");
 Console.WriteLine($"without credentials: {url.WithoutCredentials().ToString()}");
@@ -260,7 +262,7 @@ var cases = new[] {
 foreach (var (input, baseUrl, href) in cases)  // snippet: scoreboard
 {  // snippet: scoreboard
     var parsed = Url.Parse(input, baseUrl);  // snippet: scoreboard
-    var got = parsed?.HrefWithCredentials ?? "";  // snippet: scoreboard
+    var got = parsed?.HrefWithCredentials() ?? "";  // snippet: scoreboard
     Console.WriteLine($"{input} against {baseUrl}: {(got == href ? "pass" : "fail")}");  // snippet: scoreboard
 }  // snippet: scoreboard
 
@@ -269,9 +271,10 @@ Section("9. Policies");
 // A policy does the checks of section 6 in one call, on the parsed URL. Build
 // it once, a rule at a time, and use it for every URL. UrlPolicy.Fetch, for
 // URLs a server fetches, is https only, strict, with no credentials and no
-// private, loopback, or other special addresses or names; this one adds
-// example.com or its subdomains. Reasons never show credentials.
-var policy = UrlPolicy.Fetch.WithHosts(new[] { "example.com" }, true);  // snippet: policy
+// private, loopback, or other special addresses or names, and only the
+// scheme's default port; this one adds example.com or its subdomains.
+// Reasons never show credentials.
+var policy = UrlPolicy.Fetch.WithSubdomainsOf(new[] { "example.com" });  // snippet: policy
 var inputs = new[] {
     "https://api.example.com/v1/items",
     "http://example.com/",
@@ -281,6 +284,7 @@ var inputs = new[] {
     "https://[::ffff:127.0.0.1]/",
     "https://localhost./",
     "https://exаmple.com/",
+    "https://example.com:6379/",
 };
 foreach (var input in inputs)  // snippet: policy
 {  // snippet: policy
@@ -294,6 +298,20 @@ foreach (var input in inputs)  // snippet: policy
         Console.WriteLine($"{input}: refuse, {result.ToString()}");  // snippet: policy
     }  // snippet: policy
 }  // snippet: policy
+// WithPorts allows ports beyond the default, and WithHosts takes exact
+// hosts. A bad entry, such as a host with a port, throws, rather than
+// matching nothing.
+var more = policy.WithPorts(new[] { 8443 }).Check("https://example.com:8443/").Url;
+Console.WriteLine($"with port 8443: {more?.Href}");
+try
+{
+    UrlPolicy.Fetch.WithHosts(new[] { "example.com:443" });
+    Console.WriteLine("allowlist example.com:443: taken");
+}
+catch (Exception)
+{
+    Console.WriteLine("allowlist example.com:443: throws");
+}
 
 // Strict mode refuses what the standard accepts but notes as an error, as
 // cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
@@ -327,7 +345,7 @@ Section("10. Showing, comparing, and spans");
 // where browsers would show them (not look-alikes such as Cyrillic а in
 // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
 // security decisions, nor for handing on: use Href for those.
-var display = UrlDisplay.AddressBar.WithRootSlash(false);  // snippet: display
+var display = UrlDisplay.AddressBar;  // snippet: display
 foreach (var input in new[] {  // snippet: display
     "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
     "https://xn--pple-43d.com/",  // snippet: display

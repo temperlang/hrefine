@@ -200,7 +200,8 @@ people know, with JavaScript's names, revised after the tours
   branches and one per run of code points.
 - `Url`, immutable at first, with the standard's getters, each a
   `String`: `href` (without credentials since; see "Credentials"),
-  `origin`, `protocol`, `username`, `password`,
+  `origin`, `protocol`, `username()`, `password()` (methods since; see
+  "Credentials"),
   `host`, `hostname`, `port`, `pathname`, `search`, and `hash`; typed
   parts beside them: `scheme`, `portNumber: Int?`, and
   `hostKind: HostKind?`; `resolve(ref): Url throws Bubble` and
@@ -276,7 +277,7 @@ Hrefine's own, which stay open in Temper.
   (C++) don't give it, and no backend compares two `Url`s by value.
   *Done in Temper:* `toString()` gives the URL (masking credentials since;
   see "Credentials"), and `@operator("==")`
-  compares whole URLs, credentials included (`hrefWithCredentials`).
+  compares whole URLs, credentials included (`hrefWithCredentials()`).
   *Since in Temper:* `toString` reaches Python's `str()` and C#'s
   `ToString` too, beside Java's and JavaScript's. *Open in Temper:*
   Rust gets no `Display`, nor Lua `__tostring` or C++ `<<`, and no
@@ -426,7 +427,7 @@ default port written out, dot segments, and hosts that IDNA maps
 
 Decided 2026-10-30. The checks people get wrong by hand, on the parsed
 URL: schemes, credentials, IP hosts, special addresses (against SSRF),
-host allowlists, the same origin, redirect targets (path only), a
+host allowlists, ports, the same origin, redirect targets (path only), a
 maximum length, and strict mode. One immutable `UrlPolicy`, built once,
 from `UrlPolicy.any` (no rules), by `with` methods, each giving a new
 policy with one more rule, and `policy.check(input)` giving a
@@ -438,7 +439,7 @@ policy with one more rule, and `policy.check(input)` giving a
   `Url` and leave strict mode and length (which need the input) out.
   One `check` says which rule failed first, in one documented order.
 - **`with` methods, not an object literal or a builder:** Temper has no
-  named arguments outside constructors, and an object literal of eleven
+  named arguments outside constructors, and an object literal of twelve
   optional properties would be positional arguments in JavaScript, Lua,
   and C++. `with` methods translate plainly to all seven languages, as
   `Url`'s setters do, read well chained, and keep the policy immutable,
@@ -454,7 +455,22 @@ policy with one more rule, and `policy.check(input)` giving a
   read as a special URL's host would be (`gopher://0x7f.1/`), since
   other clients may. Allowlist entries are parsed with `parseHost`, so
   they're lowercased, in Punycode, and canonical, and compared ignoring
-  a trailing dot. An entry that isn't a host matches nothing.
+  a trailing dot.
+- **Allowlists bubble on bad entries** (decided 2026-11-02, breaking):
+  `withHosts(list)` takes exact hosts, and `withSubdomainsOf(list)`
+  domains and the names under them, in place of `withHosts(list,
+  subdomains)` and its bare `true`. A policy can have both, and a host
+  passes if either allows it. An entry that isn't a host
+  (`example.com:443`, `https://example.com/`, `*.example.com`, an empty
+  one, or, for `withSubdomainsOf`, an address) bubbles, rather than
+  matching nothing, so a mistake in configuration fails where the
+  policy is built. Like every `with` method, each call replaces its
+  list rather than adding to it.
+- **Ports** (decided 2026-11-02): `UrlPolicy.fetch` allows only each
+  scheme's default port, which the parser drops anyway, so
+  `https://example.com:443/` passes and `https://example.com:6379/`
+  doesn't; `withPorts(list)` allows others, and bubbles on a number
+  outside 0 to 65,535. `UrlPolicy.any` allows any port.
 - **Special addresses** come from IANA's IPv4 and IPv6 special-purpose
   registries (blocks not globally reachable), multicast and everything
   outside IPv6 global unicast from the address-space registries, NAT64
@@ -566,7 +582,10 @@ on `nsIURIFixup` before, from [bug
 through web search, as above;
 with `withCredentials(true)`, the username is shown, but a password only
 ever as `***`; the fragment; and a path that's only `/`, with nothing
-after it, which special URLs read back the same. The scheme stays: dropping `https://` hides what the
+after it, which special URLs read back the same. That's left out by
+default (decided 2026-11-02), as Chromium's address bar leaves it out
+(`kFormatUrlOmitTrailingSlashOnBareHostname`), and `withRootSlash(true)`
+shows it. The scheme stays: dropping `https://` hides what the
 connection is.
 
 ## Credentials
@@ -584,8 +603,8 @@ or "secure", which would promise more than Hrefine gives.
   and if credentials were needed, the request fails to authenticate, a
   loud and safe failure, where the standard's `href` would leak them
   into logs, analytics, referrers, and error messages. The exact
-  serialization is `hrefWithCredentials` (and
-  `strictHrefWithCredentials`): the default name is safe, and the
+  serialization is `hrefWithCredentials()` (and
+  `strictHrefWithCredentials()`): the default name is safe, and the
   dangerous one is explicit, and easy to grep for in review. It's the
   one name that differs in meaning from JavaScript's `URL`, which the
   README says plainly; few URLs carry credentials, so code ported from
@@ -605,6 +624,13 @@ or "secure", which would promise more than Hrefine gives.
   JavaScript templates and
   Java's concatenation use `toString`; other backends' own conversions
   don't reach it yet, so they show no URL text at all.
+- **Methods, not getters** (decided 2026-11-02, breaking):
+  `hrefWithCredentials()`, `strictHrefWithCredentials()`,
+  `username()`, and `password()`, so serializers that read getters or
+  properties (Java's Jackson, C#'s `System.Text.Json`) leave the
+  credentials out of a `Url`, and of a `UrlCheck` or `PolicyCheck`
+  holding one. Gson reads fields, so it still writes them, until
+  Temper can mark fields `transient`.
 - **The display form hides them** (above), and never shows a password.
 - **Policy reasons never echo them,** saying "a username" or "a
   password", nor the input. A reason may name a host, an origin, or a
@@ -623,7 +649,7 @@ or "secure", which would promise more than Hrefine gives.
   `Url` is wanted rather than text.
 
 So: `href` to hand on, store, or compare as text; `withoutCredentials()`
-for a `Url`; `hrefWithCredentials` only to send credentials
+for a `Url`; `hrefWithCredentials()` only to send credentials
 deliberately; and `toString()` for logs.
 - **Text as written** (`UrlSource.asWritten`, each `SourceSpan`'s) is
   documented as possibly holding credentials and other secrets.
@@ -643,7 +669,7 @@ rather than a comparison builder: there are three useful questions, and
 each is the standard's or HTML's own:
 
 - `==` (`eq`): the same URL, the standard's URL equals, comparing
-  `hrefWithCredentials`, so credentials count.
+  `hrefWithCredentials()`, so credentials count.
 - `url.sameDocument(other)`: the same but for the fragment, the
   standard's URL equals with *exclude fragments*, as HTML uses for a
   jump within a page.

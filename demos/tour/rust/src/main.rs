@@ -271,9 +271,10 @@ fn main() {
     // Build it once, a rule at a time, and use it for every URL.
     // UrlPolicy::fetch(), for URLs a server fetches, is https only, strict,
     // with no credentials and no private, loopback, or other special
-    // addresses or names; this one adds example.com or its subdomains.
-    // Reasons never show credentials.
-    let policy = UrlPolicy::fetch().with_hosts([Arc::new("example.com".to_string())], true);  // snippet: policy
+    // addresses or names, and only the scheme's default port; this one adds
+    // example.com or its subdomains. Reasons never show credentials. A bad
+    // allowlist entry is an Err.
+    let policy = UrlPolicy::fetch().with_subdomains_of([Arc::new("example.com".to_string())]).expect("an allowlist");  // snippet: policy
     let inputs = [
         "https://api.example.com/v1/items",
         "http://example.com/",
@@ -283,6 +284,7 @@ fn main() {
         "https://[::ffff:127.0.0.1]/",
         "https://localhost./",
         "https://ex\u{430}mple.com/",
+        "https://example.com:6379/",
     ];
     for input in inputs {  // snippet: policy
         let result = policy.check(input);  // snippet: policy
@@ -291,6 +293,16 @@ fn main() {
             None => println!("{input}: refuse, {}", result.to_string()),  // snippet: policy
         }  // snippet: policy
     }  // snippet: policy
+    // with_ports allows ports beyond the default, and with_hosts takes exact
+    // hosts. A bad entry, such as a host with a port, is an Err, rather than
+    // matching nothing.
+    let more = policy.with_ports([8443]).expect("a port");
+    let passed = more.check("https://example.com:8443/").url().expect("allowed");
+    println!("with port 8443: {}", passed.href());
+    match UrlPolicy::fetch().with_hosts([Arc::new("example.com:443".to_string())]) {
+        Ok(_) => println!("allowlist example.com:443: taken"),
+        Err(_) => println!("allowlist example.com:443: throws"),
+    }
 
     // Strict mode refuses what the standard accepts but notes as an error,
     // as cautious parsers do: backslashes, tabs, odd IPv4 forms, and the
@@ -323,7 +335,7 @@ fn main() {
     // where browsers would show them (not look-alikes such as Cyrillic а in
     // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
     // security decisions, nor for handing on: use href() for those.
-    let display = UrlDisplay::address_bar().with_root_slash(false);  // snippet: display
+    let display = UrlDisplay::address_bar();  // snippet: display
     for input in [  // snippet: display
         "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
         "https://xn--pple-43d.com/",  // snippet: display

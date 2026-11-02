@@ -12,7 +12,7 @@ const { checkUrl, domainToDisplay, UrlDisplay } = hrefine;
 // How browsers' address bars would show a URL: hosts in Unicode where
 // they'd show it, escapes of non-ASCII text decoded, and no credentials or
 // lone "/" path. For people only, never for decisions.
-const display = UrlDisplay.addressBar.withRootSlash(false);
+const display = UrlDisplay.addressBar;
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -152,9 +152,9 @@ function update() {
     const kind = h.url.hostKind === null ? "" : ` <span class="small-note">(${h.url.hostKind} host)</span>`;
     what = `<span class="host-line">${hostHtml(hHost)}${kind}</span><code>${shown(h.url.href)}</code>` +
       `<span class="display-line">Shown to people as <code>${shown(display.format(h.url))}</code></span>` +
-      (h.url.username !== "" || h.url.password !== ""
+      (h.url.username() !== "" || h.url.password() !== ""
         ? `<span class="display-line">Logged, by <code>toString()</code>, as <code>${shown(h.url.toString())}</code></span>` +
-          '<span class="display-line"><code>href</code> leaves out the credentials, by design; <code>hrefWithCredentials</code> keeps them, only to send them.</span>'
+          '<span class="display-line"><code>href</code> leaves out the credentials, by design; <code>hrefWithCredentials()</code> keeps them, only to send them.</span>'
         : "");
   } else {
     const last = h.errors.at(-1);
@@ -164,7 +164,7 @@ function update() {
 
   const browserBox = $("browser-verdict");
   const same = b.url
-    ? h.url !== null && b.url.href === h.url.hrefWithCredentials
+    ? h.url !== null && b.url.href === h.url.hrefWithCredentials()
     : h.url === null;
   if (b.url) {
     $("browser-what").innerHTML = `<span class="host-line">${hostHtml(b.host)}</span><code>${shown(b.url.href)}</code>`;
@@ -180,10 +180,12 @@ function update() {
   // Parts, side by side.
   const cell = (/** @type {string | null} */ v) => (v === null ? '<span class="none">—</span>' : v === "" ? '<span class="none">""</span>' : `<code>${shown(v)}</code>`);
   // Hrefine's href leaves out credentials, by design, so its
-  // hrefWithCredentials is what's compared with the browser's href.
-  const full = h.url ? h.url.hrefWithCredentials : null;
+  // hrefWithCredentials() is what's compared with the browser's href.
+  // username() and password() are methods, unlike the browser's getters.
+  const full = h.url ? h.url.hrefWithCredentials() : null;
   const rows = PARTS.map((part) => {
-    const hv = h.url ? /** @type {any} */ (h.url)[part] : null;
+    const own = h.url ? /** @type {any} */ (h.url)[part] : null;
+    const hv = typeof own === "function" ? own.call(h.url) : own;
     const bv = b.url ? /** @type {any} */ (b.url)[part] : null;
     const diff = h.url !== null && b.url !== null && (part === "href" ? full : hv) !== bv;
     // Under the name, not beside the value, so it reads well when narrow.
@@ -191,7 +193,7 @@ function update() {
     return `<tr class="${diff ? "diff" : ""}"><th scope="row">${part}${note}</th><td>${cell(hv)}</td><td>${cell(bv)}${diff ? ' <span aria-label="differs">≠</span>' : ""}</td></tr>`;
   });
   if (h.url && full !== h.url.href) {
-    rows.splice(1, 0, `<tr class="typed"><th scope="row">hrefWithCredentials</th><td>${cell(full)}</td><td><span class="none">its href, above</span></td></tr>`);
+    rows.splice(1, 0, `<tr class="typed"><th scope="row">hrefWithCredentials()</th><td>${cell(full)}</td><td><span class="none">its href, above</span></td></tr>`);
   }
   if (h.url) {
     const typed = [

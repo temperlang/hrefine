@@ -28,8 +28,10 @@ console.log(`input: ${text}`);
 console.log(`href: ${url.href}`);  // snippet: parts
 console.log(`origin: ${url.origin}`);  // snippet: parts
 console.log(`protocol: ${url.protocol}`);  // snippet: parts
-console.log(`username: ${url.username}`);  // snippet: parts
-console.log(`password: ${url.password}`);  // snippet: parts
+// username() and password() are methods, unlike JavaScript's, as is
+// hrefWithCredentials().
+console.log(`username: ${url.username()}`);  // snippet: parts
+console.log(`password: ${url.password()}`);  // snippet: parts
 console.log(`host: ${url.host}`);  // snippet: parts
 console.log(`hostname: ${url.hostname}`);  // snippet: parts, hero
 console.log(`port: ${url.port}`);  // snippet: parts
@@ -122,7 +124,7 @@ for (const input of [
 // the one to hand on, store, or compare as text. toString() masks them, for
 // logs (templates and String() give it too), and withoutCredentials() gives
 // a Url without them. Only to send them deliberately, there's
-// hrefWithCredentials, which has the password: never log it.
+// hrefWithCredentials(), which has the password: never log it.
 console.log(`href, to hand on: ${url.href}`);
 console.log(`as a string: ${url.toString()}`);
 console.log(`without credentials: ${url.withoutCredentials().toString()}`);
@@ -233,7 +235,7 @@ const cases = [
 ];
 for (const [input, base, href] of cases) {  // snippet: scoreboard
   const url = Url.parse(input, base);  // snippet: scoreboard
-  const got = url === null ? "" : url.hrefWithCredentials;  // snippet: scoreboard
+  const got = url === null ? "" : url.hrefWithCredentials();  // snippet: scoreboard
   console.log(`${input} against ${base}: ${got === href ? "pass" : "fail"}`);  // snippet: scoreboard
 }  // snippet: scoreboard
 
@@ -242,9 +244,10 @@ section("9. Policies");
 // A policy does the checks of section 6 in one call, on the parsed URL. Build
 // it once, a rule at a time, and use it for every URL. UrlPolicy.fetch, for
 // URLs a server fetches, is https only, strict, with no credentials and no
-// private, loopback, or other special addresses or names; this one adds
-// example.com or its subdomains. Reasons never show credentials.
-const policy = UrlPolicy.fetch.withHosts(["example.com"], true);  // snippet: policy
+// private, loopback, or other special addresses or names, and only the
+// scheme's default port; this one adds example.com or its subdomains.
+// Reasons never show credentials.
+const policy = UrlPolicy.fetch.withSubdomainsOf(["example.com"]);  // snippet: policy
 const inputs = [
   "https://api.example.com/v1/items",
   "http://example.com/",
@@ -254,6 +257,7 @@ const inputs = [
   "https://[::ffff:127.0.0.1]/",
   "https://localhost./",
   "https://ex\u0430mple.com/",
+  "https://example.com:6379/",
 ];
 for (const input of inputs) {  // snippet: policy
   const result = policy.check(input);  // snippet: policy
@@ -263,6 +267,16 @@ for (const input of inputs) {  // snippet: policy
     console.log(`${input}: refuse, ${result.toString()}`);  // snippet: policy
   }  // snippet: policy
 }  // snippet: policy
+// withPorts allows ports beyond the default, and withHosts takes exact
+// hosts. A bad entry, such as a host with a port, throws, rather than
+// matching nothing.
+console.log(`with port 8443: ${policy.withPorts([8443]).check("https://example.com:8443/").url?.href}`);
+try {
+  UrlPolicy.fetch.withHosts(["example.com:443"]);
+  console.log("allowlist example.com:443: taken");
+} catch {
+  console.log("allowlist example.com:443: throws");
+}
 
 // Strict mode refuses what the standard accepts but notes as an error, as
 // cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
@@ -292,7 +306,7 @@ section("10. Showing, comparing, and spans");
 // where browsers would show them (not look-alikes such as Cyrillic а in
 // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
 // security decisions, nor for handing on: use href for those.
-const display = UrlDisplay.addressBar.withRootSlash(false);  // snippet: display
+const display = UrlDisplay.addressBar;  // snippet: display
 for (const input of [  // snippet: display
   "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
   "https://xn--pple-43d.com/",  // snippet: display

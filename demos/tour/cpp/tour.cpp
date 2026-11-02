@@ -68,8 +68,10 @@ int main() {
   std::cout << "href: " << url->get_href() << "\n";  // snippet: parts
   std::cout << "origin: " << url->get_origin() << "\n";  // snippet: parts
   std::cout << "protocol: " << url->get_protocol() << "\n";  // snippet: parts
-  std::cout << "username: " << url->get_username() << "\n";  // snippet: parts
-  std::cout << "password: " << url->get_password() << "\n";  // snippet: parts
+  // username() and password() are methods, not getters, as is
+  // hrefWithCredentials().
+  std::cout << "username: " << url->username() << "\n";  // snippet: parts
+  std::cout << "password: " << url->password() << "\n";  // snippet: parts
   std::cout << "host: " << url->get_host() << "\n";  // snippet: parts
   std::cout << "hostname: " << url->get_hostname() << "\n";  // snippet: parts, hero
   std::cout << "port: " << url->get_port() << "\n";  // snippet: parts
@@ -161,7 +163,7 @@ int main() {
   // so it's the one to hand on, store, or compare as text. toString() masks
   // them, for logs, but there's no operator<<. withoutCredentials() gives a
   // Url without them. Only to send them deliberately, there's
-  // get_hrefWithCredentials(), which has the password: never log it.
+  // hrefWithCredentials(), which has the password: never log it.
   std::cout << "href, to hand on: " << url->get_href() << "\n";
   std::cout << "as a string: " << url->toString() << "\n";
   std::cout << "without credentials: " << url->withoutCredentials()->toString() << "\n";
@@ -263,7 +265,7 @@ int main() {
   };
   for (auto const &[input, base, href] : cases) {  // snippet: scoreboard
     auto url = Url::parse(input, base);  // snippet: scoreboard
-    std::string got = url ? url->get_hrefWithCredentials() : "";  // snippet: scoreboard
+    std::string got = url ? url->hrefWithCredentials() : "";  // snippet: scoreboard
     std::cout << input << " against " << base << ": " << (got == href ? "pass" : "fail") << "\n";  // snippet: scoreboard
   }  // snippet: scoreboard
 
@@ -273,14 +275,14 @@ int main() {
   // Build it once, a rule at a time, and use it for every URL.
   // UrlPolicy::fetch, for URLs a server fetches, is https only, strict, with
   // no credentials and no private, loopback, or other special addresses or
-  // names; this one adds example.com or its subdomains. Reasons never show
-  // credentials.
+  // names, and only the scheme's default port; this one adds example.com or
+  // its subdomains. Reasons never show credentials.
   using Strings = std::vector<std::string>;  // snippet: policy
-  auto policy = UrlPolicy::fetch()->withHosts(std::make_shared<Strings>(Strings{"example.com"}), true);  // snippet: policy
+  auto policy = UrlPolicy::fetch()->withSubdomainsOf(std::make_shared<Strings>(Strings{"example.com"}));  // snippet: policy
   std::vector<std::string> inputs = {"https://api.example.com/v1/items", "http://example.com/", "https://example.com@evil.example/",
                                        "https://127.1/", "https://169.254.169.254/latest/meta-data/",
                                        "https://[::ffff:127.0.0.1]/", "https://localhost./",
-                                       "https://exаmple.com/"};
+                                       "https://exаmple.com/", "https://example.com:6379/"};
   for (auto const &input : inputs) {  // snippet: policy
     auto result = policy->check(input);  // snippet: policy
     if (auto url = result->get_url()) {  // snippet: policy
@@ -289,6 +291,17 @@ int main() {
       std::cout << input << ": refuse, " << result->toString() << "\n";  // snippet: policy
     }  // snippet: policy
   }  // snippet: policy
+  // withPorts allows ports beyond the default, and withHosts takes exact
+  // hosts. A bad entry, such as a host with a port, throws, rather than
+  // matching nothing.
+  auto more = policy->withPorts(std::make_shared<std::vector<int32_t>>(std::vector<int32_t>{8443}));
+  std::cout << "with port 8443: " << more->check("https://example.com:8443/")->get_url()->get_href() << "\n";
+  try {
+    UrlPolicy::fetch()->withHosts(std::make_shared<Strings>(Strings{"example.com:443"}));
+    std::cout << "allowlist example.com:443: taken\n";
+  } catch (TemperBubble const &) {
+    std::cout << "allowlist example.com:443: throws\n";
+  }
 
   // Strict mode refuses what the standard accepts but notes as an error, as
   // cautious parsers do: backslashes, tabs, odd IPv4 forms, and the like.
@@ -321,7 +334,7 @@ int main() {
   // where browsers would show them (not look-alikes such as Cyrillic а in
   // xn--pple-43d.com), and escapes of non-ASCII text decoded. Never for
   // security decisions, nor for handing on: use get_href() for those.
-  auto display = UrlDisplay::addressBar()->withRootSlash(false);  // snippet: display
+  auto display = UrlDisplay::addressBar();  // snippet: display
   for (std::string input : {  // snippet: display
            "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
            "https://xn--pple-43d.com/",  // snippet: display

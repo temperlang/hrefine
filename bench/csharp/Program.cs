@@ -13,7 +13,7 @@ static class Program
 
     static string Parse((string Input, string? Base) pair)
     {
-        try { return Hrefine.HrefineGlobal.ParseUrl(pair.Input, pair.Base).HrefWithCredentials; }
+        try { return Hrefine.HrefineGlobal.ParseUrl(pair.Input, pair.Base).HrefWithCredentials(); }
         catch (Exception) { return "fail"; }
     }
 

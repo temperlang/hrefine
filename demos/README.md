@@ -13,7 +13,7 @@ on `href`, with that language's usual HTTP clients and servers shown in
 comments), changing parts with the setters (a port number too) and
 search parameters (from pairs too), running a few of
 web-platform-tests' cases, as the site's scoreboard does, policies:
-the same checks in one call, from the `UrlPolicy.fetch` preset, strict mode, and redirect targets, and
+the same checks in one call, from the `UrlPolicy.fetch` preset, with ports and a bad allowlist entry, strict mode, and redirect targets, and
 last, for people and tools: the display form (with look-alike hosts
 kept as `xn--`), comparisons, and where
 each part and validation error was written. Every version

@@ -19,7 +19,7 @@ times, each in a new process, reporting the median and range of:
 - first IDNA: the first domain to ASCII of a host beyond ASCII,
   `bücher.example`, after one ASCII URL;
 - parse: nanoseconds per URL, parsing each URL in the mix (against its base,
-  if it has one) and getting its `hrefWithCredentials` (the exact URL),
+  if it has one) and getting its `hrefWithCredentials()` (the exact URL),
   over and over for `--seconds` after warming up as long;
 - IDNA: nanoseconds per domain to ASCII of each domain in the mix;
 

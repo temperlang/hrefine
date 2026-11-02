@@ -109,6 +109,9 @@ https://169.254.169.254/latest/meta-data/: refuse, specialHost: 169.254.169.254 
 https://[::ffff:127.0.0.1]/: refuse, specialHost: [::ffff:7f00:1] is IPv4-mapped (RFC 4291), in ::ffff:0:0/96
 https://localhost./: refuse, specialHost: localhost. is loopback (RFC 6761)
 https://exаmple.com/: refuse, host: xn--exmple-4nf.com
+https://example.com:6379/: refuse, port: 6379
+with port 8443: https://example.com:8443/
+allowlist example.com:443: throws
 strict https://example.com/a b: https://example.com/a%20b
 strict http://0x7f.1/: refuse, IPv4-non-decimal-part at 7, IPv4-non-canonical at 7
 strict https://example.com\a: refuse, invalid-reverse-solidus at 19

@@ -26,7 +26,7 @@ and the date are recorded too, since answers change between versions.
 Then it gives every parser Hrefine's URL for each input, in place of the
 input, and then its strict RFC 3986 form, to show the fix: the parsers then
 read the host as browsers do. Both are the full forms,
-`hrefWithCredentials` and `strictHrefWithCredentials`, so tricks in the
+`hrefWithCredentials()` and `strictHrefWithCredentials()`, so tricks in the
 user info are kept; Hrefine's `href` and `strictHref` leave the credentials
 out. The JSON keeps the names `href` and `strictHref` for them, as each
 parser's `href` is its own exact serialization.
@@ -213,7 +213,7 @@ def main():
     inputs = [{"input": i["input"], "base": i.get("base")} for i in gallery["hero"] + cards + corpus]
     results, versions, missing = record(inputs)
 
-    # The fix, checked: each parser given Hrefine's URL (hrefWithCredentials)
+    # The fix, checked: each parser given Hrefine's URL (hrefWithCredentials())
     # instead of the input, and then its strict RFC 3986 form. Inputs Hrefine rejects have
     # neither, and are left out.
     hrefs = [{"input": r["hrefine"]["href"]} for r in results if r["hrefine"]["ok"]]

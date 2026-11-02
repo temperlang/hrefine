@@ -3,8 +3,8 @@
 The checks people need before trusting a URL, and often get wrong by
 hand: which schemes, no credentials, no IP addresses or no private and
 loopback ones (against server-side request forgery, SSRF), a host
-allowlist, the same origin, redirect targets that stay on the site, a
-maximum length, and strict parsing. Each works on the parsed URL, never
+allowlist, which ports, the same origin, redirect targets that stay on
+the site, a maximum length, and strict parsing. Each works on the parsed URL, never
 on the input string, so `127.1`, `0x7f.1`, `[::ffff:127.0.0.1]`,
 `good.example@evil.example`, and backslashes and tabs can't slip past.
 
@@ -18,7 +18,7 @@ For a URL your server fetches on someone's behalf, start from
 allowlist if you have one:
 
 ```temper inert
-let policy = UrlPolicy.fetch.withHosts(["example.com"], true);
+let policy = UrlPolicy.fetch.withSubdomainsOf(["example.com"]) orelse panic();
 let result = policy.check(input);
 if (result.url != null) { fetchUrl(result.url.href) } else { log(result.toString()) }
 ```
@@ -34,7 +34,8 @@ if (result.url != null) { fetchUrl(result.url.href) } else { log(result.toString
       private ipHosts: Boolean;
       private specialHosts: Boolean;
       private hosts: List<String>?;
-      private subdomains: Boolean;
+      private domains: List<String>?;
+      private ports: List<Int>?;
       private origin: Url?;
       private pathOnly: Boolean;
 
@@ -45,7 +46,7 @@ constructors public.
       private constructor(
         strict: Boolean, maxLength: Int, base: Url?, schemes: List<String>?,
         credentials: Boolean, ipHosts: Boolean, specialHosts: Boolean, hosts: List<String>?,
-        subdomains: Boolean, origin: Url?, pathOnly: Boolean,
+        domains: List<String>?, ports: List<Int>?, origin: Url?, pathOnly: Boolean,
       ) {
         this.strict = strict;
         this.maxLength = maxLength;
@@ -55,7 +56,8 @@ constructors public.
         this.ipHosts = ipHosts;
         this.specialHosts = specialHosts;
         this.hosts = hosts;
-        this.subdomains = subdomains;
+        this.domains = domains;
+        this.ports = ports;
         this.origin = origin;
         this.pathOnly = pathOnly;
       }
@@ -64,26 +66,31 @@ No rules: every URL that parses passes. The blank slate, for building
 a policy rule by rule.
 
       public static any: UrlPolicy = new UrlPolicy(
-        false, -1, null, null, true, true, true, null, false, null, false,
+        false, -1, null, null, true, true, true, null, null, null, null, false,
       );
 
 For a URL a server fetches on someone's behalf, as for webhooks, link
 previews, image proxies, and imports, the classic case for server-side
 request forgery: `https` only, no credentials, no special hosts (private,
-loopback, and the rest, however they're written), strict mode, and at
-most 8,192 code points, the request-line limit of common servers, so
-longer URLs would fail there anyway. Named for that use, as the Fetch
-standard names getting a resource, not as safe for every use: add an
-allowlist with `withHosts` where you have one, and still check the
-address your client connects to. It's `UrlPolicy.any` with those
-rules, so any can be changed, such as `withSchemes(["http", "https"])`.
-It refuses credentials in the URL, but can't tell which query
-parameters or fragments hold secrets (`?token=`), so don't log URLs
-that may carry tokens there.
+loopback, and the rest, however they're written), only the scheme's
+default port, strict mode, and at most 8,192 code points, the
+request-line limit of common servers, so longer URLs would fail there
+anyway. Named for that use, as the Fetch standard names getting a
+resource, not as safe for every use: add an allowlist with `withHosts`
+or `withSubdomainsOf` where you have one, and still check the address
+your client connects to. It's `UrlPolicy.any` with those rules, so any
+can be changed, such as `withSchemes(["http", "https"])` or
+`withPorts([8443])`. It refuses credentials in the URL, but can't tell
+which query parameters or fragments hold secrets (`?token=`), so don't
+log URLs that may carry tokens there.
 
       public static fetch: UrlPolicy = new UrlPolicy(
-        true, 8192, null, ["https"], false, true, false, null, false, null, false,
+        true, 8192, null, ["https"], false, true, false, null, null, [], null, false,
       );
+
+Each `with` method sets one rule, replacing what an earlier call to the
+same method set, as `withSchemes(["https"]).withSchemes(["http"])`
+allows only `http`.
 
 **Strict:** with `true`, the parse must note no validation error that
 strict mode counts (`UrlCheck.strictErrors`): no backslashes, tabs,
@@ -93,18 +100,18 @@ no `@` without a host after it, and the rest. See `checkUrl`.
 
       public withStrict(strict: Boolean): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
 
 **Maximum length,** in code points, of both the input, checked before
-parsing it, and `hrefWithCredentials`, which escapes can make longer;
+parsing it, and `hrefWithCredentials()`, which escapes can make longer;
 negative for no limit.
 
       public withMaxLength(maxLength: Int): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
@@ -114,7 +121,7 @@ negative for no limit.
 
       public withBase(base: Url): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
@@ -132,7 +139,7 @@ negative for no limit.
           }
         };
         new UrlPolicy(
-          strict, maxLength, base, normalized, credentials, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, normalized, credentials, ipHosts, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
@@ -145,7 +152,7 @@ query), or as in `https://good.example@evil.example/`, whose host is
 
       public withCredentials(allowed: Boolean): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, allowed, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, allowed, ipHosts, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
@@ -155,7 +162,7 @@ address, however it's written.
 
       public withIpHosts(allowed: Boolean): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, allowed, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, allowed, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
@@ -173,30 +180,64 @@ well, or connect through a proxy that does.
 
       public withSpecialHosts(allowed: Boolean): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, allowed, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, ipHosts, allowed, hosts, domains, ports,
           origin, pathOnly,
         )
       }
 
-**Host allowlist:** the host must be one of `hosts`, or with
-`subdomains`, a domain under one of them. Each is read as a URL's host
-is, with `parseHost`, so `Example.COM`, `bücher.example`, and `0x7f.1`
-mean `example.com`, `xn--bcher-kva.example`, and `127.0.0.1`, and
-compared with the URL's parsed host, ignoring a trailing dot on either.
-An entry that isn't a host (such as `::1` without brackets) matches
-nothing.
+**Host allowlist:** the host must be one of `hosts`, exactly, or, with
+`withSubdomainsOf`, one of its domains or a name under one. A policy can
+have both, and a host passes if either allows it. Each entry is read as
+a URL's host is, with `parseHost`, so `Example.COM`, `bücher.example`,
+and `0x7f.1` mean `example.com`, `xn--bcher-kva.example`, and
+`127.0.0.1`, and compared with the URL's parsed host, ignoring a
+trailing dot on either. An entry that isn't a host, such as
+`example.com:443`, `https://example.com/`, `*.example.com`, `::1`
+without brackets, or an empty one, bubbles, so a mistake in
+configuration fails where the policy is built, rather than refusing or
+allowing hosts later.
 
-      public withHosts(hosts: List<String>, subdomains: Boolean): UrlPolicy {
-        let parsed = new ListBuilder<String>();
-        for (let entry of hosts) {
-          let host: Host? = parseHost(entry) orelse null;
-          if (host != null) {
-            parsed.add(withoutTrailingDot(host.serialized));
+      public withHosts(hosts: List<String>): UrlPolicy throws Bubble {
+        let parsed = allowedHosts(hosts, false);
+        new UrlPolicy(
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, parsed, domains, ports,
+          origin, pathOnly,
+        )
+      }
+
+**Subdomains:** the host must be one of `domains`, or a name under one,
+as `api.example.com` and `a.b.example.com` are under `example.com`, but
+`evilexample.com` isn't. Each entry is read as for `withHosts`, and
+must be a domain, since an address has no names under it; anything
+else bubbles.
+
+      public withSubdomainsOf(domains: List<String>): UrlPolicy throws Bubble {
+        let parsed = allowedHosts(domains, true);
+        new UrlPolicy(
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, parsed, ports,
+          origin, pathOnly,
+        )
+      }
+
+**Ports:** the URL's port must be its scheme's default, as 443 is for
+`https`, or one of `ports`. The parser drops a default port written out,
+so `https://example.com:443/` passes, with no port. A number that can't
+be a port, outside 0 to 65,535, bubbles. `UrlPolicy.fetch` allows only
+default ports, so `withPorts([8443])` adds 8443; `UrlPolicy.any` allows
+any port.
+
+      public withPorts(ports: List<Int>): UrlPolicy throws Bubble {
+        let checked = new ListBuilder<Int>();
+        for (var k = 0; k < ports.length; k += 1) {
+          let port = ports[k];
+          if (port < 0 || port > 65535) {
+            bubble();
           }
+          checked.add(port);
         }
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, parsed.toList(),
-          subdomains, origin, pathOnly,
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, domains,
+          checked.toList(), origin, pathOnly,
         )
       }
 
@@ -205,7 +246,7 @@ nothing.
 
       public withSameOrigin(url: Url): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, domains, ports,
           url, pathOnly,
         )
       }
@@ -219,7 +260,7 @@ to the base's own host. It needs a base, from `withBase`.
 
       public withPathOnly(pathOnly: Boolean): UrlPolicy {
         new UrlPolicy(
-          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, subdomains,
+          strict, maxLength, base, schemes, credentials, ipHosts, specialHosts, hosts, domains, ports,
           origin, pathOnly,
         )
       }
@@ -228,8 +269,9 @@ to the base's own host. It needs a base, from `withBase`.
 
 Parses `input`, against the base if there is one, and checks each rule,
 in this order: the input's length, parsing, strict mode,
-`hrefWithCredentials`'s length, the scheme, credentials, IP hosts,
-special hosts, the host allowlist, the same origin, and path only. It says which rule failed
+`hrefWithCredentials()`'s length, the scheme, credentials, IP hosts,
+special hosts, the host allowlist, the port, the same origin, and path
+only. It says which rule failed
 first, or gives the URL. It never bubbles.
 
       public check(input: String): PolicyCheck {
@@ -238,7 +280,7 @@ first, or gives the URL. It never bubbles.
         } else if (strict) {
           let b = base;
           // The base's full form, as resolve uses it, credentials and all.
-          let baseText: String? = if (b == null) { null } else { b.hrefWithCredentials };
+          let baseText: String? = if (b == null) { null } else { b.hrefWithCredentials() };
           let found: UrlCheck? = checkUrl(input, baseText) orelse null;
           let url: Url? = if (found == null) { null } else { found.url };
           let errors: List<ValidationError> = if (found == null) { [] } else { found.strictErrors };
@@ -267,7 +309,7 @@ read that way fails the host rules.
 
       private checkParsed(input: String, url: Url): PolicyCheck {
         // Credentials count toward the length, as a client sending them would.
-        let href = url.hrefWithCredentials;
+        let href = url.hrefWithCredentials();
         var kind = url.hostKind;
         var host = url.hostname;
         var unreadable = false;
@@ -281,21 +323,29 @@ read that way fails the host rules.
           }
         }
         let allowedSchemes = schemes;
-        let allowedHosts = hosts;
+        let exactHosts = hosts;
+        let underDomains = domains;
+        let allowedPorts = ports;
+        let port = url.portNumber;
         let sameAs = origin;
         let special = if (specialHosts) { null } else { specialHostReason(kind, host, unreadable) };
         if (maxLength >= 0 && href.hasAtLeast(String.begin, href.end, maxLength + 1)) {
           refuse(PolicyRule.maxLength, "the URL is longer than ${maxLength.toString()} code points")
         } else if (allowedSchemes != null && !hasString(allowedSchemes, url.scheme)) {
           refuse(PolicyRule.scheme, schemeReason(url.scheme))
-        } else if (!credentials && (url.username != "" || url.password != "")) {
+        } else if (!credentials && (url.username() != "" || url.password() != "")) {
           refuse(PolicyRule.credentials, credentialsReason(url))
         } else if (!ipHosts && (kind == HostKind.ipv4 || kind == HostKind.ipv6)) {
           refuse(PolicyRule.ipHost, "${host}, ${kindName(kind)}")
         } else if (special != null) {
           refuse(PolicyRule.specialHost, special)
-        } else if (allowedHosts != null && (unreadable || !hostAllowed(kind, host, allowedHosts, subdomains))) {
+        } else if (
+          (exactHosts != null || underDomains != null) &&
+            (unreadable || !hostAllowed(kind, host, exactHosts, underDomains))
+        ) {
           refuse(PolicyRule.host, if (url.hostname == "") { "no host" } else { url.hostname })
+        } else if (allowedPorts != null && port != null && !hasInt(allowedPorts, port)) {
+          refuse(PolicyRule.port, url.port)
         } else if (sameAs != null && !url.sameOrigin(sameAs)) {
           refuse(PolicyRule.sameOrigin, url.origin)
         } else if (pathOnly && !isPathOnly(input, url, base)) {
@@ -316,9 +366,9 @@ in `admin:hunter2@example.com`, which has no `//`, the scheme is
 `admin`, a username.
 
     let credentialsReason(url: Url): String {
-      if (url.username == "") {
+      if (url.username() == "") {
         "a password"
-      } else if (url.password == "") {
+      } else if (url.password() == "") {
         "a username"
       } else {
         "a username and a password"
@@ -346,20 +396,56 @@ in `admin:hunter2@example.com`, which has no `//`, the scheme is
       found
     }
 
-The host is an allowed one, or under an allowed domain, with
-`subdomains`. Only a domain can be under another, so `1.example.com`
-isn't, nor is `evilexample.com` under `example.com`.
+    let hasInt(list: List<Int>, n: Int): Boolean {
+      var found = false;
+      for (var k = 0; !found && k < list.length; k += 1) {
+        let m = list[k];
+        found = m == n;
+      }
+      found
+    }
 
-    let hostAllowed(kind: HostKind?, host: String, allowed: List<String>, subdomains: Boolean): Boolean {
+An allowlist's entries, parsed, without a trailing dot, or a bubble for
+the first that isn't a host: one `parseHost` refuses, one with a `*`
+(which hosts can't have in practice, though the standard lets a domain
+have one), one that's empty, or only dots, or, for `domains`, one that
+isn't a domain.
+
+    let allowedHosts(entries: List<String>, domains: Boolean): List<String> throws Bubble {
+      let parsed = new ListBuilder<String>();
+      for (var k = 0; k < entries.length; k += 1) {
+        let entry = entries[k];
+        let host = parseHost(entry);
+        let name = withoutTrailingDot(host.serialized);
+        if (
+          entry.split("*").length > 1 || name == "" || withoutTrailingDot(name) != name ||
+            (domains && host.kind != HostKind.domain)
+        ) {
+          bubble();
+        }
+        parsed.add(name);
+      }
+      parsed.toList()
+    }
+
+The host is one of `exact`, or one of `domains` or under one. Only a
+domain can be under another, so `1.example.com` isn't, nor is
+`evilexample.com` under `example.com`.
+
+    let hostAllowed(
+      kind: HostKind?, host: String, exact: List<String>?, domains: List<String>?,
+    ): Boolean {
       let h = withoutTrailingDot(host);
       var found = false;
       if (kind != null && kind != HostKind.empty) {
-        for (var k = 0; !found && k < allowed.length; k += 1) {
-          let entry = allowed[k];
-          found = h == entry || (
-            subdomains && kind == HostKind.domain && kindOfHost(entry, true) == HostKind.domain &&
-              endsWith(h, ".${entry}")
-          );
+        if (exact != null) {
+          found = hasString(exact, h);
+        }
+        if (domains != null) {
+          for (var k = 0; !found && k < domains.length; k += 1) {
+            let entry = domains[k];
+            found = h == entry || (kind == HostKind.domain && endsWith(h, ".${entry}"));
+          }
         }
       }
       found
@@ -377,8 +463,8 @@ but not for `//host/` or an absolute URL, even to the base's own host.
         let other = base.withHostname("path-only.invalid");
         let again = other.tryResolve(input);
         other.hostname == "path-only.invalid" && again != null && again.host == other.host &&
-          url.scheme == base.scheme && url.username == base.username &&
-          url.password == base.password && url.host == base.host
+          url.scheme == base.scheme && url.username() == base.username() &&
+          url.password() == base.password() && url.host == base.host
       }
     }
 
@@ -433,8 +519,9 @@ credentials or the input, so it's safe to log; the URL isn't.
 
 The rules, each named for its `with` method: `parse` (input that isn't a
 URL), `strict`, `maxLength`, `scheme`, `credentials`, `ipHost`,
-`specialHost`, `host`, `sameOrigin`, and `pathOnly`, as a class with one
-instance of each, as `HostKind` is.
+`specialHost`, `host` (for `withHosts` and `withSubdomainsOf`), `port`,
+`sameOrigin`, and `pathOnly`, as a class with one instance of each, as
+`HostKind` is.
 
     export class PolicyRule {
       public name: String;
@@ -456,6 +543,7 @@ instance of each, as `HostKind` is.
       public static ipHost = new PolicyRule("ipHost");
       public static specialHost = new PolicyRule("specialHost");
       public static host = new PolicyRule("host");
+      public static port = new PolicyRule("port");
       public static sameOrigin = new PolicyRule("sameOrigin");
       public static pathOnly = new PolicyRule("pathOnly");
     }
@@ -863,7 +951,7 @@ info can't pass, but other spellings of an allowed host do.
           assert(got == want || got.split(":")[0] == want) { "${cases[k]}: ${got}, not ${want}" };
         }
       }
-      let exact = UrlPolicy.any.withHosts(["Good.Example", "bücher.example", "10.0.0.1", "[::1]", "::2", "bad host"], false);
+      let exact = UrlPolicy.any.withHosts(["Good.Example", "bücher.example", "10.0.0.1", "[::1]"]) orelse panic();
       expectPolicy(exact, [
         "https://good.example/", "passed https://good.example/",
         "https://GOOD.example./", "passed https://good.example./",
@@ -891,7 +979,7 @@ info can't pass, but other spellings of an allowed host do.
         "file:///etc/passwd", "host",
         "foo://good.example/", "passed foo://good.example/",
       ]);
-      let under = UrlPolicy.any.withHosts(["good.example", "10.0.0.1"], true);
+      let under = UrlPolicy.any.withSubdomainsOf(["good.example"]) orelse panic();
       expectPolicy(under, [
         "https://good.example/", "passed https://good.example/",
         "https://www.good.example/", "passed https://www.good.example/",
@@ -903,7 +991,125 @@ info can't pass, but other spellings of an allowed host do.
         "http://1.10.0.0.1/", "parse",
         "http://x.10.0.0.1/", "parse",
       ]);
-      expectPolicy(UrlPolicy.any.withHosts([], true), ["https://good.example/", "host"]);
+      expectPolicy(UrlPolicy.any.withSubdomainsOf([]) orelse panic(), ["https://good.example/", "host"]);
+      expectPolicy(UrlPolicy.any.withHosts([]) orelse panic(), ["https://good.example/", "host"]);
+      // Both: either may allow a host.
+      let both = (UrlPolicy.any.withHosts(["10.0.0.1", "api.other.example"]) orelse panic())
+        .withSubdomainsOf(["good.example"]) orelse panic();
+      expectPolicy(both, [
+        "http://10.0.0.1/", "passed http://10.0.0.1/",
+        "https://api.other.example/", "passed https://api.other.example/",
+        "https://other.example/", "host",
+        "https://www.api.other.example/", "host",
+        "https://www.good.example/", "passed https://www.good.example/",
+        "https://evil.example/", "host",
+      ]);
+      // Each call replaces the list an earlier one set.
+      let replaced = (UrlPolicy.any.withHosts(["a.example"]) orelse panic()).withHosts(["b.example"]) orelse panic();
+      expectPolicy(replaced, [
+        "https://a.example/", "host",
+        "https://b.example/", "passed https://b.example/",
+      ]);
+      let replacedDomains = (UrlPolicy.any.withSubdomainsOf(["a.example"]) orelse panic())
+        .withSubdomainsOf(["b.example"]) orelse panic();
+      expectPolicy(replacedDomains, [
+        "https://www.a.example/", "host",
+        "https://www.b.example/", "passed https://www.b.example/",
+      ]);
+    }
+
+An entry that isn't a host bubbles, so a mistake in configuration fails
+where the policy is built, as does a port that can't be one.
+
+    test("Policies: bad allowlist entries bubble") {
+      let bad = [
+        "example.com:443", "https://example.com/", "example.com/", "*.example.com", "a.*.example",
+        "", ".", "example.com..", "::1", "bad host", "user@example.com", "exa mple.com",
+        "[::1", "example.com#x", "example.com?x",
+      ];
+      for (let entry of bad) {
+        let alone: UrlPolicy? = UrlPolicy.any.withHosts([entry]) orelse null;
+        assert(alone == null) { "withHosts takes ${entry}" };
+        let after: UrlPolicy? = UrlPolicy.any.withHosts(["good.example", entry]) orelse null;
+        assert(after == null) { "withHosts takes ${entry} after a good entry" };
+        let under: UrlPolicy? = UrlPolicy.any.withSubdomainsOf([entry]) orelse null;
+        assert(under == null) { "withSubdomainsOf takes ${entry}" };
+      }
+      // Addresses are hosts, but nothing is under them.
+      for (let entry of ["10.0.0.1", "0x7f.1", "[::1]"]) {
+        let exact: UrlPolicy? = UrlPolicy.any.withHosts([entry]) orelse null;
+        assert(exact != null) { "withHosts refuses ${entry}" };
+        let under: UrlPolicy? = UrlPolicy.any.withSubdomainsOf([entry]) orelse null;
+        assert(under == null) { "withSubdomainsOf takes ${entry}" };
+      }
+      // Other spellings of a host are fine.
+      for (let entry of ["Example.COM", "example.com.", "bücher.example", "%65xample.com", "ｅxample.com"]) {
+        let exact: UrlPolicy? = UrlPolicy.any.withHosts([entry]) orelse null;
+        let under: UrlPolicy? = UrlPolicy.any.withSubdomainsOf([entry]) orelse null;
+        assert(exact != null && under != null) { "refuses ${entry}" };
+      }
+      for (let port of [-1, 65536, 100000]) {
+        let refused: UrlPolicy? = UrlPolicy.any.withPorts([443, port]) orelse null;
+        assert(refused == null) { "withPorts takes ${port.toString()}" };
+      }
+      let edges: UrlPolicy? = UrlPolicy.any.withPorts([0, 65535]) orelse null;
+      assert(edges != null) { "withPorts refuses 0 or 65535" };
+    }
+
+Ports: only the scheme's default, which the parser drops, unless
+allowed.
+
+    test("Policies: ports") {
+      let policyResult(policy: UrlPolicy, input: String): String {
+        let result = policy.check(input);
+        let url = result.url;
+        if (url == null) { result.toString() } else { "passed ${url.href}" }
+      }
+      let expectPolicy(policy: UrlPolicy, cases: List<String>): Void {
+        for (var k = 0; k < cases.length; k += 2) {
+          let got = policyResult(policy, cases[k]);
+          let want = cases[k + 1];
+          assert(got == want || got.split(":")[0] == want) { "${cases[k]}: ${got}, not ${want}" };
+        }
+      }
+      expectPolicy(UrlPolicy.fetch, [
+        "https://example.com/", "passed https://example.com/",
+        "https://example.com:443/", "passed https://example.com/",
+        "https://example.com:0443/", "passed https://example.com/",
+        "https://example.com:8443/", "port: 8443",
+        "https://example.com:6379/", "port: 6379",
+        "https://example.com:80/", "port: 80",
+        "https://user@example.com:6379/", "strict",
+      ]);
+      let more = UrlPolicy.fetch.withPorts([8443, 9443]) orelse panic();
+      expectPolicy(more, [
+        "https://example.com/", "passed https://example.com/",
+        "https://example.com:443/", "passed https://example.com/",
+        "https://example.com:8443/", "passed https://example.com:8443/",
+        "https://example.com:9443/", "passed https://example.com:9443/",
+        "https://example.com:6379/", "port: 6379",
+      ]);
+      let replaced = more.withPorts([9443]) orelse panic();
+      expectPolicy(replaced, [
+        "https://example.com:8443/", "port: 8443",
+        "https://example.com:9443/", "passed https://example.com:9443/",
+      ]);
+      expectPolicy(UrlPolicy.any, [
+        "http://example.com:6379/", "passed http://example.com:6379/",
+        "foo://example.com:1/", "passed foo://example.com:1/",
+      ]);
+      let defaults = UrlPolicy.any.withPorts([]) orelse panic();
+      expectPolicy(defaults, [
+        "http://example.com:80/", "passed http://example.com/",
+        "ws://example.com:80/", "passed ws://example.com/",
+        "wss://example.com:443/", "passed wss://example.com/",
+        "ftp://example.com:21/", "passed ftp://example.com/",
+        "http://example.com:443/", "port: 443",
+        "foo://example.com/", "passed foo://example.com/",
+        "foo://example.com:80/", "port: 80",
+        "gopher://127.0.0.1:6379/_INFO", "port: 6379",
+        "mailto:a@example.com", "passed mailto:a@example.com",
+      ]);
     }
 
 Redirect targets, against a site: same origin, or a path only.
@@ -971,7 +1177,7 @@ Redirect targets, against a site: same origin, or a path only.
       let signedIn = parseUrl("https://user:pw@good.example/app/") orelse panic();
       for (let p of [UrlPolicy.any.withBase(signedIn), UrlPolicy.any.withBase(signedIn).withStrict(true)]) {
         let url = p.check("/account").url;
-        let full = if (url == null) { "refused" } else { url.hrefWithCredentials };
+        let full = if (url == null) { "refused" } else { url.hrefWithCredentials() };
         let bare = if (url == null) { "refused" } else { url.href };
         assert(full == "https://user:pw@good.example/account") { "base credentials kept" };
         assert(bare == "https://good.example/account") { "href without credentials" };
@@ -998,7 +1204,7 @@ and the rule it fails, or the `href` it passes with.
         }
       }
       let site = parseUrl("https://good.example/") orelse panic();
-      let policy = UrlPolicy.fetch.withHosts(["good.example"], true);
+      let policy = UrlPolicy.fetch.withSubdomainsOf(["good.example"]) orelse panic();
       let relative = policy.withBase(site);
       let cases = [
         "https://example.com\\@evil.example/", "strict",
@@ -1109,7 +1315,7 @@ for one rule or another, and never echoes credentials in its reasons.
       // Each of the specialHost cases fails the same way as https.
       for (let input of refused) {
         let plain = Url.parse(input);
-        let secure = if (plain == null) { "" } else { plain.withProtocol("https").hrefWithCredentials };
+        let secure = if (plain == null) { "" } else { plain.withProtocol("https").hrefWithCredentials() };
         if (secure.split("https:").length == 2) {
           let result = UrlPolicy.fetch.check(secure);
           assert(result.url == null) { "the preset must refuse ${input} as https" };

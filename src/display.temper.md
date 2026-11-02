@@ -3,8 +3,9 @@
 A URL formatted for people to read, as browsers' address bars show it:
 international domain names in Unicode where browsers would show them,
 escapes of non-ASCII text decoded, and no credentials (the username and
-password written in the URL, as in `https://user:pass@host/`); and, if asked, a username, but never a password, and without
-the fragment or a lone `/` path.
+password written in the URL, as in `https://user:pass@host/`), nor a
+path that's only `/`; and, if asked, a username, but never a password,
+the lone `/`, or no fragment.
 
 **The display form is never for security decisions,** nor for handing
 on: it may drop parts, and it shows Unicode that can look like other
@@ -12,7 +13,7 @@ text. Decide on `Url` and its `href`, and show this. It may still
 contain other secrets, such as `?token=` in a query, so don't log it.
 
 ```temper inert
-let shown = UrlDisplay.addressBar.withRootSlash(false);
+let shown = UrlDisplay.addressBar;
 shown.format(parseUrl("https://user@xn--bcher-kva.example/") orelse panic()); // "https://bücher.example"
 shown.format(parseUrl("https://xn--pple-43d.com/caf%C3%A9") orelse panic()); // "https://xn--pple-43d.com/café"
 ```
@@ -42,10 +43,11 @@ changed.
       }
 
 As browsers' address bars show a URL: every part but the credentials,
-which browsers leave out, domains in Unicode where browsers would show
-them (`domainToDisplay`), and escapes decoded where that's safe.
+which browsers leave out, and a path that's only `/`, as Chromium's
+address bar leaves it out, with domains in Unicode where browsers would
+show them (`domainToDisplay`), and escapes decoded where that's safe.
 
-      public static addressBar: UrlDisplay = new UrlDisplay(true, true, false, true, true);
+      public static addressBar: UrlDisplay = new UrlDisplay(true, true, false, true, false);
 
 **Unicode hosts:** with `false`, domains stay as in `href`, with `xn--`
 labels.
@@ -86,9 +88,10 @@ safe.
         new UrlDisplay(unicodeHosts, decoding, credentials, shown, rootSlash)
       }
 
-**Root slash:** with `false`, a path that's only `/`, with nothing
-shown after it, is left out, as `https://example.com`, which every
-special URL's parser reads back with the `/`.
+**Root slash:** with `false`, the default, a path that's only `/`, with
+nothing shown after it, is left out, as `https://example.com`, which
+every special URL's parser reads back with the `/`. With `true`, it's
+shown, as `https://example.com/`.
 
       public withRootSlash(shown: Boolean): UrlDisplay {
         new UrlDisplay(unicodeHosts, decoding, credentials, fragment, shown)
@@ -107,9 +110,9 @@ handing on: use `url.href` for those.
         let kind = url.hostKind;
         if (kind != null) {
           out.append("//");
-          if (credentials && (url.username != "" || url.password != "")) {
-            out.append(url.username);
-            if (url.password != "") {
+          if (credentials && (url.username() != "" || url.password() != "")) {
+            out.append(url.username());
+            if (url.password() != "") {
               out.append(":***");
             }
             out.append("@");
@@ -882,7 +885,7 @@ Formatting a URL, with each option.
         "https://xn--bcher-kva.example:8080/caf%C3%A9?q=%E6%97%A5%E6%9C%AC#%C3%BC",
         "https://bücher.example:8080/café?q=日本#ü",
         "https://xn--pple-43d.com/",
-        "https://xn--pple-43d.com/",
+        "https://xn--pple-43d.com",
         "https://example.com/a%2Fb%20c%25d?x=%3D",
         "https://example.com/a%2Fb%20c%25d?x=%3D",
         "https://example.com/%E2%80%AEtxt.exe%E2%80%8B%E2%88%95x",
@@ -898,7 +901,7 @@ Formatting a URL, with each option.
         "web+demo:/.//not-a-host/",
         "web+demo:/.//not-a-host/",
         "http://[::1]:8080/",
-        "http://[::1]:8080/",
+        "http://[::1]:8080",
       ];
       for (var k = 0; k < cases.length; k += 2) {
         let url = parseUrl(cases[k]) orelse panic();
@@ -909,15 +912,19 @@ Formatting a URL, with each option.
       }
       let withAll = parseUrl("https://user:pw@xn--bcher-kva.example/?#top") orelse panic();
       let bare = parseUrl("https://xn--bcher-kva.example/#top") orelse panic();
-      let quiet = UrlDisplay.addressBar.withFragment(false).withRootSlash(false);
+      let quiet = UrlDisplay.addressBar.withFragment(false);
       assert(quiet.format(withAll) == "https://bücher.example/?");
       assert(quiet.format(bare) == "https://bücher.example");
-      assert(UrlDisplay.addressBar.withRootSlash(false).format(bare) == "https://bücher.example/#top");
+      assert(quiet.withRootSlash(true).format(bare) == "https://bücher.example/");
+      assert(UrlDisplay.addressBar.format(bare) == "https://bücher.example/#top");
+      let root = parseUrl("https://example.com") orelse panic();
+      assert(UrlDisplay.addressBar.withRootSlash(true).format(root) == "https://example.com/");
+      assert(UrlDisplay.addressBar.withRootSlash(true).withRootSlash(false).format(root) == "https://example.com");
       let ascii = UrlDisplay.addressBar.withUnicodeHosts(false).withDecoding(false);
       let encoded = parseUrl("https://xn--bcher-kva.example/caf%C3%A9") orelse panic();
       assert(ascii.format(encoded) == encoded.href);
       let opaque = parseUrl("foo:x") orelse panic();
-      assert(UrlDisplay.addressBar.withRootSlash(false).format(opaque) == "foo:x") { "opaque" };
+      assert(UrlDisplay.addressBar.format(opaque) == "foo:x") { "opaque" };
     }
 
 Credentials: never by default, and with them, the username but never
@@ -925,10 +932,10 @@ the password.
 
     test("display hides credentials") {
       let cases = [
-        "https://alice:hunter2@example.com/", "https://example.com/", "https://alice:***@example.com/",
-        "https://TOKEN@example.com/", "https://example.com/", "https://TOKEN@example.com/",
-        "https://:hunter2@example.com/", "https://example.com/", "https://:***@example.com/",
-        "https://:@example.com/", "https://example.com/", "https://example.com/",
+        "https://alice:hunter2@example.com/", "https://example.com", "https://alice:***@example.com",
+        "https://TOKEN@example.com/", "https://example.com", "https://TOKEN@example.com",
+        "https://:hunter2@example.com/", "https://example.com", "https://:***@example.com",
+        "https://:@example.com/", "https://example.com", "https://example.com",
         "foo://alice:hunter2@h/", "foo://h/", "foo://alice:***@h/",
       ];
       let shown = UrlDisplay.addressBar.withCredentials(true);
@@ -949,7 +956,7 @@ the password.
 The README's examples.
 
     test("README display examples") {
-      let shown = UrlDisplay.addressBar.withRootSlash(false);
+      let shown = UrlDisplay.addressBar;
       let url = parseUrl("https://user@xn--bcher-kva.example/") orelse panic();
       assert(shown.format(url) == "https://bücher.example");
       assert(domainToDisplay("xn--pple-43d.com") == "xn--pple-43d.com");
@@ -964,7 +971,7 @@ The README's examples.
       assert(source.url.href == "https://example.com/ab") { "decisions use url" };
       assert(page.toString() == "https://***@example.com/b?q=1#top");
       assert(page.withoutCredentials().href == "https://example.com/b?q=1#top");
-      let policy = UrlPolicy.fetch.withHosts(["example.com"], true);
+      let policy = UrlPolicy.fetch.withSubdomainsOf(["example.com"]) orelse panic();
       assert(policy.check("https://api.example.com/").url != null);
       assert(
         policy.check("https://127.0.0.1/").toString() ==

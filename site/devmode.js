@@ -43,13 +43,13 @@ export const SPOTS = [
   {
     id: "parts",
     title: "Each part",
-    about: "A `Url` has the standard's parts as strings, as JavaScript's URL does, but `href` leaves out the credentials, by design; `hrefWithCredentials` has them. Typed parts sit beside them: `scheme`, `portNumber`, and `hostKind`.",
+    about: "A `Url` has the standard's parts as strings, as JavaScript's URL does, but `href` leaves out the credentials, by design; `hrefWithCredentials()` has them, and `username()` and `password()` are methods, so serializers leave them out. Typed parts sit beside them: `scheme`, `portNumber`, and `hostKind`.",
     target: () => find("#parts"),
   },
   {
     id: "display",
     title: "How people see it",
-    about: "`UrlDisplay.addressBar` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), decodes escaped non-ASCII text where that's safe, and leaves out credentials (the username and password in the URL), as address bars do; methods such as `withRootSlash` change parts. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
+    about: "`UrlDisplay.addressBar` shows hosts in Unicode only where browsers would (not look-alikes such as Cyrillic а in xn--pple-43d.com), decodes escaped non-ASCII text where that's safe, and leaves out credentials (the username and password in the URL), and a lone `/` path, as address bars do; methods such as `withCredentials` change parts. Then `format` each URL. It's for people only: decide, and hand on, with `href`.",
     target: () => find("#hrefine-what .display-line"),
   },
   {
@@ -61,7 +61,7 @@ export const SPOTS = [
   {
     id: "card",
     title: "Check, then hand on href",
-    about: "Decide with `Url.parse`, checking `scheme`, `hostKind`, and `hostname`, then give your HTTP client `href`, never the original string, so it can't read another host. `href` has no credentials, so it can't leak them; use `hrefWithCredentials` only to send them deliberately.",
+    about: "Decide with `Url.parse`, checking `scheme`, `hostKind`, and `hostname`, then give your HTTP client `href`, never the original string, so it can't read another host. `href` has no credentials, so it can't leak them; use `hrefWithCredentials()` only to send them deliberately.",
     target: () => find(".cards .card"),
   },
   {
@@ -73,7 +73,7 @@ export const SPOTS = [
   {
     id: "policy",
     title: "A policy, in one call",
-    about: "Build a `UrlPolicy` once from `UrlPolicy.fetch` (https only, strict, no credentials or private addresses), adding a rule per method such as `withHosts`, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, never echoing credentials, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are refused too.",
+    about: "Build a `UrlPolicy` once from `UrlPolicy.fetch` (https only, strict, no credentials, private addresses, or ports but the default), adding a rule per method such as `withSubdomainsOf`, then `check` each URL. It gives the `url` to hand on, or says which rule failed and why, never echoing credentials, all on the parsed URL, so 127.1 and [::ffff:127.0.0.1] are refused too.",
     target: () => find(".fix .policy-step"),
   },
   {
@@ -85,14 +85,14 @@ export const SPOTS = [
   {
     id: "scoreboard",
     title: "Running the test cases",
-    about: "Each web-platform-tests case gives an input, a base, and the standard's href it must parse to (Hrefine's `hrefWithCredentials`, since its `href` leaves them out), or that parsing must fail, where `Url.parse` gives null. This scoreboard and Hrefine's own tests check every part too.",
+    about: "Each web-platform-tests case gives an input, a base, and the standard's href it must parse to (Hrefine's `hrefWithCredentials()`, since its `href` leaves them out), or that parsing must fail, where `Url.parse` gives null. This scoreboard and Hrefine's own tests check every part too.",
     target: () => find("#score-hrefine"),
   },
 ];
 
 // Properties, which some languages read with getters.
 const PROPERTIES = new Set([
-  "href", "hrefWithCredentials", "strictHref", "strictHrefWithCredentials", "hostname", "scheme", "portNumber", "hostKind", "url", "errors", "strictErrors",
+  "href", "strictHref", "hostname", "scheme", "portNumber", "hostKind", "url", "errors", "strictErrors",
   "asWritten", "hostSpan", "position", "length",
 ]);
 // Static properties, such as `UrlPolicy.any`, which C++ and Rust read with a call.

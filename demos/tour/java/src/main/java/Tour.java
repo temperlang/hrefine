@@ -74,8 +74,10 @@ public final class Tour {
         System.out.println("href: " + url.getHref());  // snippet: parts
         System.out.println("origin: " + url.getOrigin());  // snippet: parts
         System.out.println("protocol: " + url.getProtocol());  // snippet: parts
-        System.out.println("username: " + url.getUsername());  // snippet: parts
-        System.out.println("password: " + url.getPassword());  // snippet: parts
+        // username() and password() are methods, not getters, as is
+        // hrefWithCredentials(), so Jackson leaves them out.
+        System.out.println("username: " + url.username());  // snippet: parts
+        System.out.println("password: " + url.password());  // snippet: parts
         System.out.println("host: " + url.getHost());  // snippet: parts
         System.out.println("hostname: " + url.getHostname());  // snippet: parts, hero
         System.out.println("port: " + url.getPort());  // snippet: parts
@@ -173,7 +175,7 @@ public final class Tour {
         // URL.href, so it's the one to hand on, store, or compare as text.
         // toString() masks them, for logs (string concatenation gives it
         // too), and withoutCredentials() gives a Url without them. Only to
-        // send them deliberately, there's getHrefWithCredentials(), which has
+        // send them deliberately, there's hrefWithCredentials(), which has
         // the password: never log it.
         System.out.println("href, to hand on: " + url.getHref());
         System.out.println("as a string: " + url.toString());
@@ -274,7 +276,7 @@ public final class Tour {
         for (String[] test : cases) {  // snippet: scoreboard
             String input = test[0], base = test[1], href = test[2];  // snippet: scoreboard
             Url parsed = Url.parse(input, base);  // snippet: scoreboard
-            String got = parsed == null ? "" : parsed.getHrefWithCredentials();  // snippet: scoreboard
+            String got = parsed == null ? "" : parsed.hrefWithCredentials();  // snippet: scoreboard
             System.out.println(input + " against " + base + ": " + (got.equals(href) ? "pass" : "fail"));  // snippet: scoreboard
         }  // snippet: scoreboard
 
@@ -284,9 +286,9 @@ public final class Tour {
         // URL. Build it once, a rule at a time, and use it for every URL.
         // UrlPolicy.fetch, for URLs a server fetches, is https only, strict,
         // with no credentials and no private, loopback, or other special
-        // addresses or names; this one adds example.com or its subdomains.
-        // Reasons never show credentials.
-        UrlPolicy policy = UrlPolicy.fetch.withHosts(List.of("example.com"), true);  // snippet: policy
+        // addresses or names, and only the scheme's default port; this one
+        // adds example.com or its subdomains. Reasons never show credentials.
+        UrlPolicy policy = UrlPolicy.fetch.withSubdomainsOf(List.of("example.com"));  // snippet: policy
         List<String> inputs = List.of(
             "https://api.example.com/v1/items",
             "http://example.com/",
@@ -295,7 +297,8 @@ public final class Tour {
             "https://169.254.169.254/latest/meta-data/",
             "https://[::ffff:127.0.0.1]/",
             "https://localhost./",
-            "https://exаmple.com/"
+            "https://exаmple.com/",
+            "https://example.com:6379/"
         );
         for (String input : inputs) {  // snippet: policy
             PolicyCheck result = policy.check(input);  // snippet: policy
@@ -305,6 +308,17 @@ public final class Tour {
                 System.out.println(input + ": refuse, " + result.toString());  // snippet: policy
             }  // snippet: policy
         }  // snippet: policy
+        // withPorts allows ports beyond the default, and withHosts takes
+        // exact hosts. A bad entry, such as a host with a port, throws,
+        // rather than matching nothing.
+        Url more = policy.withPorts(List.of(8443)).check("https://example.com:8443/").getUrl();
+        System.out.println("with port 8443: " + more.getHref());
+        try {
+            UrlPolicy.fetch.withHosts(List.of("example.com:443"));
+            System.out.println("allowlist example.com:443: taken");
+        } catch (RuntimeException e) {
+            System.out.println("allowlist example.com:443: throws");
+        }
 
         // Strict mode refuses what the standard accepts but notes as an
         // error, as cautious parsers do: backslashes, tabs, odd IPv4 forms,
@@ -335,7 +349,7 @@ public final class Tour {
         // Cyrillic а in xn--pple-43d.com), and escapes of non-ASCII text
         // decoded. Never for security decisions, nor for handing on: use
         // getHref() for those.
-        UrlDisplay display = UrlDisplay.addressBar.withRootSlash(false);  // snippet: display
+        UrlDisplay display = UrlDisplay.addressBar;  // snippet: display
         for (String input : List.of(  // snippet: display
                 "https://user@xn--bcher-kva.example/caf%C3%A9?q=%E6%97%A5%E6%9C%AC",  // snippet: display
                 "https://xn--pple-43d.com/",  // snippet: display

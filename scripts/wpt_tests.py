@@ -28,9 +28,10 @@ from urllib.parse import unquote_to_bytes
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "tests" / "wpt" / "urltestdata.json"
 OUT = ROOT / "src" / "wpt-url-tests.temper.md"
-# The standard's href is Hrefine's hrefWithCredentials; Hrefine's href
-# leaves the credentials out, and is checked against it.
-GETTER_OF = {"href": "hrefWithCredentials"}
+# The standard's href is Hrefine's hrefWithCredentials(); Hrefine's href
+# leaves the credentials out, and is checked against it. The credentials
+# are methods.
+GETTER_OF = {"href": "hrefWithCredentials()", "username": "username()", "password": "password()"}
 GETTERS = ["href", "origin", "protocol", "username", "password", "host", "hostname", "port",
            "pathname", "search", "hash"]
 IDNA_DONE = True
@@ -135,7 +136,7 @@ the case waits for IDNA; and the expected {", ".join(GETTERS[:-1])}, and {GETTER
 `checkUrl` must say why where parsing fails: a base that doesn't parse
 bubbles, and otherwise the URL fails with at least one error. And each
 URL's [strict form](strict.temper.md) must be RFC 3986, and mean the
-same URL. The standard's href is `hrefWithCredentials`, and `href` and
+same URL. The standard's href is `hrefWithCredentials()`, and `href` and
 `strictHref` must be the same without the credentials
 (`credentialsProblem`).
 
@@ -159,8 +160,8 @@ same URL. The standard's href is `hrefWithCredentials`, and `href` and
           }} else if (checked.errors.isEmpty) {{
             problem = "checkUrl fails without errors";
           }}
-        }} else if (url == null || checkedUrl.hrefWithCredentials != url.hrefWithCredentials) {{
-          problem = "checkUrl gives ${{checkedUrl.hrefWithCredentials}}";
+        }} else if (url == null || checkedUrl.hrefWithCredentials() != url.hrefWithCredentials()) {{
+          problem = "checkUrl gives ${{checkedUrl.hrefWithCredentials()}}";
         }}
       }}
       if (url != null) {{
@@ -192,7 +193,7 @@ same URL. The standard's href is `hrefWithCredentials`, and `href` and
         if (url == null) {{
           problem = if (mustFail) {{ "" }} else {{ "failed to parse" }};
         }} else if (mustFail) {{
-          problem = "parsed, but must fail, as ${{url.hrefWithCredentials}}";
+          problem = "parsed, but must fail, as ${{url.hrefWithCredentials()}}";
         }} else {{
           let check(name: String, actual: String, expected: String): Void {{
             if (problem == "" && actual != expected) {{

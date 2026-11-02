@@ -35,8 +35,8 @@ function hrefine(input, base) {
   const host = url.hostKind === null ? null : url.hostname;
   // The exact URL, credentials and all, as Node's href is: some tricks are in
   // the user info. Hrefine's own href would leave them out.
-  const href = url.hrefWithCredentials;
-  const strictHref = url.strictHrefWithCredentials;
+  const href = url.hrefWithCredentials();
+  const strictHref = url.strictHrefWithCredentials();
   return { ok: true, scheme: url.scheme, host, path: url.pathname, href, strictHref, hostKind: url.hostKind?.toString() ?? null, errors };
 }
 

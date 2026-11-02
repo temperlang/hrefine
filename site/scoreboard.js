@@ -1,6 +1,6 @@
 // Scores a URL parser on web-platform-tests' urltestdata.json, by the same
 // rules as Hrefine's own test (scripts/wpt_tests.py): each case either must
-// fail, or must give the expected href (Hrefine's hrefWithCredentials) and
+// fail, or must give the expected href (Hrefine's hrefWithCredentials()) and
 // every other part, with the origin checked where the case gives one. Cases
 // whose strings hold unpaired surrogates are left out, and counted, as
 // Hrefine's test leaves them out.
@@ -15,14 +15,18 @@ export const PARTS = ["href", "origin", "protocol", "username", "password", "hos
 
 /**
  * A part of a parsed URL, as a string. The cases give the standard's href,
- * which Hrefine calls `hrefWithCredentials`, since its `href` leaves the
+ * which Hrefine calls `hrefWithCredentials()`, since its `href` leaves the
  * username and password out, by design; built-in URLs have only `href`.
+ * Hrefine's `username()` and `password()` are methods, and the built-in
+ * URL's getters.
  *
  * @param {any} url
  * @param {string} part
  */
-const partOf = (url, part) =>
-  String(part === "href" && "hrefWithCredentials" in url ? url.hrefWithCredentials : url[part]);
+const partOf = (url, part) => {
+  const value = part === "href" && "hrefWithCredentials" in url ? url.hrefWithCredentials : url[part];
+  return String(typeof value === "function" ? value.call(url) : value);
+};
 
 /** @param {string} s */
 const hasLoneSurrogate = (s) => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s);

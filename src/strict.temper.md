@@ -7,8 +7,8 @@ allow, so strict parsers, such as Java's `URI` and Go's `net/url`,
 reject them or read them another way. `url.strictHref` is `href` with
 those escaped: a valid RFC 3986 URI, which means the same URL, as
 Hrefine (or a browser) reads it back. Like `href`, it has no
-credentials; `strictHrefWithCredentials` is the same for
-`hrefWithCredentials`, with the username and password.
+credentials; `strictHrefWithCredentials()` is the same for
+`hrefWithCredentials()`, with the username and password.
 
 ## What's Escaped
 
@@ -45,7 +45,7 @@ which nothing resolves.
 Everything else is `href`'s: the same parts, so `strictHref` parses
 back, with Hrefine, to a URL whose every part decodes to the same bytes,
 and whose `strictHref` is the same again; and so for
-`strictHrefWithCredentials`.
+`strictHrefWithCredentials()`.
 
     let strictUserinfo = 0;
     let strictHost = 1;
@@ -278,22 +278,22 @@ decode to the same bytes as `url`'s. It checks the form with
 credentials, so that they roundtrip too.
 
     let strictProblem(url: Url): String {
-      let strict = url.strictHrefWithCredentials;
+      let strict = url.strictHrefWithCredentials();
       let rfc = rfc3986Problem(strict);
       let back = Url.parse(strict);
       if (rfc != "") {
         "strictHref ${strict} isn't RFC 3986: ${rfc}"
       } else if (back == null) {
         "strictHref ${strict} doesn't parse"
-      } else if (back.strictHrefWithCredentials != strict) {
-        "strictHref ${strict} parses back as ${back.strictHrefWithCredentials}"
+      } else if (back.strictHrefWithCredentials() != strict) {
+        "strictHref ${strict} parses back as ${back.strictHrefWithCredentials()}"
       } else if (
-        back.scheme != url.scheme || !sameBytes(back.username, url.username) ||
-          !sameBytes(back.password, url.password) || !sameBytes(back.hostname, url.hostname) ||
+        back.scheme != url.scheme || !sameBytes(back.username(), url.username()) ||
+          !sameBytes(back.password(), url.password()) || !sameBytes(back.hostname, url.hostname) ||
           back.port != url.port || !sameBytes(back.pathname, url.pathname) ||
           !sameBytes(back.search, url.search) || !sameBytes(back.hash, url.hash)
       ) {
-        "strictHref ${strict} parses back to other parts, as ${back.hrefWithCredentials}"
+        "strictHref ${strict} parses back to other parts, as ${back.hrefWithCredentials()}"
       } else {
         ""
       }
@@ -341,8 +341,8 @@ setters check `strictProblem` for every case too.
         assert(problem == "") { problem };
       }
       let user = parseUrl("https://u%zz:p|q@example.com/a|b") orelse panic();
-      assert(user.strictHrefWithCredentials == "https://u%25zz:p%7Cq@example.com/a%7Cb") {
-        user.strictHrefWithCredentials
+      assert(user.strictHrefWithCredentials() == "https://u%25zz:p%7Cq@example.com/a%7Cb") {
+        user.strictHrefWithCredentials()
       };
       assert(rfc3986Problem("https://example.com/a|b") != "");
       assert(rfc3986Problem("https://exa mple.com/") != "");

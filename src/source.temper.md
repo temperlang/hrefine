@@ -231,7 +231,7 @@ Against a base, parts the input didn't write have no span.
         assert(spansOf(source) == cases[k + 1]) { "${cases[k]}: ${spansOf(source)}" };
       }
       let relative = parseUrlSource("../c", base) orelse panic();
-      assert(relative.url.hrefWithCredentials == "https://user@example.com/c");
+      assert(relative.url.hrefWithCredentials() == "https://user@example.com/c");
       assert(relative.url.href == "https://example.com/c");
       assert(relative.asWritten == "../c");
       let rejected: UrlSource? = parseUrlSource("https://exa mple.com") orelse null;

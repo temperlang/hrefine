@@ -17,7 +17,7 @@ the case waits for IDNA; and the expected href, origin, protocol, username, pass
 `checkUrl` must say why where parsing fails: a base that doesn't parse
 bubbles, and otherwise the URL fails with at least one error. And each
 URL's [strict form](strict.temper.md) must be RFC 3986, and mean the
-same URL. The standard's href is `hrefWithCredentials`, and `href` and
+same URL. The standard's href is `hrefWithCredentials()`, and `href` and
 `strictHref` must be the same without the credentials
 (`credentialsProblem`).
 
@@ -41,8 +41,8 @@ same URL. The standard's href is `hrefWithCredentials`, and `href` and
           } else if (checked.errors.isEmpty) {
             problem = "checkUrl fails without errors";
           }
-        } else if (url == null || checkedUrl.hrefWithCredentials != url.hrefWithCredentials) {
-          problem = "checkUrl gives ${checkedUrl.hrefWithCredentials}";
+        } else if (url == null || checkedUrl.hrefWithCredentials() != url.hrefWithCredentials()) {
+          problem = "checkUrl gives ${checkedUrl.hrefWithCredentials()}";
         }
       }
       if (url != null) {
@@ -74,17 +74,17 @@ same URL. The standard's href is `hrefWithCredentials`, and `href` and
         if (url == null) {
           problem = if (mustFail) { "" } else { "failed to parse" };
         } else if (mustFail) {
-          problem = "parsed, but must fail, as ${url.hrefWithCredentials}";
+          problem = "parsed, but must fail, as ${url.hrefWithCredentials()}";
         } else {
           let check(name: String, actual: String, expected: String): Void {
             if (problem == "" && actual != expected) {
               problem = "${name} is ${actual}, not ${expected}";
             }
           }
-          check("href", url.hrefWithCredentials, data[i + 6]);
+          check("href", url.hrefWithCredentials(), data[i + 6]);
           check("protocol", url.protocol, data[i + 8]);
-          check("username", url.username, data[i + 9]);
-          check("password", url.password, data[i + 10]);
+          check("username", url.username(), data[i + 9]);
+          check("password", url.password(), data[i + 10]);
           check("host", url.host, data[i + 11]);
           check("hostname", url.hostname, data[i + 12]);
           check("port", url.port, data[i + 13]);

@@ -31,8 +31,8 @@ def hrefine(text, base):
         "host": None if kind is None else url.hostname,
         "path": url.pathname,
         # The exact URL, credentials and all, as probe.mjs gives.
-        "href": url.href_with_credentials,
-        "strictHref": url.strict_href_with_credentials,
+        "href": url.href_with_credentials(),
+        "strictHref": url.strict_href_with_credentials(),
         "hostKind": None if kind is None else kind.to_string(),
         "errors": errors,
     }

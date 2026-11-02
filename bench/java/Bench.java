@@ -20,7 +20,7 @@ public final class Bench {
 
     static String parse(String[] pair) {
         try {
-            return hrefine.HrefineGlobal.parseUrl(pair[0], pair[1]).getHrefWithCredentials();
+            return hrefine.HrefineGlobal.parseUrl(pair[0], pair[1]).hrefWithCredentials();
         } catch (RuntimeException e) {
             return "fail";
         }
