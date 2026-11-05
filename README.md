@@ -564,6 +564,10 @@ See the [plan](docs/plan.md) for details.
 - **Next:** lossless editing, designed in the
   plan, once its span and edit model is settled with a lossless
   Markdown and HTML library.
+- **Small speedups, done** (2026-11-05): source spans and validation
+  errors find each position from the last one, not from the start of
+  the input, and IPv6 parsing walks string indices instead of copying
+  the host into a list. See the plan's "Speed and size".
 - **Before 1.0:** trademark checks, a minified site bundle, and
   publishing packages.
 

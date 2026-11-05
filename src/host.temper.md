@@ -408,26 +408,22 @@ The [IPv6 parser](https://url.spec.whatwg.org/#concept-ipv6-parser)
 reads eight 16-bit pieces of up to four hex digits each, where `::`
 stands for one or more pieces of zeros (once at most), and the last two
 pieces may be written as an IPv4 address in plain dotted decimal, as in
-`::ffff:192.0.2.1`. It works on a list of code points, as the standard
-does, since it looks back and ahead.
+`::ffff:192.0.2.1`. The standard reads a list of code points, looking
+ahead and back; this walks string indices instead, without copying, and
+goes back only to a piece's start, which it keeps.
 
     let parseIpv6(text: String, log: ErrorLog?, start: Int): List<Int> throws Bubble {
-      let input = new ListBuilder<Int>();
-      for (var i = String.begin; text.hasIndex(i); i = text.next(i)) {
-        input.add(text[i]);
-      }
-      let length = input.length;
-      let at(p: Int): Int { if (p < length) { input[p] } else { -1 } }
+      let at(i: StringIndex): Int { if (text.hasIndex(i)) { text[i] } else { -1 } }
       let address = [0, 0, 0, 0, 0, 0, 0, 0].toListBuilder();
       var pieceIndex = 0;
       var compress = -1;
-      var pointer = 0;
+      var pointer = String.begin;
       if (at(pointer) == char':') {
-        if (at(pointer + 1) != char':') {
+        if (at(text.next(pointer)) != char':') {
           noteAt(log, "IPv6-invalid-compression", start);
           bubble();
         }
-        pointer += 2;
+        pointer = text.next(text.next(pointer));
         pieceIndex += 1;
         compress = pieceIndex;
       }
@@ -441,16 +437,17 @@ does, since it looks back and ahead.
             noteAt(log, "IPv6-multiple-compression", start);
             bubble();
           }
-          pointer += 1;
+          pointer = text.next(pointer);
           pieceIndex += 1;
           compress = pieceIndex;
           continue;
         }
+        let pieceStart = pointer;
         var value = 0;
         var digits = 0;
         while (digits < 4 && hexValue(at(pointer)) >= 0) {
           value = value * 0x10 + hexValue(at(pointer));
-          pointer += 1;
+          pointer = text.next(pointer);
           digits += 1;
         }
         if (at(pointer) == char'.') {
@@ -462,7 +459,7 @@ byte, without leading zeros.
             noteAt(log, "IPv4-in-IPv6-invalid-code-point", start);
             bubble();
           }
-          pointer -= digits;
+          pointer = pieceStart;
           if (pieceIndex > 6) {
             noteAt(log, "IPv4-in-IPv6-too-many-pieces", start);
             bubble();
@@ -472,7 +469,7 @@ byte, without leading zeros.
             var ipv4Piece = -1;
             if (numbersSeen > 0) {
               if (at(pointer) == char'.' && numbersSeen < 4) {
-                pointer += 1;
+                pointer = text.next(pointer);
               } else {
                 noteAt(log, "IPv4-in-IPv6-invalid-code-point", start);
                 bubble();
@@ -496,7 +493,7 @@ byte, without leading zeros.
                 noteAt(log, "IPv4-in-IPv6-out-of-range-part", start);
                 bubble();
               }
-              pointer += 1;
+              pointer = text.next(pointer);
             }
             address[pieceIndex] = address[pieceIndex] * 0x100 + ipv4Piece;
             numbersSeen += 1;
@@ -510,7 +507,7 @@ byte, without leading zeros.
           }
           break;
         } else if (at(pointer) == char':') {
-          pointer += 1;
+          pointer = text.next(pointer);
           if (at(pointer) == -1) {
             noteAt(log, "IPv6-invalid-code-point", start);
             bubble();

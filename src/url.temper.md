@@ -621,7 +621,10 @@ The log also keeps where each part of the URL was written, for
 `parseUrlSource` (in [source](source.temper.md)): each a count of code
 points in the cleaned input, or -1 if the parser didn't get there. And
 while the parser reads a host or port, `spanEnd` is where it ends, so
-its errors cover all of it.
+its errors cover all of it. Counts of code points come from `countTo`,
+which keeps the last string index it counted to, `countedAt`, and its
+count, so the parser's notes walk the input about once, not from its
+start each time.
 
     class ErrorLog {
       public errors: ListBuilder<ValidationError> = new ListBuilder<ValidationError>();
@@ -640,6 +643,8 @@ its errors cover all of it.
       public var pathStart: Int = -1;
       public var queryStart: Int = -1;
       public var fragmentStart: Int = -1;
+      public var countedAt: StringIndex = String.begin;
+      public var counted: Int = 0;
     }
 
     let noteAt(log: ErrorLog?, name: String, at: Int): Void {
@@ -687,7 +692,7 @@ span from `start` to `end` ends there, after its last code point.
 
     let note(log: ErrorLog?, name: String, input: String, at: StringIndex): Void {
       if (log != null) {
-        noteAt(log, name, input.countBetween(String.begin, at));
+        noteAt(log, name, countTo(log, input, at));
       }
     }
 
@@ -695,14 +700,28 @@ Where a run of `count` code points ending at `at` starts, as a count of
 code points, for a host or port's errors; 0 when there's no log.
 
     let startOf(log: ErrorLog?, input: String, at: StringIndex, count: Int): Int {
-      if (log == null) { 0 } else { input.countBetween(String.begin, at) - count }
+      if (log == null) { 0 } else { countTo(log, input, at) - count }
     }
 
 Where `at` is, as a count of code points, for the log's spans, or -1
 without a log.
 
     let countAt(log: ErrorLog?, input: String, at: StringIndex): Int {
-      if (log == null) { -1 } else { input.countBetween(String.begin, at) }
+      if (log == null) { -1 } else { countTo(log, input, at) }
+    }
+
+Where `at` is in the cleaned input, as a count of code points, counted
+from where the log last counted to, forward or back.
+
+    let countTo(log: ErrorLog, input: String, at: StringIndex): Int {
+      let count = if (at >= log.countedAt) {
+        log.counted + input.countBetween(log.countedAt, at)
+      } else {
+        log.counted - input.countBetween(at, log.countedAt)
+      };
+      log.countedAt = at;
+      log.counted = count;
+      count
     }
 
 The removals before parsing: one error for any leading or trailing C0
@@ -776,7 +795,7 @@ it, as the path, query, fragment, and opaque path states do for each
 code point they read. Only for a log.
 
     let noteUnits(log: ErrorLog, input: String, start: StringIndex, end: StringIndex): Void {
-      var at = input.countBetween(String.begin, start);
+      var at = countTo(log, input, start);
       for (var i = start; i < end; i = input.next(i)) {
         noteUnit(log, input, i, at);
         at += 1;

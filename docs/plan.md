@@ -778,6 +778,16 @@ written. On top of source spans:
     and Rust, 25% in C#. Java is too noisy here to call.
   - Hot helpers avoid early returns, which Temper's Python backend
     turns into raised exceptions.
+  - Off the plain parsing path (2026-11-05, timed in turns): the error
+    log keeps the last string index it counted to, and `parseUrlSource`
+    finds each span's ends from the last span's, so neither walks the
+    input from its start for each position. On a 2.7K-character URL
+    with every part, `parseUrlSource` went from 870 to 290 µs in
+    JavaScript and 11.7 to 10.0 ms in Python; `checkUrl` on a path with
+    400 errors went from 59 to 50 µs in JavaScript and 3.0 to 2.4 ms in
+    Python. IPv6 parsing walks string indices rather than copying the
+    host into a list of code points: whole IPv6 URLs parse about 10%
+    faster in JavaScript, and 4% in Python, within its noise.
   - Tried and dropped: sub-blocks of 32 code points (faster in Python
     and Lua, but 9 KB bigger and slower to load in C#), storing runs'
     ends rather than lengths (slower), a module for the tables (Java

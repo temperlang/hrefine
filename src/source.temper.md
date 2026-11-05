@@ -45,16 +45,17 @@ where each part was written. It bubbles where `parseUrl` does.
       };
       let queryEnd = if (log.fragmentStart >= 0) { log.fragmentStart - 1 } else { log.length };
       let usernameEnd = if (log.colonAt >= 0) { log.colonAt } else { log.lastAt };
+      let cursor = new SpanCursor();
       new UrlSource(
         input, urlOf(record),
-        spanOf(log, input, if (log.schemeEnd >= 0) { 0 } else { -1 }, log.schemeEnd),
-        spanOf(log, input, if (log.lastAt >= 0) { log.userinfoStart } else { -1 }, usernameEnd),
-        spanOf(log, input, if (log.colonAt >= 0) { log.colonAt + 1 } else { -1 }, log.lastAt),
-        spanOf(log, input, log.hostStart, log.hostEnd),
-        spanOf(log, input, log.portStart, log.portEnd),
-        spanOf(log, input, log.pathStart, pathEnd),
-        spanOf(log, input, log.queryStart, queryEnd),
-        spanOf(log, input, log.fragmentStart, log.length),
+        spanOf(log, cursor, input, if (log.schemeEnd >= 0) { 0 } else { -1 }, log.schemeEnd),
+        spanOf(log, cursor, input, if (log.lastAt >= 0) { log.userinfoStart } else { -1 }, usernameEnd),
+        spanOf(log, cursor, input, if (log.colonAt >= 0) { log.colonAt + 1 } else { -1 }, log.lastAt),
+        spanOf(log, cursor, input, log.hostStart, log.hostEnd),
+        spanOf(log, cursor, input, log.portStart, log.portEnd),
+        spanOf(log, cursor, input, log.pathStart, pathEnd),
+        spanOf(log, cursor, input, log.queryStart, queryEnd),
+        spanOf(log, cursor, input, log.fragmentStart, log.length),
       )
     }
 
@@ -149,31 +150,45 @@ log.
 The span from `start` to `end` in the cleaned input, as counts of code
 points, mapped back to the input as given; null if `start` is -1.
 
-    let spanOf(log: ErrorLog, input: String, start: Int, end: Int): SourceSpan? {
+    let spanOf(
+      log: ErrorLog, cursor: SpanCursor, input: String, start: Int, end: Int,
+    ): SourceSpan? {
       if (start < 0 || end < start) {
         null
       } else {
         let from = positionIn(log, start);
         let to = endIn(log, start, end);
-        new SourceSpan(from, to - from, codePointSlice(input, from, to))
+        let i = seekTo(cursor, input, from);
+        new SourceSpan(from, to - from, input.slice(i, seekTo(cursor, input, to)))
       }
     }
 
-The code points of `s` from `start` to `end`, counted from 0.
+Where the spans have got to in the input as given: a string index, and
+its count of code points from 0. The parts come in order, so finding
+each span's ends from the last walks the input about once.
 
-    let codePointSlice(s: String, start: Int, end: Int): String {
-      var i = String.begin;
-      var k = 0;
-      while (k < start && s.hasIndex(i)) {
+    class SpanCursor {
+      public var index: StringIndex = String.begin;
+      public var count: Int = 0;
+    }
+
+The string index of code point `to` in `s`, counted from 0, or the end
+if `s` is shorter, moving `cursor` there, forward or back.
+
+    let seekTo(cursor: SpanCursor, s: String, to: Int): StringIndex {
+      var i = cursor.index;
+      var k = cursor.count;
+      while (k < to && s.hasIndex(i)) {
         i = s.next(i);
         k += 1;
       }
-      var j = i;
-      while (k < end && s.hasIndex(j)) {
-        j = s.next(j);
-        k += 1;
+      while (k > to) {
+        i = s.prev(i);
+        k -= 1;
       }
-      s.slice(i, j)
+      cursor.index = i;
+      cursor.count = k;
+      i
     }
 
 ## Tests
