@@ -32,7 +32,8 @@ struct Pair {
   std::string base;
 };
 
-static std::string parse(const Pair& pair) {
+// Results stay Temper's shared strings, as a std::string would copy each.
+static temper::core::Str parse(const Pair& pair) {
   try {
     auto url = pair.hasBase ? hrefine::parseUrl(pair.input, pair.base) : hrefine::parseUrl(pair.input);
     return url->hrefWithCredentials();
@@ -41,7 +42,7 @@ static std::string parse(const Pair& pair) {
   }
 }
 
-static std::string toAscii(const std::string& domain) {
+static temper::core::Str toAscii(const std::string& domain) {
   try {
     return hrefine::domainToAscii(domain);
   } catch (...) {
@@ -52,7 +53,7 @@ static std::string toAscii(const std::string& domain) {
 // Nanoseconds per item, after warming up for `seconds`, running
 // over `items` for `seconds` more.
 template <typename T>
-static double rate(std::function<std::string(const T&)> run, const std::vector<T>& items) {
+static double rate(std::function<temper::core::Str(const T&)> run, const std::vector<T>& items) {
   size_t sink = 0;
   auto start = Clock::now();
   while (since(start) < seconds) {

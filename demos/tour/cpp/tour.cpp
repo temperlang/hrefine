@@ -23,6 +23,7 @@ using hrefine::domainToUnicode;
 using hrefine::parseHost;
 using hrefine::parseUrl;
 using hrefine::parseUrlSource;
+using temper::core::Str;
 using temper::core::TemperBubble;
 
 void section(std::string const &title) { std::cout << "\n## " << title << "\n"; }
@@ -245,7 +246,7 @@ int main() {
   }
   std::cout << "with search params: " << page->withSearchParams(params)->get_href() << "\n";
   // Or from pairs of names and values.
-  using StringPair = temper::core::Pair<std::string, std::string>;
+  using StringPair = temper::core::Pair<Str, Str>;
   auto pairs = std::make_shared<std::vector<std::shared_ptr<StringPair>>>();
   pairs->push_back(std::make_shared<StringPair>("q", "a b"));
   pairs->push_back(std::make_shared<StringPair>("page", "2"));
@@ -277,7 +278,7 @@ int main() {
   // no credentials and no private, loopback, or other special addresses or
   // names, and only the scheme's default port; this one adds example.com or
   // its subdomains. Reasons never show credentials.
-  using Strings = std::vector<std::string>;  // snippet: policy
+  using Strings = std::vector<temper::core::Str>;  // snippet: policy
   auto policy = UrlPolicy::fetch()->withSubdomainsOf(std::make_shared<Strings>(Strings{"example.com"}));  // snippet: policy
   std::vector<std::string> inputs = {"https://api.example.com/v1/items", "http://example.com/", "https://example.com@evil.example/",
                                        "https://127.1/", "https://169.254.169.254/latest/meta-data/",
@@ -296,7 +297,7 @@ int main() {
   // matching nothing.
   auto more = policy->withPorts(std::make_shared<std::vector<int32_t>>(std::vector<int32_t>{8443}))->check("https://example.com:8443/");
   auto passed = more->get_url();
-  std::cout << "with port 8443: " << (passed ? passed->get_href() : "refuse, " + more->toString()) << "\n";
+  std::cout << "with port 8443: " << (passed ? passed->get_href().str() : "refuse, " + more->toString()) << "\n";
   try {
     UrlPolicy::fetch()->withHosts(std::make_shared<Strings>(Strings{"example.com:443"}));
     std::cout << "allowlist example.com:443: taken\n";

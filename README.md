@@ -281,7 +281,7 @@ them, the language's own `==` compares objects, not URLs, so use `eq`
 
 | Language | As a string | Also |
 |---|---|---|
-| C++ | `url->toString()`; `<<` doesn't take a `Url` | Fields are public and writable, so nothing is immutable, and the header shows every internal. Constructors are public, so a `Url` or a passing `PolicyCheck` needn't come from the library. A missing number is Temper's `NullableParam`, with `has_value`. |
+| C++ | `url->toString()`; `<<` doesn't take a `Url` | Fields are public and writable, so nothing is immutable, and the header shows every internal. Constructors are public, so a `Url` or a passing `PolicyCheck` needn't come from the library. A missing number is Temper's `NullableParam`, with `has_value`. Strings are Temper's `temper::core::Str`, which converts to and from `std::string`, so lists going in are `std::vector<temper::core::Str>`, and `?:` with a `std::string` needs `.str()`. |
 | C# | `ToString()` and `$"{url}"` mask credentials | Functions are on `HrefineGlobal`. Constructors are public. |
 | Java | `toString()` and `+` mask credentials | Functions are on `HrefineGlobal`. Gson, which reads fields, writes the credentials; Jackson, which reads getters, doesn't. |
 | JavaScript | `toString()` and templates mask credentials | Constructors are public. |
