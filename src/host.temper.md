@@ -346,11 +346,9 @@ size, so the errors come in its order.
       }
       let bytesLeft = 5 - count;
 
-The last number must fit in the bytes left, so shifting them out leaves
-zero. (Comparing with `1i64 << (8 * bytesLeft)` would read better, but
-Temper's Java backend writes `1i64` as an `int`, so the shift wraps.)
+The last number must fit in the bytes left.
 
-      if ((last >> (8 * bytesLeft)) != 0i64) {
+      if (last >= (1i64 << (8 * bytesLeft))) {
         bubble();
       }
       (ipv4 << (8 * bytesLeft)) | last

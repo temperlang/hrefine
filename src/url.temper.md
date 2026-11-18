@@ -983,11 +983,9 @@ setters (`withHost` and the rest) do, it only drops tabs and newlines.
       }
     }
 
-Most input has nothing to remove, which is quick to see. Splitting
+Most input has nothing to remove, which is quick to see: `indexOf`
 checks for tabs and newlines in each language's own code, much faster
-than a loop here in some, while `indexOf` isn't safe for this in C#,
-where Temper's translation compares by culture, which can skip some
-control characters (as of 2026-10-29).
+than a loop here in some.
 
     let isClean(input: String): Boolean {
       if (!input.hasIndex(String.begin)) {
@@ -998,8 +996,8 @@ control characters (as of 2026-10-29).
     }
 
     let hasNoTabs(input: String): Boolean {
-      input.split("\t").length == 1 && input.split("\n").length == 1 &&
-        input.split("\r").length == 1
+      !(input.indexOf("\t") is StringIndex) && !(input.indexOf("\n") is StringIndex) &&
+        !(input.indexOf("\r") is StringIndex)
     }
 
 Then it runs a state machine over the input's code points, one at a
@@ -1263,24 +1261,18 @@ last segment.
             url.host = base.host;
             url.port = base.port;
             url.path.addAll(base.path);
-
-The standard copies the base's query and then sets it to null if a path
-follows. Here it's copied only where it's kept, since Temper's Rust
-backend can't yet compile assigning `null` to this property.
-
+            url.query = base.query;
             if (c == char'?') {
               inQuery = true;
               state = queryState;
             } else if (c == char'#') {
-              url.query = base.query;
               inFragment = true;
               state = fragmentState;
             } else if (c != eof) {
+              url.query = null;
               shortenPath(url);
               state = pathState;
               again = true;
-            } else {
-              url.query = base.query;
             }
           }
 

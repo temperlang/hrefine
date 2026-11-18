@@ -231,12 +231,9 @@ RFC 3492's own samples, among others.
       let valid: List<Int>? = punycodeDecode(codes("a"), 0) orelse null;
       assert(valid != null);  // U+0080: not valid in a domain, but valid Punycode.
       let truncated: List<Int>? = punycodeDecode(codes("z"), 0) orelse null;
-      let truncatedFails = truncated == null;  // Not in `assert`, for a Temper bug.
-      assert(truncatedFails);
+      assert(truncated == null);
       let notDigit: List<Int>? = punycodeDecode(codes("a!"), 0) orelse null;
-      let notDigitFails = notDigit == null;  // Not in `assert`, for a Temper bug.
-      assert(notDigitFails);
+      assert(notDigit == null);
       let tooBig: List<Int>? = punycodeDecode(codes("zzzzzzzzzzzzzz"), 0) orelse null;
-      let tooBigFails = tooBig == null;  // Not in `assert`, for a Temper bug.
-      assert(tooBigFails);
+      assert(tooBig == null);
     }

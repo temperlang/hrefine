@@ -304,11 +304,7 @@ credentials, so that they roundtrip too.
       let y = percentDecode(b);
       var same = x.length == y.length;
       for (var k = 0; same && k < x.length; k += 1) {
-        // Each byte in a local first: Temper's Java backend compares
-        // `x[k] == y[k]` as boxed `Integer`s, by reference (2026-10-30).
-        let a = x[k];
-        let b = y[k];
-        same = a == b;
+        same = x[k] == y[k];
       }
       same
     }

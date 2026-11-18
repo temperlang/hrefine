@@ -706,8 +706,7 @@ says; an empty host is the local machine, as in `file:///etc/passwd`.
     }
 
 Whether `address` starts with the first `bits` bits of `block`, both in
-16-bit pieces of the same count. Each piece is copied before comparing,
-since Temper's Java backend compares list elements as boxed objects.
+16-bit pieces of the same count.
 
     let inBlock(address: List<Int>, block: List<Int>, bits: Int): Boolean {
       var matches = bits >= 0 && address.length == block.length;

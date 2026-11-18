@@ -273,9 +273,8 @@ don't spell one whole, in its shortest form, and not a surrogate.
       if (length == 1) {
         return -1;
       }
-      // The lead byte's payload: 5, 4, or 3 bits. (Not `0x7F >> length`,
-      // which Temper's Rust backend can't compile, as of 2026-10-30.)
-      var code = first & (if (length == 2) { 0x1F } else if (length == 3) { 0xF } else { 0x7 });
+      // The lead byte's payload: 5, 4, or 3 bits.
+      var code = first & (0x7F >> length);
       var j = escapeAfter(s, i);
       for (var k = 1; k < length; k += 1) {
         let byte = if (s.hasIndex(j)) { escapedByte(s, j) } else { -1 };

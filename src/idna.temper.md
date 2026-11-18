@@ -233,11 +233,7 @@ Punycode's are all ASCII.
         let normal = toNfc(label);
         var same = normal.length == label.length;
         for (var k = 0; k < label.length && same; k += 1) {
-          // Locals, as Temper's Java backend compares `normal[k] ==
-          // label[k]` as boxed `Integer`s, by reference (2026-10-30).
-          let a = normal[k];
-          let b = label[k];
-          same = a == b;
+          same = normal[k] == label[k];
         }
         same
       }

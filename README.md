@@ -501,8 +501,8 @@ checks each name on a card, as each language spells it, against that
 language's tour (`site/spell-node.mjs`). CI runs every tour, so every
 snippet runs. Visits are counted
 by cookieless GoatCounter, site code `hrefine`. CI
-(`.github/workflows/site.yml`) builds the site on every change and
-publishes it to GitHub Pages from `main`.
+(the `site` job in `.github/workflows/test.yml`) builds the site on
+every change and publishes it to GitHub Pages from `main`.
 
 ## Languages
 
@@ -589,8 +589,10 @@ prints the same text (see [demos](demos/README.md)):
 
     uv run demos/run.py
 
-CI runs the tests and the tour on every backend for pull requests and
-pushes to `main`, using Temper's nightly `dev` build.
+CI runs the tests on the interpreter and every backend, and the tour
+in every language, for pull requests and pushes to `main`, with
+Temper's new compiler built from a pinned commit (`TEMPEST_COMMIT` in
+`.github/workflows/test.yml`).
 
 Regenerate the tests from web-platform-tests' data, and the IDNA tables
 from Unicode's (which `scripts/unicode_data.py` downloads and checks):
