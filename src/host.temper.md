@@ -19,13 +19,15 @@ international domain name, an IPv4 address out of range, or nothing at
 all. Unlike `domainToAscii`, it checks a host, so use it for that.
 
     export let parseHost(input: String): Host throws Bubble {
-      let serialized = runHostParser(input, false, null, 0);
-      new Host(kindOfHost(serialized, true), serialized)
+      let host = Host.parse(input);
+      if (host == null) { bubble() } else { host }
     }
 
 A parsed host: what kind it is, and its
 [serialization](https://url.spec.whatwg.org/#concept-host-serializer),
-as a URL's `hostname` gives it, which `toString` gives too.
+as a URL's `hostname` gives it, which `toString` gives too. The
+constructor is private, so every `Host` is a parsed one: `Host.parse`
+is the same as `parseHost`, but gives null where that bubbles.
 
     export class Host {
       public kind: HostKind;
@@ -34,6 +36,11 @@ as a URL's `hostname` gives it, which `toString` gives too.
       private constructor(kind: HostKind, serialized: String) {
         this.kind = kind;
         this.serialized = serialized;
+      }
+
+      public static parse(input: String): Host? {
+        let serialized: String? = runHostParser(input, false, null, 0) orelse null;
+        if (serialized == null) { null } else { new Host(kindOfHost(serialized, true), serialized) }
       }
 
       public toString(): String { serialized }

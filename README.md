@@ -220,7 +220,9 @@ identical output.
   `policy.check(input)` gives a `PolicyCheck`, with the `url` if it
   passed, or the first `rule` it failed (a `PolicyRule`, such as
   `PolicyRule.specialHost`) and a `reason`, which may name a host but
-  never credentials, so it's safe to log; it never bubbles. See
+  never credentials, so it's safe to log; it never bubbles. Only a
+  check makes a `PolicyCheck`, and a policy's rules read back as
+  properties named for them, such as `policy.schemes`. See
   [policy](src/policy.temper.md) for each rule and the table of special
   addresses.
 - `UrlDisplay`: a URL formatted for people, as browsers' address bars

@@ -25,19 +25,28 @@ if (result.url != null) { fetchUrl(result.url.href) } else { log(result.toString
 
 ## Rules
 
+Each rule reads back as a property named for it: `strict`, `maxLength`
+(negative for none), `base`, `schemes` (lowercase, without `:`),
+`credentials`, `ipHosts`, `specialHosts`, `hosts` and `domains`
+(parsed, without a trailing dot), `ports` (beside the defaults),
+`origin`, and `pathOnly`. Without a rule, each is as in
+`UrlPolicy.any`: null for lists and URLs, `false` for `strict` and
+`pathOnly`, and `true` for the rest. `PolicyCheck` reads them to check, since Temper's `private`
+is per class.
+
     export class UrlPolicy {
-      private strict: Boolean;
-      private maxLength: Int;
-      private base: Url?;
-      private schemes: List<String>?;
-      private credentials: Boolean;
-      private ipHosts: Boolean;
-      private specialHosts: Boolean;
-      private hosts: List<String>?;
-      private domains: List<String>?;
-      private ports: List<Int>?;
-      private origin: Url?;
-      private pathOnly: Boolean;
+      public strict: Boolean;
+      public maxLength: Int;
+      public base: Url?;
+      public schemes: List<String>?;
+      public credentials: Boolean;
+      public ipHosts: Boolean;
+      public specialHosts: Boolean;
+      public hosts: List<String>?;
+      public domains: List<String>?;
+      public ports: List<Int>?;
+      public origin: Url?;
+      public pathOnly: Boolean;
 
 The constructor is private, so policies start from `UrlPolicy.any`. Its
 parameters are plain types, since Temper's C# backend makes private
@@ -272,91 +281,11 @@ in this order: the input's length, parsing, strict mode,
 `hrefWithCredentials()`'s length, the scheme, credentials, IP hosts,
 special hosts, the host allowlist, the port, the same origin, and path
 only. It says which rule failed
-first, or gives the URL. It never bubbles.
+first, or gives the URL. It never bubbles. It's `PolicyCheck.check`,
+which checks inside `PolicyCheck`, since only `PolicyCheck` makes one.
 
-      public check(input: String): PolicyCheck {
-        if (maxLength >= 0 && input.hasAtLeast(String.begin, input.end, maxLength + 1)) {
-          refuse(PolicyRule.maxLength, "the input is longer than ${maxLength.toString()} code points")
-        } else if (strict) {
-          let b = base;
-          // The base's full form, as resolve uses it, credentials and all.
-          let baseText: String? = if (b == null) { null } else { b.hrefWithCredentials() };
-          let found: UrlCheck? = checkUrl(input, baseText) orelse null;
-          let url: Url? = if (found == null) { null } else { found.url };
-          let errors: List<ValidationError> = if (found == null) { [] } else { found.strictErrors };
-          if (url == null) {
-            refuse(PolicyRule.parse, "not a URL")
-          } else if (!errors.isEmpty) {
-            refuse(PolicyRule.strict, errors[0].toString())
-          } else {
-            checkParsed(input, url)
-          }
-        } else {
-          let b = base;
-          let url = if (b == null) { Url.parse(input) } else { b.tryResolve(input) };
-          if (url == null) {
-            refuse(PolicyRule.parse, "not a URL")
-          } else {
-            checkParsed(input, url)
-          }
-        }
-      }
-
-The rules after parsing. An opaque host, in a URL that isn't special,
-is read as a special URL's host would be (`gopher://0x7f.1/` has
-`127.0.0.1`), since other clients may read it so; one that can't be
-read that way fails the host rules.
-
-      private checkParsed(input: String, url: Url): PolicyCheck {
-        // Credentials count toward the length, as a client sending them would.
-        let href = url.hrefWithCredentials();
-        var kind = url.hostKind;
-        var host = url.hostname;
-        var unreadable = false;
-        if (kind == HostKind.opaque) {
-          let parsed: Host? = parseHost(host) orelse null;
-          if (parsed == null) {
-            unreadable = true;
-          } else {
-            kind = parsed.kind;
-            host = parsed.serialized;
-          }
-        }
-        let allowedSchemes = schemes;
-        let exactHosts = hosts;
-        let underDomains = domains;
-        let allowedPorts = ports;
-        let port = url.portNumber;
-        let sameAs = origin;
-        let special = if (specialHosts) { null } else { specialHostReason(kind, host, unreadable) };
-        if (maxLength >= 0 && href.hasAtLeast(String.begin, href.end, maxLength + 1)) {
-          refuse(PolicyRule.maxLength, "the URL is longer than ${maxLength.toString()} code points")
-        } else if (allowedSchemes != null && !hasString(allowedSchemes, url.scheme)) {
-          refuse(PolicyRule.scheme, schemeReason(url.scheme))
-        } else if (!credentials && (url.username() != "" || url.password() != "")) {
-          refuse(PolicyRule.credentials, credentialsReason(url))
-        } else if (!ipHosts && (kind == HostKind.ipv4 || kind == HostKind.ipv6)) {
-          refuse(PolicyRule.ipHost, "${host}, ${kindName(kind)}")
-        } else if (special != null) {
-          refuse(PolicyRule.specialHost, special)
-        } else if (
-          (exactHosts != null || underDomains != null) &&
-            (unreadable || !hostAllowed(kind, host, exactHosts, underDomains))
-        ) {
-          refuse(PolicyRule.host, if (url.hostname == "") { "no host" } else { url.hostname })
-        } else if (allowedPorts != null && port != null && !hasInt(allowedPorts, port)) {
-          refuse(PolicyRule.port, url.port)
-        } else if (sameAs != null && !url.sameOrigin(sameAs)) {
-          refuse(PolicyRule.sameOrigin, url.origin)
-        } else if (pathOnly && !isPathOnly(input, url, base)) {
-          refuse(PolicyRule.pathOnly, if (base == null) { "no base" } else { "not just a path, query, or fragment" })
-        } else {
-          new PolicyCheck(url, null, "")
-        }
-      }
+      public check(input: String): PolicyCheck { PolicyCheck.check(this, input) }
     }
-
-    let refuse(rule: PolicyRule, reason: String): PolicyCheck { new PolicyCheck(null, rule, reason) }
 
     let kindName(kind: HostKind?): String { if (kind == null) { "no" } else { kind.name } }
 
@@ -496,7 +425,11 @@ What a policy found: the URL, if it passed every rule, or else null,
 with the rule it failed first and why, for logs, as
 `specialHost: 127.0.0.1 is loopback (RFC 1122), in 127.0.0.0/8`. A
 reason may name a host, a well-known scheme, or an origin, but never
-credentials or the input, so it's safe to log; the URL isn't.
+credentials or the input, so it's safe to log; the URL isn't. Only
+checking makes one: the constructor is private, and only
+`PolicyCheck.check` calls it, so one that passed means its URL passed a
+policy, though not which. (Temper's C++, C#, JavaScript, Lua, and
+Python backends make constructors public, though; see the README.)
 
     export class PolicyCheck {
       public url: Url?;
@@ -508,6 +441,96 @@ credentials or the input, so it's safe to log; the URL isn't.
         this.rule = rule;
         this.reason = reason;
       }
+
+The same as `policy.check(input)`.
+
+      public static check(policy: UrlPolicy, input: String): PolicyCheck {
+        let maxLength = policy.maxLength;
+        if (maxLength >= 0 && input.hasAtLeast(String.begin, input.end, maxLength + 1)) {
+          PolicyCheck.refuse(PolicyRule.maxLength, "the input is longer than ${maxLength.toString()} code points")
+        } else if (policy.strict) {
+          let b = policy.base;
+          // The base's full form, as resolve uses it, credentials and all.
+          let baseText: String? = if (b == null) { null } else { b.hrefWithCredentials() };
+          let found: UrlCheck? = checkUrl(input, baseText) orelse null;
+          let url: Url? = if (found == null) { null } else { found.url };
+          let errors: List<ValidationError> = if (found == null) { [] } else { found.strictErrors };
+          if (url == null) {
+            PolicyCheck.refuse(PolicyRule.parse, "not a URL")
+          } else if (!errors.isEmpty) {
+            PolicyCheck.refuse(PolicyRule.strict, errors[0].toString())
+          } else {
+            PolicyCheck.checkParsed(policy, input, url)
+          }
+        } else {
+          let b = policy.base;
+          let url = if (b == null) { Url.parse(input) } else { b.tryResolve(input) };
+          if (url == null) {
+            PolicyCheck.refuse(PolicyRule.parse, "not a URL")
+          } else {
+            PolicyCheck.checkParsed(policy, input, url)
+          }
+        }
+      }
+
+The rules after parsing. An opaque host, in a URL that isn't special,
+is read as a special URL's host would be (`gopher://0x7f.1/` has
+`127.0.0.1`), since other clients may read it so; one that can't be
+read that way fails the host rules.
+
+      private static checkParsed(policy: UrlPolicy, input: String, url: Url): PolicyCheck {
+        let maxLength = policy.maxLength;
+        let base = policy.base;
+        // Credentials count toward the length, as a client sending them would.
+        let href = url.hrefWithCredentials();
+        var kind = url.hostKind;
+        var host = url.hostname;
+        var unreadable = false;
+        if (kind == HostKind.opaque) {
+          let parsed = Host.parse(host);
+          if (parsed == null) {
+            unreadable = true;
+          } else {
+            kind = parsed.kind;
+            host = parsed.serialized;
+          }
+        }
+        let allowedSchemes = policy.schemes;
+        let exactHosts = policy.hosts;
+        let underDomains = policy.domains;
+        let allowedPorts = policy.ports;
+        let port = url.portNumber;
+        let sameAs = policy.origin;
+        let special = if (policy.specialHosts) { null } else { specialHostReason(kind, host, unreadable) };
+        if (maxLength >= 0 && href.hasAtLeast(String.begin, href.end, maxLength + 1)) {
+          PolicyCheck.refuse(PolicyRule.maxLength, "the URL is longer than ${maxLength.toString()} code points")
+        } else if (allowedSchemes != null && !hasString(allowedSchemes, url.scheme)) {
+          PolicyCheck.refuse(PolicyRule.scheme, schemeReason(url.scheme))
+        } else if (!policy.credentials && (url.username() != "" || url.password() != "")) {
+          PolicyCheck.refuse(PolicyRule.credentials, credentialsReason(url))
+        } else if (!policy.ipHosts && (kind == HostKind.ipv4 || kind == HostKind.ipv6)) {
+          PolicyCheck.refuse(PolicyRule.ipHost, "${host}, ${kindName(kind)}")
+        } else if (special != null) {
+          PolicyCheck.refuse(PolicyRule.specialHost, special)
+        } else if (
+          (exactHosts != null || underDomains != null) &&
+            (unreadable || !hostAllowed(kind, host, exactHosts, underDomains))
+        ) {
+          PolicyCheck.refuse(PolicyRule.host, if (url.hostname == "") { "no host" } else { url.hostname })
+        } else if (allowedPorts != null && port != null && !hasInt(allowedPorts, port)) {
+          PolicyCheck.refuse(PolicyRule.port, url.port)
+        } else if (sameAs != null && !url.sameOrigin(sameAs)) {
+          PolicyCheck.refuse(PolicyRule.sameOrigin, url.origin)
+        } else if (policy.pathOnly && !isPathOnly(input, url, base)) {
+          PolicyCheck.refuse(PolicyRule.pathOnly, if (base == null) { "no base" } else { "not just a path, query, or fragment" })
+        } else {
+          PolicyCheck.allow(url)
+        }
+      }
+
+      private static allow(url: Url): PolicyCheck { new PolicyCheck(url, null, "") }
+
+      private static refuse(rule: PolicyRule, reason: String): PolicyCheck { new PolicyCheck(null, rule, reason) }
 
       public get passed(): Boolean { rule == null }
 
@@ -1342,4 +1365,56 @@ for one rule or another, and never echoes credentials in its reasons.
       long.append("a");
       assert(UrlPolicy.fetch.check(long.toString()).rule == PolicyRule.maxLength) { "max length" };
       assert(UrlPolicy.fetch.withSchemes(["http"]).check("http://example.com/").url != null);
+    }
+
+A `PolicyCheck` comes only from checking: its constructor is private,
+and `PolicyCheck.check`, which a policy's `check` calls, is the only
+thing that makes one, so the only way to get one that passed is for a
+URL to pass. Here both ways agree, the rules read back as set, and a
+URL only passes the rules it meets.
+
+    test("Policies: a check comes only from checking") {
+      let base = parseUrl("https://good.example/app/") orelse panic();
+      let policy = (
+        UrlPolicy.fetch.withMaxLength(100).withBase(base).withSchemes(["HTTPS:", "http"])
+          .withSubdomainsOf(["Good.Example."]) orelse panic()
+      ).withPorts([8443]) orelse panic();
+      let policyBase = policy.base;
+      assert(policy.strict && policy.maxLength == 100 && policyBase != null && policyBase.href == base.href);
+      let schemes = policy.schemes;
+      assert(schemes != null && schemes.join(",") { s => s } == "https,http");
+      assert(!policy.credentials && policy.ipHosts && !policy.specialHosts);
+      let domains = policy.domains;
+      assert(policy.hosts == null && domains != null && domains.join(",") { d => d } == "good.example");
+      let ports = policy.ports;
+      assert(ports != null && ports.length == 1 && ports[0] == 8443);
+      assert(policy.origin == null && !policy.pathOnly);
+      let any = UrlPolicy.any;
+      assert(!any.strict && any.maxLength < 0 && any.base == null && any.schemes == null);
+      assert(any.credentials && any.ipHosts && any.specialHosts && any.hosts == null);
+      assert(any.domains == null && any.ports == null && any.origin == null && !any.pathOnly);
+      let long = new StringBuilder();
+      long.append("/");
+      for (var k = 0; k < 100; k += 1) {
+        long.append("a");
+      }
+      let cases = [
+        "/a", "passed https://good.example/a",
+        "https://api.good.example:8443/", "passed https://api.good.example:8443/",
+        "https://evil.example/", "host: evil.example",
+        "https://good.example:444/", "port: 444",
+        "ftp://good.example/", "scheme: ftp",
+        "https://u@good.example/", "strict: invalid-credentials at 9",
+        "https://exa mple/", "parse: not a URL",
+        long.toString(), "maxLength: the input is longer than 100 code points",
+      ];
+      for (var k = 0; k < cases.length; k += 2) {
+        let viaPolicy = policy.check(cases[k]);
+        let viaCheck = PolicyCheck.check(policy, cases[k]);
+        let url = viaCheck.url;
+        let got = if (url == null) { viaCheck.toString() } else { "passed ${url.href}" };
+        assert(got == cases[k + 1]) { "${cases[k]}: ${got}" };
+        assert(viaPolicy.toString() == viaCheck.toString() && viaPolicy.passed == viaCheck.passed);
+        assert(viaCheck.passed == (url != null) && (viaCheck.reason == "") == viaCheck.passed);
+      }
     }
