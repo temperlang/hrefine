@@ -30,33 +30,12 @@ source.pathSpan.asWritten;      // "/a\tb"
 ## The API
 
 Parses `input`, against `base` if given, as `parseUrl` does, and keeps
-where each part was written. It bubbles where `parseUrl` does.
+where each part was written. It bubbles where `parseUrl` does. It's
+`Url.parseSource`, which parses inside `Url`, since only `Url` makes
+one.
 
     export let parseUrlSource(input: String, base: String? = null): UrlSource throws Bubble {
-      let baseRecord = if (base == null) { noBase } else { parseRecord(base, noBase, false, null) };
-      let log = new ErrorLog();
-      let record = parseRecord(input, baseRecord, base != null, log);
-      let pathEnd = if (log.queryStart >= 0) {
-        log.queryStart - 1
-      } else if (log.fragmentStart >= 0) {
-        log.fragmentStart - 1
-      } else {
-        log.length
-      };
-      let queryEnd = if (log.fragmentStart >= 0) { log.fragmentStart - 1 } else { log.length };
-      let usernameEnd = if (log.colonAt >= 0) { log.colonAt } else { log.lastAt };
-      let cursor = new SpanCursor();
-      new UrlSource(
-        input, urlOf(record),
-        spanOf(log, cursor, input, if (log.schemeEnd >= 0) { 0 } else { -1 }, log.schemeEnd),
-        spanOf(log, cursor, input, if (log.lastAt >= 0) { log.userinfoStart } else { -1 }, usernameEnd),
-        spanOf(log, cursor, input, if (log.colonAt >= 0) { log.colonAt + 1 } else { -1 }, log.lastAt),
-        spanOf(log, cursor, input, log.hostStart, log.hostEnd),
-        spanOf(log, cursor, input, log.portStart, log.portEnd),
-        spanOf(log, cursor, input, log.pathStart, pathEnd),
-        spanOf(log, cursor, input, log.queryStart, queryEnd),
-        spanOf(log, cursor, input, log.fragmentStart, log.length),
-      )
+      Url.parseSource(input, base)
     }
 
 A URL and where its parts were written. Each span is null where the
@@ -65,7 +44,8 @@ URL without credentials, or a port, and so on. A part written empty, as
 the query in `https://example.com/?`, has an empty span, where it would
 go. Spans leave out the delimiters: the scheme's `:`, `//`, `@`, the
 port's `:`, `?`, and `#`, but the path keeps its leading `/`, as
-`pathname` does.
+`pathname` does. It's a plain record, whose public constructor checks
+nothing, as nothing here is checked but `url`, which only parsing makes.
 
     export class UrlSource {
 
@@ -107,7 +87,7 @@ last `@`.
       private usernameSpanValue: SourceSpan?;
       private passwordSpanValue: SourceSpan?;
 
-      private constructor(
+      public constructor(
         asWritten: String, url: Url, schemeSpan: SourceSpan?, usernameSpan: SourceSpan?,
         passwordSpan: SourceSpan?, hostSpan: SourceSpan?, portSpan: SourceSpan?,
         pathSpan: SourceSpan?, querySpan: SourceSpan?, fragmentSpan: SourceSpan?,
@@ -131,14 +111,14 @@ nor checked, so never for security decisions, and may contain
 credentials and other secrets, so don't log it. It includes any tabs and
 newlines the parser removed inside it. `toString` gives only where it
 is, as `start+length`, such as `9+11`, never the text, so it's safe to
-log.
+log. It's a plain record, with a public constructor.
 
     export class SourceSpan {
       public start: Int;
       public length: Int;
       public asWritten: String;
 
-      private constructor(start: Int, length: Int, asWritten: String) {
+      public constructor(start: Int, length: Int, asWritten: String) {
         this.start = start;
         this.length = length;
         this.asWritten = asWritten;
@@ -284,4 +264,29 @@ host or port, or the stripped ends, counted in the input as given.
         };
         assert(got == cases[k + 1]) { "${cases[k]}: ${got}" };
       }
+    }
+
+`UrlCheck`, `ValidationError`, `UrlSource`, and `SourceSpan` are plain
+records, with public constructors, so code can make them, as for tests
+of its own; they hold what they're given.
+
+    test("plain records") {
+      let error = new ValidationError("invalid-credentials", 12, 1);
+      assert(error.toString() == "invalid-credentials at 12" && error.length == 1);
+      let url = parseUrl("https://user@example.com/") orelse panic();
+      let check = new UrlCheck(url, [error], [error]);
+      let checked = check.url;
+      assert(checked != null && checked.href == url.href && check.errors.length == 1);
+      assert(check.strictUrl == null);
+      let strict = new UrlCheck(url, [error], []).strictUrl;
+      assert(strict != null && strict.href == url.href);
+      assert(new UrlCheck(null, [], []).strictUrl == null);
+      let span = new SourceSpan(8, 4, "user");
+      assert(span.toString() == "8+4" && span.asWritten == "user");
+      let source = new UrlSource(
+        "https://user@example.com/", url, new SourceSpan(0, 5, "https"), span, null,
+        new SourceSpan(13, 11, "example.com"), null, new SourceSpan(24, 1, "/"), null, null,
+      );
+      assert(spansOf(source) == "0+5[https] 8+4[user] - 13+11[example.com] - 24+1[/] - -");
+      assert(source.asWritten() == "https://user@example.com/" && source.url.href == url.href);
     }

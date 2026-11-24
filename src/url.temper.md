@@ -15,6 +15,8 @@ names: `parseUrl` bubbles where parsing fails, as `new URL()` throws,
 `Url.parse` gives null instead, and `Url.canParse` only says whether
 input parses. `checkUrl` says what was wrong, and a `Url` has typed
 parts, resolving, and an origin check beside the standard's strings.
+Only `Url` makes a `Url`, so `parseUrl`, `checkUrl`, and
+`parseUrlSource` call its statics.
 
 Parses `input`, against `base` if given, as the standard's [`URL`
 constructor](https://url.spec.whatwg.org/#dom-url-url) does: it bubbles
@@ -22,7 +24,8 @@ where the standard says parsing fails, including when `base` doesn't
 parse.
 
     export let parseUrl(input: String, base: String? = null): Url throws Bubble {
-      urlOf(parseAgainst(input, base))
+      let url = Url.parse(input, base);
+      if (url == null) { bubble() } else { url }
     }
 
     let parseAgainst(input: String, base: String?): UrlRecord throws Bubble {
@@ -39,11 +42,7 @@ only when asked, so `parseUrl` doesn't slow down for them. A `base`
 that doesn't parse still bubbles, since it's the caller's own.
 
     export let checkUrl(input: String, base: String? = null): UrlCheck throws Bubble {
-      let baseRecord = if (base == null) { noBase } else { parseRecord(base, noBase, false, null) };
-      let log = new ErrorLog();
-      let record: UrlRecord? = parseRecord(input, baseRecord, base != null, log) orelse null;
-      let url: Url? = if (record == null) { null } else { urlOf(record) };
-      new UrlCheck(url, log.errors.toList(), log.strict.toList())
+      Url.check(input, base)
     }
 
 What `checkUrl` found: the URL, or null, and the validation errors, in
@@ -59,14 +58,16 @@ four decimal numbers (`127.1`, `0x7f.1`, `2130706433`, `%31%32%37.1`,
 or full-width digits), and `domain-percent-encoded`, for escapes in a
 domain (`%65vil.example`). `strictUrl` is the URL if there are none, or
 else null, for input as cautious parsers would take it. See the
-[plan](../docs/plan.md), "Strict mode", for why.
+[plan](../docs/plan.md), "Strict mode", for why. It's a plain record,
+whose public constructor checks nothing, so `strictUrl` means strict
+only in one that `checkUrl` gave.
 
     export class UrlCheck {
       public url: Url?;
       public errors: List<ValidationError>;
       public strictErrors: List<ValidationError>;
 
-      private constructor(url: Url?, errors: List<ValidationError>, strictErrors: List<ValidationError>) {
+      public constructor(url: Url?, errors: List<ValidationError>, strictErrors: List<ValidationError>) {
         this.url = url;
         this.errors = errors;
         this.strictErrors = strictErrors;
@@ -86,14 +87,14 @@ the input). Leading and trailing spaces and controls are each one error
 for the run, and tabs and newlines one at the first. `toString` gives
 the name and position, as `domain-invalid-code-point at 8`, never the
 input, so it's safe to log; the input itself may contain credentials
-and other secrets.
+and other secrets. It's a plain record, with a public constructor.
 
     export class ValidationError {
       public name: String;
       public position: Int;
       public length: Int;
 
-      private constructor(name: String, position: Int, length: Int) {
+      public constructor(name: String, position: Int, length: Int) {
         this.name = name;
         this.position = position;
         this.length = length;
@@ -146,7 +147,47 @@ As JavaScript's [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse):
 the same as `parseUrl`, but null where that bubbles.
 
       public static parse(input: String, base: String? = null): Url? {
-        parseUrl(input, base) orelse null
+        let record: UrlRecord? = parseAgainst(input, base) orelse null;
+        if (record == null) { null } else { Url.ofRecord(record) }
+      }
+
+The same as `checkUrl`.
+
+      public static check(input: String, base: String? = null): UrlCheck throws Bubble {
+        let baseRecord = if (base == null) { noBase } else { parseRecord(base, noBase, false, null) };
+        let log = new ErrorLog();
+        let record: UrlRecord? = parseRecord(input, baseRecord, base != null, log) orelse null;
+        let url: Url? = if (record == null) { null } else { Url.ofRecord(record) };
+        new UrlCheck(url, log.errors.toList(), log.strict.toList())
+      }
+
+The same as `parseUrlSource`, in [source](source.temper.md).
+
+      public static parseSource(input: String, base: String? = null): UrlSource throws Bubble {
+        let baseRecord = if (base == null) { noBase } else { parseRecord(base, noBase, false, null) };
+        let log = new ErrorLog();
+        let record = parseRecord(input, baseRecord, base != null, log);
+        let pathEnd = if (log.queryStart >= 0) {
+          log.queryStart - 1
+        } else if (log.fragmentStart >= 0) {
+          log.fragmentStart - 1
+        } else {
+          log.length
+        };
+        let queryEnd = if (log.fragmentStart >= 0) { log.fragmentStart - 1 } else { log.length };
+        let usernameEnd = if (log.colonAt >= 0) { log.colonAt } else { log.lastAt };
+        let cursor = new SpanCursor();
+        new UrlSource(
+          input, Url.ofRecord(record),
+          spanOf(log, cursor, input, if (log.schemeEnd >= 0) { 0 } else { -1 }, log.schemeEnd),
+          spanOf(log, cursor, input, if (log.lastAt >= 0) { log.userinfoStart } else { -1 }, usernameEnd),
+          spanOf(log, cursor, input, if (log.colonAt >= 0) { log.colonAt + 1 } else { -1 }, log.lastAt),
+          spanOf(log, cursor, input, log.hostStart, log.hostEnd),
+          spanOf(log, cursor, input, log.portStart, log.portEnd),
+          spanOf(log, cursor, input, log.pathStart, pathEnd),
+          spanOf(log, cursor, input, log.queryStart, queryEnd),
+          spanOf(log, cursor, input, log.fragmentStart, log.length),
+        )
       }
 
 As JavaScript's [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse):
@@ -375,7 +416,7 @@ without parsing this one again: `ref` is parsed with this URL as its
 base. It bubbles where that fails; `tryResolve` gives null instead.
 
       public resolve(ref: String): Url throws Bubble {
-        urlOf(parseRecord(ref, toRecord(), true, null))
+        Url.ofRecord(parseRecord(ref, toRecord(), true, null))
       }
 
       public tryResolve(ref: String): Url? { resolve(ref) orelse null }
@@ -411,7 +452,7 @@ not a `file` URL.
         } else {
           let record = toRecord();
           record.username = percentEncodeString(username, userinfoSet);
-          urlOf(record)
+          Url.ofRecord(record)
         }
       }
 
@@ -421,7 +462,7 @@ not a `file` URL.
         } else {
           let record = toRecord();
           record.password = percentEncodeString(password, userinfoSet);
-          urlOf(record)
+          Url.ofRecord(record)
         }
       }
 
@@ -445,7 +486,7 @@ empty; not in a URL that can't have one.
         } else if (port == "") {
           let record = toRecord();
           record.port = -1;
-          urlOf(record)
+          Url.ofRecord(record)
         } else {
           withOverride(port, portState)
         }
@@ -473,7 +514,7 @@ percent-encoded; not for a URL with an opaque path.
         } else {
           let record = toRecord();
           record.path.clear();
-          applyOverride(record, pathname, pathStartState)
+          Url.applyOverride(record, pathname, pathStartState)
         }
       }
 
@@ -489,7 +530,7 @@ without a leading `#`, percent-encoded. An empty string removes them.
         } else {
           let record = toRecord();
           record.query = "";
-          applyOverride(record, withoutLeading(search, char'?'), queryState)
+          Url.applyOverride(record, withoutLeading(search, char'?'), queryState)
         }
       }
 
@@ -502,7 +543,7 @@ without a leading `#`, percent-encoded. An empty string removes them.
         } else {
           let record = toRecord();
           record.fragment = "";
-          applyOverride(record, withoutLeading(hash, char'#'), fragmentState)
+          Url.applyOverride(record, withoutLeading(hash, char'#'), fragmentState)
         }
       }
 
@@ -539,7 +580,7 @@ Runs the basic URL parser on `input`, from state `override`, to change
 a copy of this URL.
 
       private withOverride(input: String, override: Int): Url {
-        applyOverride(toRecord(), input, override)
+        Url.applyOverride(toRecord(), input, override)
       }
 
 This URL as a record again, to be a base. Path segments can't hold `/`,
@@ -566,15 +607,25 @@ back.
         record.fragment = fragment;
         record
       }
-    }
 
 Changes `record` by parsing `input` from state `override`, keeping
 whatever the parser changed, even where it then fails, as the standard's
 setters do, and gives the URL.
 
-    let applyOverride(record: UrlRecord, input: String, override: Int): Url {
-      let ignored: UrlRecord? = basicUrlParse(input, noBase, false, null, record, override) orelse null;
-      urlOf(record)
+      private static applyOverride(record: UrlRecord, input: String, override: Int): Url {
+        let ignored: UrlRecord? = basicUrlParse(input, noBase, false, null, record, override) orelse null;
+        Url.ofRecord(record)
+      }
+
+A `Url` from a parsed record: the only way to make one, so every `Url`
+is a parsed one.
+
+      private static ofRecord(record: UrlRecord): Url {
+        new Url(
+          record.scheme, record.username, record.password, record.host, record.port,
+          serializePath(record), record.query, record.fragment, record.hasOpaquePath,
+        )
+      }
     }
 
 `href` up to its fragment, if any. Only the fragment can hold a `#`,
@@ -592,15 +643,6 @@ which the path and query sets escape, and which ends an opaque path.
 
     let withoutLeading(s: String, c: Int): String {
       if (s.hasIndex(String.begin) && s[String.begin] == c) { s.slice(s.next(String.begin), s.end) } else { s }
-    }
-
-A `Url` from a parsed record.
-
-    let urlOf(record: UrlRecord): Url {
-      new Url(
-        record.scheme, record.username, record.password, record.host, record.port,
-        serializePath(record), record.query, record.fragment, record.hasOpaquePath,
-      )
     }
 
 ## Noting Validation Errors
